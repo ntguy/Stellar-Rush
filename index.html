@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Rush</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+        canvas { display: block; }
+        #hud {
+            position: absolute; top: 20px; left: 20px;
+            color: #fff; font-family: 'Courier New', monospace;
+            pointer-events: none;
+        }
+        #score { font-size: 28px; letter-spacing: 2px; }
+        #fuel-wrap {
+            width: 200px; height: 14px; margin-top: 8px;
+            background: rgba(255,255,255,0.1); border-radius: 7px;
+            border: 1px solid rgba(255,255,255,0.2); overflow: hidden;
+        }
+        #fuel-bar {
+            height: 100%; width: 100%; border-radius: 7px;
+            background: linear-gradient(90deg, #0af, #0ff);
+            transition: width 0.1s linear;
+        }
+        #fuel-bar.low { animation: pulse-fuel 0.4s infinite; }
+        @keyframes pulse-fuel { 50% { opacity: 0.5; } }
+        #boost-indicator {
+            font-size: 11px; color: #0ff; margin-top: 4px;
+            letter-spacing: 3px; opacity: 0; transition: opacity 0.15s;
+        }
+        #shield-indicator {
+            font-size: 11px; color: #33aaff; margin-top: 2px;
+            letter-spacing: 3px; opacity: 0; transition: opacity 0.15s;
+        }
+        #game-over {
+            position: absolute; inset: 0;
+            display: none; place-items: center;
+            background: rgba(0,0,0,0.75);
+            font-family: 'Courier New', monospace; color: #fff;
+            text-align: center;
+        }
+        #game-over.show { display: grid; }
+        #game-over h1 { font-size: 52px; color: #f43; letter-spacing: 6px; }
+        #game-over .sub { font-size: 22px; margin-top: 8px; color: #aaa; }
+        #game-over button {
+            margin-top: 28px; padding: 12px 40px;
+            font-family: inherit; font-size: 16px; letter-spacing: 2px;
+            background: #0af; color: #000; border: none;
+            cursor: pointer; transition: background 0.2s;
+        }
+        #game-over button:hover { background: #0cf; }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div id="score">0</div>
+        <div id="fuel-wrap"><div id="fuel-bar"></div></div>
+        <div id="boost-indicator">▸ BOOST</div>
+        <div id="shield-indicator">◆ SHIELD</div>
+    </div>
+    <div id="game-over">
+        <div>
+            <h1>GAME OVER</h1>
+            <div class="sub">SCORE <span id="final-score">0</span></div>
+            <button id="restart-btn">RETRY</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    </script>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

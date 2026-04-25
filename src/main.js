@@ -1,0 +1,903 @@
+import * as THREE from 'three';
+
+import {
+    BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z, PLANE_RADIUS,
+    FUEL_MAX, POWERUP_EVERY, PICKUP_EVERY,
+    OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
+    BOOST_SPEED_MULT, BOOST_SCORE_MULT, SHIELD_DURATION,
+    SAFE_ZONE_POOL_MAX,
+    matBody, matAccent, matGlow, matAsteroid, matLine,
+} from './config.js';
+
+import { nextObstacle, resetSequencer } from './patterns.js';
+import { enemies, spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
+import { pickups, spawnFuelPickup, spawnHighValuePickup, spawnLowValueFormation, spawnShieldPickup, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
+import {
+    playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
+    startShieldHum, startBoostHum, startFuelLowBeep,
+} from './audio.js';
+
+/* ═══════════════════════════════════════════════════════════
+   RENDERER  /  SCENE  /  CAMERA
+   ═══════════════════════════════════════════════════════════ */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000005);
+scene.fog = new THREE.FogExp2(0x000005, 0.0015);
+
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 600);
+camera.position.set(0, 5, 13);
+
+/* ═══════════════════════════════════════════════════════════
+   LIGHTS
+   ═══════════════════════════════════════════════════════════ */
+scene.add(new THREE.AmbientLight(0x224466, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(4, 12, 8);
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x4488ff, 0.6);
+rim.position.set(-3, -4, -6);
+scene.add(rim);
+
+/* ═══════════════════════════════════════════════════════════
+   AIRCRAFT
+   ═══════════════════════════════════════════════════════════ */
+function makeAircraft() {
+    const g = new THREE.Group();
+
+    const fuse = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.2, 4), matBody);
+    fuse.rotation.x = -Math.PI / 2;
+    fuse.position.z = -0.3;
+    g.add(fuse);
+
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.32, 4, 3), matAccent);
+    cockpit.scale.set(1, 0.55, 1.3);
+    cockpit.position.set(0, 0.25, -0.4);
+    g.add(cockpit);
+
+    // Wings — narrower than before so the visual roughly matches the hitbox
+    for (const s of [-1, 1]) {
+        const wing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 0.7), matBody);
+        wing.position.set(s * 1.0, -0.08, 0.25);
+        wing.rotation.y = s * 0.15;
+        wing.rotation.z = s * 0.05;
+        g.add(wing);
+    }
+
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.9, 0.7), matAccent);
+    fin.position.set(0, 0.45, 1.1);
+    g.add(fin);
+
+    for (const s of [-1, 1]) {
+        const stab = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.4), matBody);
+        stab.position.set(s * 0.42, 0.0, 1.1);
+        stab.rotation.y = s * 0.2;
+        g.add(stab);
+    }
+
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 4, 4), matGlow);
+    glow.position.z = 1.4;
+    g.add(glow);
+    g.userData.glow = glow;
+
+    const eLight = new THREE.PointLight(0x00ffee, 1.2, 10);
+    eLight.position.z = 1.6;
+    g.add(eLight);
+    g.userData.eLight = eLight;
+
+    return g;
+}
+const aircraft = makeAircraft();
+scene.add(aircraft);
+
+/* ═══════════════════════════════════════════════════════════
+   EXHAUST PARTICLES
+   Pre-allocated pool of meshes — no GC pressure each frame.
+   ═══════════════════════════════════════════════════════════ */
+const EXHAUST_POOL = 60;
+
+// Shared geometry. Materials are pre-allocated in a pool so we never
+// call `new THREE.MeshBasicMaterial` inside the hot game loop.
+const exhaustGeo = new THREE.PlaneGeometry(0.18, 0.18);
+const exhaustMatPool = Array.from({ length: EXHAUST_POOL }, () =>
+    new THREE.MeshBasicMaterial({
+        color: 0x00fff7, transparent: true, opacity: 0,
+        depthWrite: false, side: THREE.DoubleSide,
+    })
+);
+const exhaustMeshPool = exhaustMatPool.map(mat => new THREE.Mesh(exhaustGeo, mat));
+// Track which meshes are currently active vs available
+const exhaustActive = new Set();
+const exhaustFree   = [...exhaustMeshPool];
+
+function emitExhaust(boosting) {
+    if (exhaustFree.length === 0) return;           // pool exhausted
+    const m = exhaustFree.pop();
+    const mat = m.material;
+    // Colour follows the engine glow (tracks fuel level)
+    mat.color.copy(matGlow.color);
+    mat.opacity = 0.80;
+
+    const nozzle = new THREE.Vector3(0, 0, 1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
+    m.position.copy(nozzle);
+    m.scale.setScalar(1);
+    const spd = 5 + Math.random() * 4;
+    const spread = boosting ? 2.4 : 1.2;
+    m.userData.vel = new THREE.Vector3(
+        (Math.random() - 0.5) * spread,
+        (Math.random() - 0.5) * spread,
+        spd,
+    );
+    m.userData.life = 1.0;
+    scene.add(m);
+    exhaustActive.add(m);
+}
+
+function updateExhaust(dt) {
+    for (const p of [...exhaustActive]) {
+        p.userData.life -= dt * 3.5;
+        if (p.userData.life <= 0) {
+            scene.remove(p);
+            exhaustActive.delete(p);
+            exhaustFree.push(p);
+            continue;
+        }
+        p.position.addScaledVector(p.userData.vel, dt);
+        p.material.opacity = p.userData.life * 0.85;
+        p.scale.setScalar(p.userData.life * 0.9);
+        p.lookAt(camera.position);
+    }
+}
+
+function clearExhaust() {
+    for (const p of exhaustActive) {
+        scene.remove(p);
+        exhaustFree.push(p);
+    }
+    exhaustActive.clear();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CURSOR GUIDE LINE
+   ═══════════════════════════════════════════════════════════ */
+const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const guideLine = new THREE.Line(lineGeo, matLine);
+scene.add(guideLine);
+
+/* ═══════════════════════════════════════════════════════════
+   STAR FIELD  (twinkling shader)
+   ═══════════════════════════════════════════════════════════ */
+// Performance concern
+const STAR_COUNT = 3000;
+(function buildStars() {
+    const geo = new THREE.BufferGeometry();
+    const pos   = new Float32Array(STAR_COUNT * 3);
+    const phase = new Float32Array(STAR_COUNT);
+    const size  = new Float32Array(STAR_COUNT);
+    for (let i = 0; i < STAR_COUNT; i++) {
+        pos[i * 3]     = (Math.random() - 0.5) * 700;
+        pos[i * 3 + 1] = (Math.random() - 0.5) * 350;
+        pos[i * 3 + 2] = -Math.random() * 480;
+        phase[i]        = Math.random() * Math.PI * 2;
+        size[i]         = 1 + Math.random() * 3; //
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('aPhase',   new THREE.Float32BufferAttribute(phase, 1));
+    geo.setAttribute('aSize',    new THREE.Float32BufferAttribute(size,  1));
+    const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+            attribute float aPhase;
+            attribute float aSize;
+            uniform float uTime;
+            void main() {
+                float twinkle = 0.3 + 0.9 * sin(uTime * 1.5 + aPhase);
+                gl_PointSize = aSize * twinkle;
+                gl_Position  = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`,
+        fragmentShader: `
+            void main() {
+                float d = length(gl_PointCoord - 0.5) * 2.0;
+                if (d > 1.0) discard;
+                gl_FragColor = vec4(1.2, 1.2, 1.2, 1.0 - d * 0.5);
+            }`,
+        transparent: true,
+        depthWrite: false,
+    });
+    const starField = new THREE.Points(geo, mat);
+    scene.add(starField);
+    scene.userData.starField = starField;
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   ASTEROIDS  (decoration only — off to the sides)
+   ═══════════════════════════════════════════════════════════ */
+const asteroids = [];
+
+function spawnAsteroid(zOverride) {
+    const r = 0.7 + Math.random() * 4.5;
+    const geo = new THREE.IcosahedronGeometry(r, 0);
+    const mat = matAsteroid.clone();
+    mat.transparent = true;
+    mat.opacity = 0;
+    const m = new THREE.Mesh(geo, mat);
+    m.scale.set(0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    m.position.x = side * (BOUNDS_X + 6 + Math.random() * 55);
+    m.position.y = (Math.random() - 0.5) * 50;
+    m.position.z = zOverride !== undefined ? zOverride : SPAWN_Z;
+    m.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, 0);
+    scene.add(m);
+    asteroids.push({
+        mesh: m,
+        radius: r * 0.85,
+        fadeAge: 0,
+        rotVel: new THREE.Vector3(
+            (Math.random() - 0.5) * 0.7,
+            (Math.random() - 0.5) * 0.7,
+            (Math.random() - 0.5) * 0.3
+        ),
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AMBIENT PLANET  (large decorative sphere drifting by)
+   ═══════════════════════════════════════════════════════════ */
+let planetMesh = null;
+let planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
+const PLANET_INTERVAL = 60;  // seconds between planets
+
+function spawnPlanet() {
+    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    const r = 30 + Math.random() * 45;
+    
+    // Curated planet colors — pick one at random
+    const planetColors = [
+        0xff6b5b,  // coral red
+        0xff9944,  // orange
+        0xffdd55,  // warm yellow
+        0x44cc88,  // teal green
+        0x5599ff,  // sky blue
+        0x9966ff,  // purple
+        0xff4488,  // pink
+        0x88ccff,  // light blue
+    ];
+    const baseColor = planetColors[Math.floor(Math.random() * planetColors.length)];
+    // Add some saturation/lightness variation on top of the base color
+    const col = new THREE.Color(baseColor);
+    
+    const mat = new THREE.MeshPhongMaterial({ color: col, flatShading: true, transparent: true, opacity: 0 });
+    planetMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), mat);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    // Start at the same depth as obstacles so it's immediately in the visible scene.
+    // Far off to the side so it clears the play area completely.
+    planetMesh.position.set(
+        side * (BOUNDS_X + 80 + Math.random() * 40),
+        (Math.random() - 0.5) * 35,
+        SPAWN_Z
+    );
+    planetMesh.userData.fadeAge = 0;
+    // Very slow lateral drift for a parallax feel
+    planetMesh.userData.driftVel = new THREE.Vector3(
+        side * -(0.3 + Math.random() * 0.4),
+        (Math.random() - 0.5) * 0.3,
+        0
+    );
+    scene.add(planetMesh);
+}
+
+function updatePlanet(dt, speed) {
+    if (!planetMesh) return;
+    // Move forward at only ~8 % of obstacle speed → ~60 s fly-past window
+    planetMesh.position.z += speed * 0.08 * dt;
+    planetMesh.position.addScaledVector(planetMesh.userData.driftVel, dt);
+    planetMesh.rotation.y += dt * 0.04;
+    planetMesh.rotation.x += dt * 0.015;
+    // Fade in over 10 seconds
+    planetMesh.userData.fadeAge = Math.min(planetMesh.userData.fadeAge + dt, 10);
+    planetMesh.material.opacity = (planetMesh.userData.fadeAge / 10) * 0.70;
+    if (planetMesh.position.z > DESPAWN_Z + 100) {
+        scene.remove(planetMesh);
+        planetMesh = null;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   POINTS TEXT DISPLAY — pops out and fizzles
+   ═══════════════════════════════════════════════════════════ */
+
+const pointsTextMeshes = [];
+
+function spawnPointsText(scene, pos, points) {
+    // Create canvas texture with point value
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear and draw text
+    ctx.fillStyle = '#ffff88';
+    ctx.font = 'bold 60px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`+${points}`, 128, 64);
+    
+    // Create texture and sprite
+    const texture = new THREE.CanvasTexture(canvas);
+    const spriteMat = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.position.copy(pos);
+    sprite.scale.set(8, 4, 1);  // scale to be readable
+    
+    sprite.userData.life = 1.0;
+    sprite.userData.velocity = new THREE.Vector3(0, 2, 0);  // drift upward
+    scene.add(sprite);
+    pointsTextMeshes.push(sprite);
+}
+
+function updatePointsText(scene, dt) {
+    for (let i = pointsTextMeshes.length - 1; i >= 0; i--) {
+        const s = pointsTextMeshes[i];
+        s.userData.life -= dt * 2.2;  // fade over ~0.45s
+        if (s.userData.life <= 0) {
+            scene.remove(s);
+            pointsTextMeshes.splice(i, 1);
+            continue;
+        }
+        s.position.addScaledVector(s.userData.velocity, dt);
+        s.material.opacity = s.userData.life;
+        s.scale.multiplyScalar(0.98);  // slightly shrink as they fade
+    }
+}
+
+function clearPointsText(scene) {
+    for (const s of pointsTextMeshes) scene.remove(s);
+    pointsTextMeshes.length = 0;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+let fuel, score, elapsed, gameOver, boosting;
+let spawnTimer, asteroidTimer, fuelPUTimer, pickupTimer, enemyTimer;
+let shieldTimer;
+// How many times enemies have been spawned — drives multi-enemy probability ramp
+let enemySpawnCount;
+let exploding = false, explodeTimer = 0;
+const explosionParts = [];
+const obstacles = [];
+
+/* ── Safe-zone pool for pickup placement ──────────────────
+   Populated by nextObstacle() each time a pattern step runs.
+   Entries: { x, y, z, type:'single'|'formation', dx?, dy? }
+   Consumed by the pickup scheduler so pickups never overlap walls. */
+const safeZonePool = [];
+
+/** Consume a safe zone of the given type from the pool.
+ *  Returns the zone object {x, y, z, ...} or null if none available
+ *  (pickup spawner falls back to random placement when null). */
+function _consumeSafeZone(type) {
+    for (let i = safeZonePool.length - 1; i >= 0; i--) {
+        if (safeZonePool[i].type === type) {
+            return safeZonePool.splice(i, 1)[0];
+        }
+    }
+    return null; // fallback: spawner uses random position
+}
+const mouseNDC = new THREE.Vector2(0, 0);
+const target   = new THREE.Vector3();
+const vel      = new THREE.Vector3();
+const tmpV     = new THREE.Vector3();
+const tmpBox   = new THREE.Box3();
+const pSphere  = new THREE.Sphere(new THREE.Vector3(), PLANE_RADIUS);
+
+/* ── Shield visual ────────────────────────────────────────── */
+let shieldMesh = null;  // IcosahedronGeometry bubble around plane
+let shieldMat  = null;  // direct ref so we can animate opacity
+
+function createShieldMesh() {
+    shieldMat = new THREE.MeshBasicMaterial({
+        color: 0x33aaff,
+        transparent: true,
+        opacity: 0.10,   // subtle glow — was 0.30
+        side: THREE.DoubleSide,
+        depthWrite: false,
+    });
+    return new THREE.Mesh(new THREE.IcosahedronGeometry(2.2, 1), shieldMat);
+}
+
+/* ── Looping sound stop-function handles ──────────────────── */
+let stopBoostHum    = null;
+let stopShieldHum   = null;
+let stopFuelLowBeep = null;
+// Previous-frame flags for detecting transitions
+let prevBoosting = false;
+let prevFuelLow  = false;
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT
+   ═══════════════════════════════════════════════════════════ */
+window.addEventListener('mousemove', e => {
+    mouseNDC.x =  (e.clientX / innerWidth)  * 2 - 1;
+    mouseNDC.y = -(e.clientY / innerHeight) * 2 + 1;
+});
+window.addEventListener('mousedown', e => { if (e.button === 0) boosting = true; });
+window.addEventListener('mouseup',   e => { if (e.button === 0) boosting = false; });
+window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ═══════════════════════════════════════════════════════════
+   HUD ELEMENTS
+   ═══════════════════════════════════════════════════════════ */
+const elScore   = document.getElementById('score');
+const elFuel    = document.getElementById('fuel-bar');
+const elBoost   = document.getElementById('boost-indicator');
+const elShield  = document.getElementById('shield-indicator');
+const elOverlay = document.getElementById('game-over');
+const elFinal   = document.getElementById('final-score');
+document.getElementById('restart-btn').addEventListener('click', restart);
+
+/* ═══════════════════════════════════════════════════════════
+   CLOCK  /  RAYCASTER
+   ═══════════════════════════════════════════════════════════ */
+const clock     = new THREE.Clock();
+const raycaster = new THREE.Raycaster();
+const zPlane    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+
+/* ═══════════════════════════════════════════════════════════
+   INIT  /  RESTART
+   ═══════════════════════════════════════════════════════════ */
+function init() {
+    fuel = FUEL_MAX; score = 0; elapsed = 0;
+    gameOver = false; boosting = false;
+    spawnTimer = 0; asteroidTimer = 0;
+    fuelPUTimer = 0; pickupTimer = 0; enemyTimer = 0;
+    shieldTimer = 0;
+    enemySpawnCount = 0;
+    prevBoosting = false;
+    prevFuelLow  = false;
+    // Stop any active looping sounds
+    stopBoostHum?.();    stopBoostHum    = null;
+    stopShieldHum?.();   stopShieldHum   = null;
+    stopFuelLowBeep?.(); stopFuelLowBeep = null;
+    aircraft.position.set(0, 0, 0);
+    aircraft.rotation.set(0, 0, 0);
+    vel.set(0, 0, 0);
+    matGlow.color.set(0x00fff7);
+
+    clearExhaust();
+    // Remove shield mesh if still alive from previous run
+    if (shieldMesh) { scene.remove(shieldMesh); shieldMesh = null; shieldMat = null; }
+
+    // Clean up world
+    for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
+    obstacles.length = 0;
+    for (const a of asteroids) scene.remove(a.mesh);
+    asteroids.length = 0;
+    clearPickups(scene);
+    clearEnemies(scene);
+    clearPointsText(scene);
+    for (const p of explosionParts) scene.remove(p.mesh);
+    explosionParts.length = 0;
+    exploding = false; explodeTimer = 0;
+    aircraft.visible = true;
+
+    resetSequencer();
+    safeZonePool.length = 0;
+    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
+
+    // Seed initial asteroids
+    for (let i = 0; i < 30; i++) {
+        spawnAsteroid(SPAWN_Z + Math.random() * (DESPAWN_Z - SPAWN_Z));
+    }
+
+    scene.userData.starField.material.uniforms.uTime.value = 0;
+    elOverlay.classList.remove('show');
+    clock.getDelta();
+}
+
+function restart() { init(); }
+init();
+
+/* ═══════════════════════════════════════════════════════════
+   END GAME
+   ═══════════════════════════════════════════════════════════ */
+function endGame() {
+    gameOver = true;
+    elFinal.textContent = Math.floor(score);
+    elOverlay.classList.add('show');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXPLOSION
+   ═══════════════════════════════════════════════════════════ */
+function spawnExplosion(pos) {
+    exploding = true; explodeTimer = 0;
+    aircraft.visible = false;
+    // TODO: SOUND
+    playCrash();
+    const cols = [0xff6600, 0xff3300, 0xffaa00, 0xffffff, 0xff8800];
+    for (let i = 0; i < 24; i++) {
+        const r = 0.1 + Math.random() * 0.45;
+        const mat = new THREE.MeshBasicMaterial({ color: cols[i % cols.length], transparent: true, opacity: 1 });
+        const m = new THREE.Mesh(new THREE.TetrahedronGeometry(r, 0), mat);
+        m.position.copy(pos);
+        const spd = 2 + Math.random() * 12;
+        const dir = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, (Math.random() - 0.5) * 0.4).normalize();
+        scene.add(m);
+        explosionParts.push({ mesh: m, vel: dir.multiplyScalar(spd), life: 1.0 });
+    }
+    const flash = new THREE.PointLight(0xff6600, 12, 30);
+    flash.position.copy(pos);
+    scene.add(flash);
+    setTimeout(() => scene.remove(flash), 300);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENEMY SPAWN HELPER
+   Picks a random enemy type and spawns it at SPAWN_Z + zOffset
+   so multiple enemies in a wave are staggered in depth.
+   ═══════════════════════════════════════════════════════════ */
+function _doSpawnEnemy(zOffset = 0) {
+    if (Math.random() < 0.6) {
+        const types = ['horizontal', 'vertical', 'diagonal', 'circle'];
+        spawnMover(scene, types[Math.floor(Math.random() * types.length)], zOffset);
+    } else {
+        spawnLaserTurret(scene, zOffset);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN LOOP
+   ═══════════════════════════════════════════════════════════ */
+function loop() {
+    requestAnimationFrame(loop);
+    const dt = Math.min(clock.getDelta(), 0.05);
+
+    if (gameOver) { renderer.render(scene, camera); return; }
+
+    /* ── Explosion sequence ──────────────────────────── */
+    if (exploding) {
+        explodeTimer += dt;
+        for (let i = explosionParts.length - 1; i >= 0; i--) {
+            const p = explosionParts[i];
+            p.life -= dt * 0.6;
+            p.vel.y -= dt * 6;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            p.mesh.rotation.x += dt * 7;
+            p.mesh.rotation.z += dt * 5;
+            p.mesh.material.opacity = Math.max(0, p.life);
+            p.mesh.scale.setScalar(Math.max(0.01, p.life));
+            if (p.life <= 0) { scene.remove(p.mesh); explosionParts.splice(i, 1); }
+        }
+        if (explodeTimer > 1.8) { exploding = false; endGame(); }
+        renderer.render(scene, camera);
+        return;
+    }
+
+    elapsed += dt;
+    const shielded = shieldTimer > 0;
+    if (shielded) shieldTimer -= dt;
+
+    const baseSpeed = OBS_BASE_SPEED + elapsed * OBS_SPEED_RAMP;
+    const speed = boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed;
+    const scoreMult = boosting ? BOOST_SCORE_MULT : 1;
+    score += dt * (10 + elapsed * 0.5) * scoreMult;
+
+    /* ── Fuel ─────────────────────────────────────────── */
+    fuel -= dt * (boosting ? 2 : 1);
+    if (fuel <= 0) { fuel = 0; endGame(); return; }
+
+    /* ── Mouse → world target ─────────────────────────── */
+    raycaster.setFromCamera(mouseNDC, camera);
+    raycaster.ray.intersectPlane(zPlane, target);
+    target.x = THREE.MathUtils.clamp(target.x, -BOUNDS_X, BOUNDS_X);
+    target.y = THREE.MathUtils.clamp(target.y, -BOUNDS_Y, BOUNDS_Y);
+    target.z = 0;
+
+    /* ── Plane steering ───────────────────────────────── */
+    const maxSpd = boosting ? 60 : 20;
+    const accel  = boosting ? 120 : 40;
+
+    tmpV.subVectors(target, aircraft.position);
+    const dist = tmpV.length();
+
+    if (dist > 0.05) {
+        const desiredSpd = Math.min(dist * 4, maxSpd);
+        tmpV.normalize().multiplyScalar(desiredSpd).sub(vel);
+        if (tmpV.length() > accel * dt) tmpV.setLength(accel * dt);
+        vel.add(tmpV);
+    } else {
+        vel.multiplyScalar(1 - 5 * dt);
+    }
+
+    aircraft.position.addScaledVector(vel, dt);
+    aircraft.position.x = THREE.MathUtils.clamp(aircraft.position.x, -BOUNDS_X, BOUNDS_X);
+    aircraft.position.y = THREE.MathUtils.clamp(aircraft.position.y, -BOUNDS_Y, BOUNDS_Y);
+    aircraft.position.z = 0;
+
+    /* ── Tilt ─────────────────────────────────────────── */
+    aircraft.rotation.z = THREE.MathUtils.lerp(aircraft.rotation.z, -vel.x * 0.045, 6 * dt);
+    aircraft.rotation.x = THREE.MathUtils.lerp(aircraft.rotation.x,  vel.y * 0.025, 6 * dt);
+
+    /* ── Engine glow + fuel colour ────────────────────── */
+    const pulse = boosting
+        ? 1.6 + Math.sin(elapsed * 22) * 0.35
+        : 0.9 + Math.sin(elapsed * 8) * 0.12;
+    aircraft.userData.glow.scale.set(pulse, pulse, boosting ? pulse * 2 : pulse);
+    aircraft.userData.eLight.intensity = boosting ? 3 : 1.2;
+    const ft = 1 - fuel / FUEL_MAX;
+    matGlow.color.setRGB(
+        THREE.MathUtils.lerp(0,    1,    ft),
+        THREE.MathUtils.lerp(1,    0.27, ft),
+        THREE.MathUtils.lerp(0.97, 0.27, ft)
+    );
+    aircraft.userData.eLight.color.copy(matGlow.color);
+
+    /* ── Guide line ───────────────────────────────────── */
+    const lp = guideLine.geometry.attributes.position.array;
+    lp[0] = aircraft.position.x; lp[1] = aircraft.position.y; lp[2] = aircraft.position.z;
+    lp[3] = target.x;            lp[4] = target.y;            lp[5] = target.z;
+    guideLine.geometry.attributes.position.needsUpdate = true;
+    matLine.opacity = THREE.MathUtils.clamp(dist * 0.06, 0, 0.4);
+
+    /* ── Camera follow ────────────────────────────────── */
+    camera.position.x += (aircraft.position.x * 0.35 - camera.position.x) * 3 * dt;
+    camera.position.y += ((aircraft.position.y * 0.25 + 4.5) - camera.position.y) * 3 * dt;
+    camera.lookAt(aircraft.position.x * 0.5, aircraft.position.y * 0.3, -35);
+
+    /* ── Spawn obstacles ──────────────────────────────── */
+    // Difficulty comes primarily from wallSize growing (wider obstacles = more traversal).
+    // Spawn frequency ramps slowly so the game stays readable.
+    const interval = Math.max(0.7, 1.6 - elapsed * 0.004);
+    spawnTimer += dt;
+    if (spawnTimer > interval) {
+        spawnTimer -= interval;
+        const newZones = nextObstacle(scene, obstacles, elapsed);
+        // Add new safe zones to pool, trim oldest if over capacity
+        for (const z of newZones) safeZonePool.push(z);
+        while (safeZonePool.length > SAFE_ZONE_POOL_MAX) safeZonePool.shift();
+    }
+
+    /* ── Move + fade-in obstacles ──────────────────────── */
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.fadeAge = Math.min(obs.fadeAge + dt, OBS_FADE_TIME);
+        const opacity = (obs.fadeAge / OBS_FADE_TIME) * OBS_TARGET_OPACITY;
+        let rm = false;
+        for (const m of obs.parts) {
+            if (m.material.transparent) {
+                // ShaderMaterial (circle-hole walls) uses a uniform; standard mats use .opacity
+                if (m.material.isShaderMaterial) {
+                    m.material.uniforms.uOpacity.value = opacity;
+                } else {
+                    m.material.opacity = opacity;
+                }
+            }
+            m.position.z += speed * dt;
+            if (m.position.z > DESPAWN_Z) rm = true;
+        }
+        if (rm) {
+            obs.parts.forEach(m => { m.geometry.dispose(); m.material.dispose(); scene.remove(m); });
+            obstacles.splice(i, 1);
+        }
+    }
+
+    /* ── Stars ────────────────────────────────────────── */
+    scene.userData.starField.material.uniforms.uTime.value = elapsed;
+
+    /* ── Asteroids ────────────────────────────────────── */
+    asteroidTimer += dt;
+    if (asteroidTimer > 1.3) { asteroidTimer = 0; spawnAsteroid(); }
+    for (let i = asteroids.length - 1; i >= 0; i--) {
+        const a = asteroids[i];
+        a.mesh.position.z += speed * 0.32 * dt;
+        a.mesh.rotation.x += a.rotVel.x * dt;
+        a.mesh.rotation.y += a.rotVel.y * dt;
+        // Fade in over 1.5 seconds
+        a.fadeAge = Math.min(a.fadeAge + dt, 1.5);
+        a.mesh.material.opacity = a.fadeAge / 1.5;
+        if (a.mesh.position.z > DESPAWN_Z + 20) {
+            scene.remove(a.mesh);
+            asteroids.splice(i, 1);
+        }
+    }
+
+    /* ── Ambient planet ───────────────────────────────── */
+    planetSpawnTimer += dt;
+    if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
+    updatePlanet(dt, speed);
+
+    /* ── Fuel pickups ─────────────────────────────────── */
+    fuelPUTimer += dt;
+    if (fuelPUTimer >= POWERUP_EVERY) {
+        fuelPUTimer -= POWERUP_EVERY;
+        const sz = _consumeSafeZone('single');
+        spawnFuelPickup(scene, sz);
+    }
+
+    /* ── Points / shield pickups ──────────────────────── */
+    pickupTimer += dt;
+    if (pickupTimer >= PICKUP_EVERY) {
+        pickupTimer -= PICKUP_EVERY;
+        const roll = Math.random();
+        if (roll < 0.20) {
+            // 20 % chance: shield
+            const sz = _consumeSafeZone('single');
+            spawnShieldPickup(scene, sz);
+        } else if (roll < 0.50) {
+            // 30 % chance: high-value single pickup
+            const sz = _consumeSafeZone('single');
+            spawnHighValuePickup(scene, sz);
+        } else {
+            // 50 % chance: low-value formation (diagonal / semicircle / line)
+            const sz = _consumeSafeZone('formation');
+            spawnLowValueFormation(scene, sz);
+        }
+    }
+
+    /* ── Enemies ──────────────────────────────────────── */
+    enemyTimer += dt;
+    const enemyInterval = Math.max(3, 9 - elapsed * 0.06);  // starts at 9s, floors at 3s
+    if (enemyTimer >= enemyInterval) {
+        enemyTimer -= enemyInterval;
+
+        // Probability ramp for extra enemies.
+        // Enemy 2: starts at 10 %, +5 % per spawn, caps at 50 %.
+        // Enemy 3: once cap is reached, a second ramp starts at 10 %, same rule.
+        const p2 = Math.min(0.50, 0.10 + enemySpawnCount * 0.05);
+        const p3Stages = enemySpawnCount - 8; // negative before 8 spawns (cap reached at spawn 8)
+        const p3 = p3Stages >= 0 ? Math.min(0.50, 0.10 + p3Stages * 0.05) : 0;
+
+        _doSpawnEnemy(0);
+        if (Math.random() < p2) _doSpawnEnemy(-18);  // slightly behind enemy 1
+        if (Math.random() < p3) _doSpawnEnemy(-36);  // further behind
+        enemySpawnCount++;
+    }
+
+    /* ── Update pickups ───────────────────────────────── */
+    const puResult = updatePickups(scene, dt, speed, aircraft.position);
+    if (puResult.fuel > 0)   { fuel = FUEL_MAX; /* TODO: SOUND */ playFuelCollect(); }
+    if (puResult.points > 0) {
+        score += puResult.points;
+        // Spawn collection burst at pickup world position
+        if (puResult.pointsPos) {
+            spawnCollectBurst(scene, puResult.pointsPos, 0x44ff88);
+            spawnPointsText(scene, puResult.pointsPos, puResult.points);
+        }
+        /* TODO: SOUND */ playPointsCollect();
+    }
+    if (puResult.shield > 0) {
+        shieldTimer = SHIELD_DURATION;
+        /* TODO: SOUND */ playShieldCollect();
+        if (!stopShieldHum) stopShieldHum = startShieldHum();
+    }
+    updateBurstParticles(scene, dt);
+    updatePointsText(scene, dt);
+
+    /* ── Update enemies ───────────────────────────────── */
+    const killedByEnemy = updateEnemies(scene, dt, speed, aircraft.position, shielded, camera);
+
+    /* ── Collisions ───────────────────────────────────── */
+    pSphere.center.copy(aircraft.position);
+    let hitWhileShielded = false;
+
+    // Helper: returns true if player hits this obstacle
+    function obsHitsPlayer(obs) {
+        if (obs.circleHole) {
+            // Circle-hole wall — hit if player is NOT safely inside the hole
+            const wallZ = obs.parts[0].position.z;
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            const ch = obs.circleHole;
+            const dx = aircraft.position.x - ch.x;
+            const dy = aircraft.position.y - ch.y;
+            return Math.sqrt(dx * dx + dy * dy) > ch.r - PLANE_RADIUS;
+        }
+        // Normal AABB check
+        for (const m of obs.parts) {
+            tmpBox.setFromObject(m);
+            if (tmpBox.intersectsSphere(pSphere)) return true;
+        }
+        return false;
+    }
+
+    if (!shielded) {
+        for (const obs of obstacles) {
+            if (obsHitsPlayer(obs)) { spawnExplosion(aircraft.position.clone()); renderer.render(scene, camera); return; }
+        }
+        if (killedByEnemy) { spawnExplosion(aircraft.position.clone()); renderer.render(scene, camera); return; }
+    } else {
+        let gotHit = killedByEnemy;
+        if (!gotHit) {
+            for (const obs of obstacles) {
+                if (obsHitsPlayer(obs)) { gotHit = true; break; }
+            }
+        }
+        if (gotHit) hitWhileShielded = true;
+    }
+    if (hitWhileShielded) {
+        // Trigger the 1.5 s flash-out countdown instead of instant removal
+        const FLASH_WINDOW = 1.5;
+        shieldTimer = Math.min(shieldTimer, FLASH_WINDOW);
+    }
+
+    /* ── HUD ──────────────────────────────────────────── */
+    elScore.textContent = Math.floor(score);
+    const fuelPct = (fuel / FUEL_MAX) * 100;
+    elFuel.style.width = fuelPct + '%';
+    {
+        const t = 1 - fuel / FUEL_MAX;
+        const c1 = `rgb(${Math.round(255 * t)},${Math.round(THREE.MathUtils.lerp(170, 68, t))},${Math.round(THREE.MathUtils.lerp(255, 68, t))})`;
+        const c2 = `rgb(${Math.round(THREE.MathUtils.lerp(255, 255, t))},${Math.round(THREE.MathUtils.lerp(255, 136, t))},${Math.round(THREE.MathUtils.lerp(255, 136, t))})`;
+        elFuel.style.background = `linear-gradient(90deg, ${c1}, ${c2})`;
+        if (fuel < 7) elFuel.classList.add('low'); else elFuel.classList.remove('low');
+    }
+    elBoost.style.opacity = boosting ? 1 : 0;
+    if (elShield) elShield.style.opacity = shielded ? 1 : 0;
+
+    /* ── Shield visual around plane ───────────────────── */
+    if (shielded) {
+        if (!shieldMesh) {
+            shieldMesh = createShieldMesh();
+            scene.add(shieldMesh);
+        }
+        shieldMesh.position.copy(aircraft.position);
+        shieldMesh.rotation.y = elapsed * 1.5;
+        shieldMesh.rotation.x = elapsed * 0.7;
+        // Flash 3 times over the last 1.5 s before expiry
+        const FLASH_WINDOW = 1.5;
+        if (shieldTimer < FLASH_WINDOW) {
+            const t = 1 - shieldTimer / FLASH_WINDOW;
+            shieldMat.opacity = (0.5 + 0.5 * Math.sin(t * 6 * Math.PI)) * 0.12;
+        } else {
+            shieldMat.opacity = 0.10;
+        }
+    } else if (shieldMesh) {
+        scene.remove(shieldMesh);
+        shieldMesh = null; shieldMat = null;
+        // TODO: SOUND — shield just expired
+        stopShieldHum?.(); stopShieldHum = null;
+    }
+
+    /* ── Looping audio state transitions ──────────────── */
+    const fuelLow = fuel / FUEL_MAX < 0.20;
+    if (boosting !== prevBoosting) {
+        prevBoosting = boosting;
+        if (boosting) {
+            // TODO: SOUND
+            stopBoostHum = startBoostHum();
+        } else {
+            // TODO: SOUND
+            stopBoostHum?.(); stopBoostHum = null;
+        }
+    }
+    if (fuelLow !== prevFuelLow) {
+        prevFuelLow = fuelLow;
+        if (fuelLow) {
+            // TODO: SOUND
+            stopFuelLowBeep = startFuelLowBeep();
+        } else {
+            // TODO: SOUND
+            stopFuelLowBeep?.(); stopFuelLowBeep = null;
+        }
+    }
+
+    /* ── Exhaust particles ────────────────────────────── */
+    // Emit several particles per frame; more when boosting
+    const emitCount = boosting ? 2 : 1;
+    for (let i = 0; i < emitCount; i++) emitExhaust(boosting);
+    updateExhaust(dt);
+
+    renderer.render(scene, camera);
+}
+
+loop();
