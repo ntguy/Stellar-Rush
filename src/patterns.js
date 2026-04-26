@@ -141,8 +141,8 @@ export function patternLeftRight(params = {}) {
 
             if (side === -1) {
                 // Left wall → open RIGHT — pick one formation, pick one single
-                return [
-                    _pick([
+                return [Math.random() < 0.5
+                    ? _evaluateSpec(_pick([
                         // Drifts up or down from centre
                         { type: 'formation', x:  12, y:  0, z: SPAWN_Z, dx:    0, dy:  2.5, count: 4, xV: 4, yV: 0, dxV: 0,   dyV: 0.5, countV: 1 },
                         // Cascades down from near the top
@@ -151,19 +151,19 @@ export function patternLeftRight(params = {}) {
                         { type: 'formation', x:  18, y:  0, z: SPAWN_Z, dx: -2.5, dy:    0, count: 4, xV: 3, yV: 8, dxV: 0.3, dyV: 0,   countV: 1 },
                         // Diagonal — sweeps right and up together
                         { type: 'formation', x:  12, y: -4, z: SPAWN_Z, dx:  1.5, dy:  2.0, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 },
-                    ]),
-                    _pick([
+                    ]))
+                    : _evaluateSpec(_pick([
                         // Lone pickup in the open half
                         { type: 'single', x:  10, y:  0, z: SPAWN_Z, xV: 4, yV: 6 },
                         // Bonus pickup near the far-right edge
                         { type: 'single', x:  18, y:  0, z: SPAWN_Z, xV: 2, yV: 3 },
-                    ]),
-                ].map(_evaluateSpec);
+                    ]))
+                ];
             }
 
             // Right wall → open LEFT — pick one formation, pick one single
-            return [
-                _pick([
+            return [Math.random() < 0.5
+                ? _evaluateSpec(_pick([
                     // Drifts up or down from centre
                     { type: 'formation', x: -12, y:  0, z: SPAWN_Z, dx:    0, dy:  2.5, count: 4, xV: 4, yV: 0, dxV: 0,   dyV: 0.5, countV: 1 },
                     // Cascades down from near the top
@@ -172,14 +172,14 @@ export function patternLeftRight(params = {}) {
                     { type: 'formation', x: -18, y:  0, z: SPAWN_Z, dx:  2.5, dy:    0, count: 4, xV: 3, yV: 8, dxV: 0.3, dyV: 0,   countV: 1 },
                     // Diagonal — sweeps left and up together
                     { type: 'formation', x: -12, y: -4, z: SPAWN_Z, dx: -1.5, dy:  2.0, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 },
-                ]),
-                _pick([
+                ]))
+                : _evaluateSpec(_pick([
                     // Lone pickup in the open half
                     { type: 'single', x: -10, y:  0, z: SPAWN_Z, xV: 4, yV: 6 },
                     // Bonus pickup near the far-left edge
                     { type: 'single', x: -18, y:  0, z: SPAWN_Z, xV: 2, yV: 3 },
-                ]),
-            ].map(_evaluateSpec);
+                ]))
+            ];
         });
     }
     return steps;
@@ -202,32 +202,32 @@ export function patternTopDown(params = {}) {
             spawnBar(scene, obstacles, dir, cov);
             if (dir === 1) {
                 // Top bar → open BELOW — pick one formation + one single
-                return [
-                    _pick([
+                return [Math.random() < 0.5
+                    ? _evaluateSpec(_pick([
                         // Sweeps right through the lower half
                         { type: 'formation', x:  0, y: -6, z: SPAWN_Z, dx:  3, dy:  0, count: 4, xV: 5, yV: 3, dxV: 0.5, dyV: 0.3, countV: 1 },
                         // Short diagonal that drifts down and to the right
                         { type: 'formation', x: -8, y: -5, z: SPAWN_Z, dx:  2, dy: -1, count: 3, xV: 2, yV: 2, dxV: 0.4, dyV: 0.3, countV: 1 },
-                    ]),
-                    _pick([
+                    ]))
+                    : _evaluateSpec(_pick([
                         { type: 'single', x:  9, y: -9, z: SPAWN_Z, xV: 3, yV: 3 },
                         { type: 'single', x: -9, y: -9, z: SPAWN_Z, xV: 3, yV: 3 },
-                    ]),
-                ].map(_evaluateSpec);
+                    ]))
+                ];
             }
             // Bottom bar → open ABOVE — pick one formation + one single
-            return [
-                _pick([
+            return [Math.random() < 0.5
+                ? _evaluateSpec(_pick([
                     // Sweeps left through the upper half
                     { type: 'formation', x:  0, y:  6, z: SPAWN_Z, dx: -3, dy:  0, count: 4, xV: 5, yV: 3, dxV: 0.5, dyV: 0.3, countV: 1 },
                     // Short diagonal that drifts up and to the left
                     { type: 'formation', x:  8, y:  5, z: SPAWN_Z, dx: -2, dy:  1, count: 3, xV: 2, yV: 2, dxV: 0.4, dyV: 0.3, countV: 1 },
-                ]),
-                _pick([
+                ]))
+                : _evaluateSpec(_pick([
                     { type: 'single', x: -9, y:  9, z: SPAWN_Z, xV: 3, yV: 3 },
                     { type: 'single', x:  9, y:  9, z: SPAWN_Z, xV: 3, yV: 3 },
-                ]),
-            ].map(_evaluateSpec);
+                ]))
+            ];
         });
     }
     return steps;
@@ -292,10 +292,10 @@ export function patternShiftingGates(params = {}) {
             spawnWallCircleHole(scene, obstacles, cx, cy, p.gapSize);
             // Slots computed at runtime from the actual hole center
             const angle = Math.random() * Math.PI * 2;
-            return [
-                { type: 'single',    x: cx, y: cy, z: SPAWN_Z },
-                { type: 'formation', x: cx, y: cy, z: SPAWN_Z,
-                  dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 },
+            return [Math.random() < 0.5
+                ? { type: 'single',    x: cx, y: cy, z: SPAWN_Z }
+                : { type: 'formation', x: cx, y: cy, z: SPAWN_Z,
+                  dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 }
             ];
         });
         // Increase variance in hole location: higher multipliers
@@ -321,15 +321,17 @@ export function patternScatter(params = {}) {
                 [
                     { type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx:  2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 },
                     { type: 'single',    x: -6, y:  3, z: SPAWN_Z, xV: 5, yV: 5 },
-                    { type: 'single',    x:  6, y: -3, z: SPAWN_Z, xV: 5, yV: 5 },
                 ],
                 [
                     { type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx: -2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 },
                     { type: 'single',    x:  6, y:  3, z: SPAWN_Z, xV: 5, yV: 5 },
-                    { type: 'single',    x: -6, y: -3, z: SPAWN_Z, xV: 5, yV: 5 },
                 ],
             ];
-            return scatterFallbacks[stepIdx % scatterFallbacks.length].map(_evaluateSpec);
+            const fallback = scatterFallbacks[stepIdx % scatterFallbacks.length];
+            return [Math.random() < 0.5 
+                ? _evaluateSpec(fallback[0]) 
+                : _evaluateSpec(fallback[1])
+            ];
         });
     }
     return steps;
@@ -377,10 +379,12 @@ export function patternNarrow(params = {}) {
             obstacles.push({ parts, fadeAge: 0 });
 
             // Slots anchored at the gap centre, computed at runtime
-            return [
-                { type: 'single',    x: gapCenterX, y: 0, z: SPAWN_Z },
-                { type: 'formation', x: gapCenterX, y: -BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy:  2.5, count: 4 },
-                { type: 'formation', x: gapCenterX, y:  BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy: -2.5, count: 4 },
+            return [Math.random() < 0.5
+                ? { type: 'single',    x: gapCenterX, y: 0, z: SPAWN_Z }
+                : _pick([
+                    { type: 'formation', x: gapCenterX, y: -BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy:  2.5, count: 4 },
+                    { type: 'formation', x: gapCenterX, y:  BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy: -2.5, count: 4 },
+                ])
             ];
         });
     }
@@ -398,16 +402,16 @@ export function patternSlalomGate(params = {}) {
             spawnSideWall(scene, obstacles, side, Math.random() * 0.35 + 0.4);
             if (side === -1) {
                 // Left wall → open RIGHT
-                return [
-                    { type: 'formation', x:  12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 },
-                    { type: 'single',    x:  16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 },
-                ].map(_evaluateSpec);
+                return [Math.random() < 0.5
+                    ? _evaluateSpec({ type: 'formation', x:  12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 })
+                    : _evaluateSpec({ type: 'single',    x:  16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 })
+                ];
             }
             // Right wall → open LEFT
-            return [
-                { type: 'formation', x: -12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 },
-                { type: 'single',    x: -16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 },
-            ].map(_evaluateSpec);
+            return [Math.random() < 0.5
+                ? _evaluateSpec({ type: 'formation', x: -12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 })
+                : _evaluateSpec({ type: 'single',    x: -16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 })
+            ];
         });
     }
     steps.push((scene, obstacles) => {
@@ -415,10 +419,10 @@ export function patternSlalomGate(params = {}) {
         const gy = (Math.random() - 0.5) * 15;
         spawnWallCircleHole(scene, obstacles, gx, gy, p.gapSize);
         const angle = Math.random() * Math.PI * 2;
-        return [
-            { type: 'single',    x: gx, y: gy, z: SPAWN_Z },
-            { type: 'formation', x: gx, y: gy, z: SPAWN_Z,
-              dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 },
+        return [Math.random() < 0.5
+            ? { type: 'formation', x: gx, y: gy, z: SPAWN_Z,
+                dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 }
+            : { type: 'single',    x: gx, y: gy, z: SPAWN_Z }
         ];
     });
     return steps;
@@ -461,9 +465,9 @@ function spawnSingleBlock(scene, obstacles, size = 1) {
     const openX = -side * BOUNDS_X * 0.3;
     const dx = -side * (2 + Math.random());
     const dy = (Math.random() - 0.5) * 2;
-    return [
-        { type: 'single',    x: openX, y: by, z: SPAWN_Z },
-        { type: 'formation', x: openX, y: by, z: SPAWN_Z, dx, dy, count: 4 },
+    return [Math.random() < 0.5
+        ? { type: 'single',    x: openX, y: by, z: SPAWN_Z }
+        : { type: 'formation', x: openX, y: by, z: SPAWN_Z, dx, dy, count: 4 }
     ];
 }
 

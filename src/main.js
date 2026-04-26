@@ -373,14 +373,7 @@ const obstacles = [];
 /* ── Pickup slot pool ──────────────────────────────────────
    nextObstacle() returns slot arrays; we accumulate them here
    and consume one per pickup-spawn event.                    */
-const slotPool = [];
-
-function _consumeSlot(type) {
-    for (let i = slotPool.length - 1; i >= 0; i--) {
-        if (slotPool[i].type === type) return slotPool.splice(i, 1)[0];
-    }
-    return null;
-}
+const pendingPickups = [];
 const mouseNDC = new THREE.Vector2(0, 0);
 const target   = new THREE.Vector3();
 const vel      = new THREE.Vector3();
@@ -490,7 +483,7 @@ function init() {
     aircraft.visible = true;
 
     resetSequencer();
-    slotPool.length = 0;
+    pendingPickups.length = 0;
     if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
     planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
@@ -662,9 +655,28 @@ function loop() {
     if (spawnTimer > interval) {
         spawnTimer -= interval;
         const slots = nextObstacle(scene, obstacles, elapsed);
-        // Clear old slots so pickups only spawn at the most recent obstacle's open space
-        slotPool.length = 0;
-        for (const s of slots) slotPool.push(s);
+        
+        // Process pending pickups using the slots generated for this exact obstacle
+        // Priority: fuel > shield > points > formation
+        const priority = { 'fuel': 0, 'shield': 1, 'points': 2, 'formation': 3 };
+        pendingPickups.sort((a, b) => priority[a] - priority[b]);
+
+        for (let i = 0; i < pendingPickups.length; i++) {
+            const type = pendingPickups[i];
+            const reqSlotType = (type === 'formation') ? 'formation' : 'single';
+            
+            const slotIdx = slots.findIndex(s => s.type === reqSlotType);
+            if (slotIdx !== -1) {
+                const slot = slots.splice(slotIdx, 1)[0];
+                if (type === 'fuel') spawnFuelPickup(scene, slot);
+                else if (type === 'shield') spawnShieldPickup(scene, slot);
+                else if (type === 'points') spawnHighValuePickup(scene, slot);
+                else if (type === 'formation') spawnLowValueFormation(scene, slot);
+                
+                pendingPickups.splice(i, 1);
+                i--; // adjust index after removal
+            }
+        }
     }
 
     /* ── Move + fade-in obstacles ──────────────────────── */
@@ -733,29 +745,17 @@ function loop() {
     const _jitter = base => base * (0.8 + Math.random() * 0.4);
 
     if (fuelPUTimer.value >= fuelPUTimer._threshold) {
-        const slot = _consumeSlot('single');
-        if (slot) {
-            fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
-            spawnFuelPickup(scene, slot);
-        }
+        pendingPickups.push('fuel');
+        fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
     } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
-        const slot = _consumeSlot('single');
-        if (slot) {
-            shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
-            spawnShieldPickup(scene, slot);
-        }
+        pendingPickups.push('shield');
+        shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
     } else if (pointsTimer.value >= pointsTimer._threshold) {
-        const slot = _consumeSlot('single');
-        if (slot) {
-            pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
-            spawnHighValuePickup(scene, slot);
-        }
+        pendingPickups.push('points');
+        pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
     } else if (formationTimer.value >= formationTimer._threshold) {
-        const slot = _consumeSlot('formation');
-        if (slot) {
-            formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
-            spawnLowValueFormation(scene, slot);
-        }
+        pendingPickups.push('formation');
+        formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
     }
 
     /* ── Enemies ──────────────────────────────────────── */
