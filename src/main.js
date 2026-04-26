@@ -662,10 +662,9 @@ function loop() {
     if (spawnTimer > interval) {
         spawnTimer -= interval;
         const slots = nextObstacle(scene, obstacles, elapsed);
-        // Pool all slots. Timers below decide when each type is actually spawned.
+        // Clear old slots so pickups only spawn at the most recent obstacle's open space
+        slotPool.length = 0;
         for (const s of slots) slotPool.push(s);
-        // Cap pool to avoid stale positions building up
-        while (slotPool.length > 30) slotPool.shift();
     }
 
     /* ── Move + fade-in obstacles ──────────────────────── */
@@ -734,18 +733,29 @@ function loop() {
     const _jitter = base => base * (0.8 + Math.random() * 0.4);
 
     if (fuelPUTimer.value >= fuelPUTimer._threshold) {
-        fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
-        spawnFuelPickup(scene, _consumeSlot('single'));
+        const slot = _consumeSlot('single');
+        if (slot) {
+            fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
+            spawnFuelPickup(scene, slot);
+        }
     } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
-        shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
-        spawnShieldPickup(scene, _consumeSlot('single'));
+        const slot = _consumeSlot('single');
+        if (slot) {
+            shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
+            spawnShieldPickup(scene, slot);
+        }
     } else if (pointsTimer.value >= pointsTimer._threshold) {
-        pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
-        spawnHighValuePickup(scene, _consumeSlot('single'));
+        const slot = _consumeSlot('single');
+        if (slot) {
+            pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
+            spawnHighValuePickup(scene, slot);
+        }
     } else if (formationTimer.value >= formationTimer._threshold) {
-        formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
         const slot = _consumeSlot('formation');
-        if (slot) spawnLowValueFormation(scene, slot);
+        if (slot) {
+            formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
+            spawnLowValueFormation(scene, slot);
+        }
     }
 
     /* ── Enemies ──────────────────────────────────────── */

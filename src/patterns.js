@@ -9,7 +9,7 @@ import {
    Valid: 'patternLeftRight' | 'patternTopDown' | 'patternCorners'
           'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
           'patternScatter'                                     */
-const FORCE_PATTERN = null;
+const FORCE_PATTERN = null; // e.g. 'patternNarrow' | null for random --- IGNORE ---
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -233,56 +233,48 @@ export function patternTopDown(params = {}) {
     return steps;
 }
 
-/* ── Slots for each corner combo, indexed by comboIdx (0–3). ───────
-   combo 0: left wall + top bar  → open BOTTOM-RIGHT
-   combo 1: right wall + bot bar → open TOP-LEFT
-   combo 2: left wall + bot bar  → open TOP-RIGHT
-   combo 3: right wall + top bar → open BOTTOM-LEFT            */
-function _cornerSlots(comboIdx) {
-    const specs = [
-        [ // combo 0: diagonal toward bottom-right
-            { type: 'formation', x:  9, y: -6, z: SPAWN_Z, dx:  1.5, dy: -1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
-            { type: 'single',    x: 15, y: -9, z: SPAWN_Z, xV: 3, yV: 2 },
-        ],
-        [ // combo 1: diagonal toward top-left
-            { type: 'formation', x: -9, y:  6, z: SPAWN_Z, dx: -1.5, dy:  1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
-            { type: 'single',    x: -15, y:  9, z: SPAWN_Z, xV: 3, yV: 2 },
-        ],
-        [ // combo 2: diagonal toward top-right
-            { type: 'formation', x:  9, y:  6, z: SPAWN_Z, dx:  1.5, dy:  1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
-            { type: 'single',    x: 15, y:  9, z: SPAWN_Z, xV: 3, yV: 2 },
-        ],
-        [ // combo 3: diagonal toward bottom-left
-            { type: 'formation', x: -9, y: -6, z: SPAWN_Z, dx: -1.5, dy: -1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
-            { type: 'single',    x: -15, y: -9, z: SPAWN_Z, xV: 3, yV: 2 },
-        ],
-    ];
-    return specs[comboIdx].map(_evaluateSpec);
-}
-
 /* ── 3. Combined side + bar (L+Top, R+Bot, …) ──────────────────── */
 export function patternCorners(params = {}) {
     const p = defaults(params, { count: 4 });
     const steps = [];
+    // [sideWall direction, bar direction]
+    // side: -1 = left wall, 1 = right wall
+    // bar:   1 = top bar,  -1 = bottom bar
     const combos = [[-1, 1], [1, -1], [-1, -1], [1, 1]];
 
     for (let i = 0; i < p.count; i++) {
         const [sd, bd] = combos[i % combos.length];
-        const comboIdx = i % combos.length;
+        const nextCombo = combos[(i + 1) % combos.length];
 
-        // Step A: corner walls (side + bar, 20-65% coverage each)
+        // Step A: corner obstacle — exactly one pickup in the open corner
         steps.push((scene, obstacles) => {
             spawnSideWall(scene, obstacles, sd, 0.2 + Math.random() * 0.45);
             spawnBar(scene, obstacles, bd, 0.2 + Math.random() * 0.45);
-            return _cornerSlots(comboIdx);
+
+            // openX is opposite of wall side, openY is opposite of bar direction
+            const openX = -sd;
+            const openY = -bd;
+
+            return [Math.random() < 0.5
+                ? _evaluateSpec({ type: 'formation', x: openX * 14, y: openY * 9, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.5, count: 4, xV: 2, yV: 2, dxV: 0.3, dyV: 0.3, countV: 1 })
+                : _evaluateSpec({ type: 'single',    x: openX * 16, y: openY * 10, z: SPAWN_Z, xV: 2, yV: 2 })
+            ];
         });
 
-        // Step B: center wall as its own layer
+        // Step B: center wall — exactly one pickup toward the NEXT combo's open corner
         steps.push((scene, obstacles) => {
             const parts = [];
             makeBox(scene, BOUNDS_X * 0.60, BOUNDS_Y * 0.60, 4, 0, 0, SPAWN_Z, matObs, parts);
             obstacles.push({ parts, fadeAge: 0 });
-            return _cornerSlots(comboIdx);
+
+            const [nsd, nbd] = nextCombo;
+            const openX = -nsd;
+            const openY = -nbd;
+
+            return [Math.random() < 0.5
+                ? _evaluateSpec({ type: 'formation', x: openX * 12, y: openY * 7, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.5, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 })
+                : _evaluateSpec({ type: 'single',    x: openX * 14, y: openY * 8, z: SPAWN_Z, xV: 3, yV: 3 })
+            ];
         });
     }
     return steps;
