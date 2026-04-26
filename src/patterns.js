@@ -2,9 +2,8 @@ import * as THREE from 'three';
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, PLANE_RADIUS,
     OBS_TARGET_OPACITY, matObs, matFrame,
-    SAFE_ZONE_SINGLES_PER_STEP, SAFE_ZONE_MARGIN,
-    SAFE_ZONE_FORMATIONS_PER_STEP, SAFE_ZONE_FORMATION_RADIUS,
 } from './config.js';
+import { PICKUP_LAYOUTS, FORCE_PATTERN } from './pickup-layouts.js';
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -21,37 +20,26 @@ function getSafeSideWallSize(size = 1) {
     return Math.min(size, maxSafe);
 }
 
-/* ── Safe-zone helpers ────────────────────────────────────
-   Push {x, y, z, type} into the safeZones array.
-   type: 'single'    — one-off pickup placement spot
-         'formation' — has additional dx, dy for chain direction
-   All positions are at SPAWN_Z (same depth as the obstacle).
-   ─────────────────────────────────────────────────────────── */
-const _M = SAFE_ZONE_MARGIN;
+/* ── Layout helpers ──────────────────────────────────────── */
 
-/** Clamp a point to within the playable area (with margin) */
-function _clampSafe(x, y) {
+/** Return the layout row for a given pattern name and step index.
+ *  Cycles through the layout array if stepIdx >= entries. */
+function _layoutFor(patternName, stepIdx) {
+    const rows = PICKUP_LAYOUTS[patternName];
+    if (!rows || rows.length === 0) return [];
+    return rows[stepIdx % rows.length];
+}
+
+/** Apply jitter to an authored slot so neighbouring steps aren't identical.
+ *  Keeps positions inside playfield bounds. */
+function _jitter(slot) {
+    const jx = (Math.random() - 0.5) * 4;
+    const jy = (Math.random() - 0.5) * 3;
     return {
-        x: THREE.MathUtils.clamp(x, -BOUNDS_X + _M, BOUNDS_X - _M),
-        y: THREE.MathUtils.clamp(y, -BOUNDS_Y + _M, BOUNDS_Y - _M),
+        ...slot,
+        x: THREE.MathUtils.clamp(slot.x + jx, -BOUNDS_X + 4, BOUNDS_X - 4),
+        y: THREE.MathUtils.clamp(slot.y + jy, -BOUNDS_Y + 3, BOUNDS_Y - 3),
     };
-}
-
-/** Push up to `n` single safe zones scattered around (cx, cy) with some jitter */
-function _pushSingles(zones, cx, cy, z, n = SAFE_ZONE_SINGLES_PER_STEP) {
-    for (let i = 0; i < n; i++) {
-        const jx = (Math.random() - 0.5) * _M * 2;
-        const jy = (Math.random() - 0.5) * _M * 2;
-        const p = _clampSafe(cx + jx, cy + jy);
-        zones.push({ x: p.x, y: p.y, z, type: 'single' });
-    }
-}
-
-/** Push a formation corridor: a start point + normalised direction.
- *  dx/dy define the lateral step per pickup in the chain. */
-function _pushFormation(zones, cx, cy, z, dx, dy) {
-    const p = _clampSafe(cx, cy);
-    zones.push({ x: p.x, y: p.y, z, dx, dy, type: 'formation' });
 }
 
 export function makeBox(scene, w, h, d, x, y, z, mat, group) {
@@ -95,8 +83,11 @@ export function patternLeftRight(params = {}) {
     const steps = [];
     for (let i = 0; i < p.count; i++) {
         const side = i % 2 === 0 ? -1 : 1;
-        steps.push((scene, obstacles, safeZones) => 
-            spawnSideWall(scene, obstacles, side, p.wallSize, true, safeZones));
+        const stepIdx = i;
+        steps.push((scene, obstacles) => {
+            spawnSideWall(scene, obstacles, side, p.wallSize, true);
+            return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
+        });
     }
     return steps;
 }
@@ -108,8 +99,11 @@ export function patternTopDown(params = {}) {
     for (let i = 0; i < p.count; i++) {
         const dir = i % 2 === 0 ? 1 : -1;
         const yFactor = 0.50 + Math.random() * 0.28;
-        steps.push((scene, obstacles, safeZones) =>
-            spawnBar(scene, obstacles, dir, p.wallSize, yFactor, safeZones));
+        const stepIdx = i;
+        steps.push((scene, obstacles) => {
+            spawnBar(scene, obstacles, dir, p.wallSize, yFactor);
+            return _layoutFor('patternTopDown', stepIdx).map(_jitter);
+        });
     }
     return steps;
 }
@@ -121,17 +115,11 @@ export function patternCorners(params = {}) {
     const combos = [[-1, 1], [1, -1], [-1, -1], [1, 1]];
     for (let i = 0; i < p.count; i++) {
         const [sd, bd] = combos[i % combos.length];
-        steps.push((scene, obstacles, safeZones) => {
-            spawnSideWall(scene, obstacles, sd, p.wallSize * 0.65, false, safeZones);
-            spawnBar(scene, obstacles, bd, p.wallSize * 0.65, undefined, safeZones);
-            // Corner pattern: safe zone is in the open diagonal quadrant
-            const safeCx = -sd * BOUNDS_X * 0.3;
-            const safeCy = -bd * BOUNDS_Y * 0.3;
-            // Override the singles from the sub-spawners with the true open area
-            // (sub-spawners already pushed some; these are more accurate)
-            _pushSingles(safeZones, safeCx, safeCy, SPAWN_Z, 1);
-            _pushFormation(safeZones, safeCx, safeCy, SPAWN_Z,
-                -sd * (2 + Math.random()), -bd * (1.5 + Math.random()));
+        const comboIdx = i % combos.length;
+        steps.push((scene, obstacles) => {
+            spawnSideWall(scene, obstacles, sd, p.wallSize * 0.65, false);
+            spawnBar(scene, obstacles, bd, p.wallSize * 0.65, undefined);
+            return _layoutFor('patternCorners', comboIdx).map(_jitter);
         });
     }
     return steps;
@@ -145,8 +133,16 @@ export function patternShiftingGates(params = {}) {
     let gy = (Math.random() - 0.5) * p.gapOffset * 1.8;
     for (let i = 0; i < p.count; i++) {
         const cx = gx, cy = gy;
-        steps.push((scene, obstacles, safeZones) =>
-            spawnWallCircleHole(scene, obstacles, cx, cy, p.gapSize, safeZones));
+        steps.push((scene, obstacles) => {
+            spawnWallCircleHole(scene, obstacles, cx, cy, p.gapSize);
+            // Slots computed at runtime from the actual hole center
+            const angle = Math.random() * Math.PI * 2;
+            return [
+                { type: 'single',    x: cx, y: cy, z: SPAWN_Z },
+                { type: 'formation', x: cx, y: cy, z: SPAWN_Z,
+                  dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 },
+            ];
+        });
         gx += (Math.random() - 0.5) * p.gapOffset * 2.0;
         gy += (Math.random() - 0.5) * p.gapOffset * 1.2;
         gx = THREE.MathUtils.clamp(gx, -BOUNDS_X * 0.35, BOUNDS_X * 0.35);
@@ -160,7 +156,11 @@ export function patternScatter(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
     for (let i = 0; i < p.count; i++) {
-        steps.push((scene, obstacles, safeZones) => spawnSingleBlock(scene, obstacles, p.wallSize, safeZones));
+        const stepIdx = i;
+        steps.push((scene, obstacles) => {
+            const slots = spawnSingleBlock(scene, obstacles, p.wallSize);
+            return slots.length ? slots : _layoutFor('patternScatter', stepIdx).map(_jitter);
+        });
     }
     return steps;
 }
@@ -173,7 +173,7 @@ export function patternNarrow(params = {}) {
     const maxGapWidth = p.gapSizeMax ?? BOUNDS_X;  // from difficulty curve
     
     for (let i = 0; i < p.count; i++) {
-        steps.push((scene, obstacles, safeZones) => {
+        steps.push((scene, obstacles) => {
             const parts = [];
             const gapCenterX = (Math.random() - 0.5) * BOUNDS_X * 1.6;
             const gapWidth = THREE.MathUtils.lerp(
@@ -199,13 +199,12 @@ export function patternNarrow(params = {}) {
             
             obstacles.push({ parts, fadeAge: 0 });
 
-            // Safe zones: inside the gap
-            if (safeZones) {
-                _pushSingles(safeZones, gapCenterX, 0, SPAWN_Z);
-                // Formation runs vertically through the gap (horizontal is blocked)
-                _pushFormation(safeZones, gapCenterX, -BOUNDS_Y * 0.2, SPAWN_Z, 0, 2.5);
-                _pushFormation(safeZones, gapCenterX, BOUNDS_Y * 0.2, SPAWN_Z, 0, -2.5);
-            }
+            // Slots anchored at the gap centre, computed at runtime
+            return [
+                { type: 'single',    x: gapCenterX, y: 0, z: SPAWN_Z },
+                { type: 'formation', x: gapCenterX, y: -BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy:  2.5, count: 4 },
+                { type: 'formation', x: gapCenterX, y:  BOUNDS_Y * 0.2, z: SPAWN_Z, dx: 0, dy: -2.5, count: 4 },
+            ];
         });
     }
     return steps;
@@ -217,13 +216,22 @@ export function patternSlalomGate(params = {}) {
     const steps = [];
     for (let i = 0; i < p.count - 1; i++) {
         const side = i % 2 === 0 ? -1 : 1;
-        steps.push((scene, obstacles, safeZones) => spawnSideWall(scene, obstacles, side, p.wallSize, false, safeZones));
+        const stepIdx = i;
+        steps.push((scene, obstacles) => {
+            spawnSideWall(scene, obstacles, side, p.wallSize, false);
+            return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
+        });
     }
-    steps.push((scene, obstacles, safeZones) => {
-        spawnWallCircleHole(scene, obstacles,
-            (Math.random() - 0.5) * p.gapOffset * 2,
-            (Math.random() - 0.5) * 3,
-            p.gapSize, safeZones);
+    steps.push((scene, obstacles) => {
+        const gx = (Math.random() - 0.5) * (p.gapOffset ?? 4) * 2;
+        const gy = (Math.random() - 0.5) * 3;
+        spawnWallCircleHole(scene, obstacles, gx, gy, p.gapSize);
+        const angle = Math.random() * Math.PI * 2;
+        return [
+            { type: 'single',    x: gx, y: gy, z: SPAWN_Z },
+            { type: 'formation', x: gx, y: gy, z: SPAWN_Z,
+              dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 },
+        ];
     });
     return steps;
 }
@@ -235,8 +243,11 @@ export function patternBars(params = {}) {
     for (let i = 0; i < p.count; i++) {
         const dir = i % 2 === 0 ? 1 : -1;
         const yFactor = 0.48 + Math.random() * 0.32;
-        steps.push((scene, obstacles, safeZones) =>
-            spawnBar(scene, obstacles, dir, p.wallSize, yFactor, safeZones));
+        const stepIdx = i;
+        steps.push((scene, obstacles) => {
+            spawnBar(scene, obstacles, dir, p.wallSize, yFactor);
+            return _layoutFor('patternBars', stepIdx).map(_jitter);
+        });
     }
     return steps;
 }
@@ -245,43 +256,26 @@ export function patternBars(params = {}) {
    PRIMITIVE SPAWNERS  (used by templates above)
    ═══════════════════════════════════════════════════════════ */
 
-function spawnSideWall(scene, obstacles, side, size = 1, forceNarrow = false, safeZones = null) {
+function spawnSideWall(scene, obstacles, side, size = 1, forceNarrow = false) {
     const narrows = forceNarrow ? 0.45 : 1.0;
     const parts = [];
     const clampedSize = Math.min(size * narrows, 1.0);
     makeBox(scene, BOUNDS_X * 1.05 * clampedSize, BOUNDS_Y * 2.4, 4.5,
         side * (BOUNDS_X * 0.58), 0, SPAWN_Z, matObs, parts);
-    obstacles.push({ parts, fadeAge: 0 });
-
-    // Safe zone: opposite side of the wall
-    if (safeZones) {
-        const safeCx = -side * BOUNDS_X * 0.3;
-        _pushSingles(safeZones, safeCx, 0, SPAWN_Z);
-        // Formation runs vertically on the open side
-        _pushFormation(safeZones, safeCx, -BOUNDS_Y * 0.15, SPAWN_Z, 0, 2.0 + Math.random());
-        _pushFormation(safeZones, safeCx, BOUNDS_Y * 0.15, SPAWN_Z,
-            -side * (1.5 + Math.random()), -(1.5 + Math.random()));
-    }
+    const obsData = { parts, fadeAge: 0 };
+    obstacles.push(obsData);
 }
 
-function spawnBar(scene, obstacles, dir, size = 1, yFactor = 0.75, safeZones = null) {
+function spawnBar(scene, obstacles, dir, size = 1, yFactor = 0.75) {
     const parts = [];
     const clampedSize = Math.min(size, 1.20);
     makeBox(scene, BOUNDS_X * 2.5, BOUNDS_Y * 0.95 * clampedSize, 4, 0,
         dir * BOUNDS_Y * yFactor, SPAWN_Z, matObs, parts);
     obstacles.push({ parts, fadeAge: 0 });
-
-    // Safe zone: opposite vertical side of the bar
-    if (safeZones) {
-        const safeCy = -dir * BOUNDS_Y * (1 - yFactor) * 0.4;
-        _pushSingles(safeZones, 0, safeCy, SPAWN_Z);
-        // Formation runs horizontally in the open space
-        _pushFormation(safeZones, -BOUNDS_X * 0.2, safeCy, SPAWN_Z, 2.5 + Math.random(), 0);
-        _pushFormation(safeZones, BOUNDS_X * 0.2, safeCy, SPAWN_Z, -(2.5 + Math.random()), 0);
-    }
 }
 
-function spawnSingleBlock(scene, obstacles, size = 1, safeZones = null) {
+/** Returns computed pickup slots based on which side the block lands on. */
+function spawnSingleBlock(scene, obstacles, size = 1) {
     const parts = [];
     const side = Math.random() < 0.5 ? -1 : 1;
     const s = 3 * size;
@@ -290,19 +284,19 @@ function spawnSingleBlock(scene, obstacles, size = 1, safeZones = null) {
     makeBox(scene, s + Math.random() * 3, s + Math.random() * 3, s + Math.random() * 2,
         bx, by, SPAWN_Z, matObs, parts);
     obstacles.push({ parts, fadeAge: 0 });
-
-    // Safe zone: opposite side of the block
-    if (safeZones) {
-        const safeCx = -side * BOUNDS_X * 0.3;
-        _pushSingles(safeZones, safeCx, by, SPAWN_Z);
-        _pushFormation(safeZones, safeCx, by, SPAWN_Z,
-            -side * (2 + Math.random()), (Math.random() - 0.5) * 2);
-    }
+    // Dynamic slots: open side opposite the block
+    const openX = -side * BOUNDS_X * 0.3;
+    const dx = -side * (2 + Math.random());
+    const dy = (Math.random() - 0.5) * 2;
+    return [
+        { type: 'single',    x: openX, y: by, z: SPAWN_Z },
+        { type: 'formation', x: openX, y: by, z: SPAWN_Z, dx, dy, count: 4 },
+    ];
 }
 
-export function spawnWallWithRectGap(scene, obstacles, gapX, gapY, gapW, gapH, safeZones) {
+export function spawnWallWithRectGap(scene, obstacles, gapX, gapY, gapW, gapH) {
     // Redirects to the circle-hole wall for visual consistency
-    spawnWallCircleHole(scene, obstacles, gapX, gapY, (gapW + gapH) * 0.28, safeZones);
+    spawnWallCircleHole(scene, obstacles, gapX, gapY, (gapW + gapH) * 0.28);
 }
 
 /* ── Solid wall with a smooth circular cutout ─────────────
@@ -310,7 +304,7 @@ export function spawnWallWithRectGap(scene, obstacles, gapX, gapY, gapW, gapH, s
    pixels inside the circle.  No grid seams, no overdraw.
    Collision: custom circle-hole check in main.js (obs.circleHole).
    ─────────────────────────────────────────────────────────── */
-export function spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR, safeZones = null) {
+export function spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR) {
     const ow = BOUNDS_X * 2.5, oh = BOUNDS_Y * 2.4, d = 5;
     // Guarantee the hole is large enough to pass through
     const safeR = Math.max(gapR, PLANE_RADIUS * 2.5);
@@ -363,20 +357,10 @@ export function spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR, safeZone
         // Collision handled separately — see main.js collision loop
         circleHole: { x: gapX, y: gapY, r: safeR },
     });
-
-    // Safe zone: inside the circular hole
-    if (safeZones) {
-        _pushSingles(safeZones, gapX, gapY, SPAWN_Z);
-        // Small formations that stay within the hole radius
-        const fmtR = Math.min(safeR * 0.4, SAFE_ZONE_FORMATION_RADIUS);
-        const angle = Math.random() * Math.PI * 2;
-        _pushFormation(safeZones, gapX, gapY, SPAWN_Z,
-            Math.cos(angle) * 1.5, Math.sin(angle) * 1.5);
-    }
 }
 
-export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR, safeZones) {
-    spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR, safeZones);
+export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR) {
+    spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -385,25 +369,22 @@ export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR, safeZ
    feeds one step per spawn tick to the game loop.
    ═══════════════════════════════════════════════════════════ */
 
-// TEST MODE: Set TESTING_ONLY_LEFTRIGHT to false to re-enable all patterns (line below)
-const TESTING_ONLY_LEFTRIGHT = false;
+const ALL_PATTERN_MAP = {
+    patternLeftRight,
+    patternTopDown,
+    patternCorners,
+    patternShiftingGates,
+    patternNarrow,
+    patternSlalomGate,
+    patternBars,
+};
 
-// patternScatter removed — lone random boxes are replaced by enemy spawns.
-const ALL_TEMPLATES = TESTING_ONLY_LEFTRIGHT 
-    ? [patternNarrow]  // TESTING: Only LeftRight pattern
-    : [
-        patternLeftRight,
-        patternTopDown,
-        patternCorners,
-        patternShiftingGates,
-        patternNarrow,
-        patternSlalomGate,
-        patternBars,
-    ];
+const ALL_TEMPLATES = Object.values(ALL_PATTERN_MAP);
 
 let currentSteps = [];
 let stepIdx = 0;
 let lastTemplateIdx = -1;
+let currentPatternName = '';  // Track which pattern is active for debugging
 
 /** Difficulty scales with elapsed time. Primary driver is wallSize (traversal distance).
  *  For patternNarrow: gapSizeMax trends from 12 → 6 over 2 minutes (larger gaps → narrower).
@@ -423,18 +404,41 @@ function difficultyParams(elapsed) {
 
 export function nextObstacle(scene, obstacles, elapsed) {
     // If we've finished the current pattern, generate a new one
-    if (stepIdx >= currentSteps.length) {
-        let idx;
-        do { idx = Math.floor(Math.random() * ALL_TEMPLATES.length); }
-        while (idx === lastTemplateIdx && ALL_TEMPLATES.length > 1);
-        lastTemplateIdx = idx;
-        currentSteps = ALL_TEMPLATES[idx](difficultyParams(elapsed));
+    if (stepIdx >= currentSteps.length || currentSteps.length === 0) {
+        if (FORCE_PATTERN) {
+            // Lock to a single pattern for testing
+            const fn = ALL_PATTERN_MAP[FORCE_PATTERN];
+            if (!fn) throw new Error(`FORCE_PATTERN: unknown pattern "${FORCE_PATTERN}"`);
+            currentSteps = fn(difficultyParams(elapsed));
+            currentPatternName = FORCE_PATTERN;
+            // ...existing code...
+        } else {
+            let idx;
+            do { idx = Math.floor(Math.random() * ALL_TEMPLATES.length); }
+            while (idx === lastTemplateIdx && ALL_TEMPLATES.length > 1);
+            lastTemplateIdx = idx;
+            const patternFn = ALL_TEMPLATES[idx];
+            const patternKeys = Object.keys(ALL_PATTERN_MAP);
+            currentPatternName = patternKeys[idx];
+            currentSteps = patternFn(difficultyParams(elapsed));
+            // ...existing code...
+        }
         stepIdx = 0;
+        if (currentSteps.length === 0) {
+            console.error('Generated pattern with 0 steps!');
+            return [];
+        }
     }
-    const stepSafeZones = [];
-    currentSteps[stepIdx](scene, obstacles, stepSafeZones);
+    // Step functions return an array of pickup slot objects
+    const stepFn = currentSteps[stepIdx];
+    if (!stepFn) {
+        console.error(`Step function at index ${stepIdx} is undefined in pattern ${currentPatternName}`);
+        stepIdx++;
+        return [];
+    }
+    const slots = stepFn(scene, obstacles) ?? [];
     stepIdx++;
-    return stepSafeZones;
+    return slots;
 }
 
 export function resetSequencer() {

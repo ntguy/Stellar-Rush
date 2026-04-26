@@ -5,7 +5,6 @@ import {
     FUEL_MAX, POWERUP_EVERY, PICKUP_EVERY,
     OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
     BOOST_SPEED_MULT, BOOST_SCORE_MULT, SHIELD_DURATION,
-    SAFE_ZONE_POOL_MAX,
     matBody, matAccent, matGlow, matAsteroid, matLine,
 } from './config.js';
 
@@ -29,8 +28,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000005);
 scene.fog = new THREE.FogExp2(0x000005, 0.0015);
 
-const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 600);
-camera.position.set(0, 5, 13);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+camera.position.set(0, 10, 20);
 
 /* ═══════════════════════════════════════════════════════════
    LIGHTS
@@ -371,22 +370,16 @@ let exploding = false, explodeTimer = 0;
 const explosionParts = [];
 const obstacles = [];
 
-/* ── Safe-zone pool for pickup placement ──────────────────
-   Populated by nextObstacle() each time a pattern step runs.
-   Entries: { x, y, z, type:'single'|'formation', dx?, dy? }
-   Consumed by the pickup scheduler so pickups never overlap walls. */
-const safeZonePool = [];
+/* ── Pickup slot pool ──────────────────────────────────────
+   nextObstacle() returns slot arrays; we accumulate them here
+   and consume one per pickup-spawn event.                    */
+const slotPool = [];
 
-/** Consume a safe zone of the given type from the pool.
- *  Returns the zone object {x, y, z, ...} or null if none available
- *  (pickup spawner falls back to random placement when null). */
-function _consumeSafeZone(type) {
-    for (let i = safeZonePool.length - 1; i >= 0; i--) {
-        if (safeZonePool[i].type === type) {
-            return safeZonePool.splice(i, 1)[0];
-        }
+function _consumeSlot(type) {
+    for (let i = slotPool.length - 1; i >= 0; i--) {
+        if (slotPool[i].type === type) return slotPool.splice(i, 1)[0];
     }
-    return null; // fallback: spawner uses random position
+    return null;
 }
 const mouseNDC = new THREE.Vector2(0, 0);
 const target   = new THREE.Vector3();
@@ -491,7 +484,7 @@ function init() {
     aircraft.visible = true;
 
     resetSequencer();
-    safeZonePool.length = 0;
+    slotPool.length = 0;
     if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
     planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
@@ -653,7 +646,7 @@ function loop() {
     /* ── Camera follow ────────────────────────────────── */
     camera.position.x += (aircraft.position.x * 0.35 - camera.position.x) * 3 * dt;
     camera.position.y += ((aircraft.position.y * 0.25 + 4.5) - camera.position.y) * 3 * dt;
-    camera.lookAt(aircraft.position.x * 0.5, aircraft.position.y * 0.3, -35);
+    camera.lookAt(aircraft.position.x * 0.2, aircraft.position.y * 0.2, -35);
 
     /* ── Spawn obstacles ──────────────────────────────── */
     // Difficulty comes primarily from wallSize growing (wider obstacles = more traversal).
@@ -662,10 +655,10 @@ function loop() {
     spawnTimer += dt;
     if (spawnTimer > interval) {
         spawnTimer -= interval;
-        const newZones = nextObstacle(scene, obstacles, elapsed);
-        // Add new safe zones to pool, trim oldest if over capacity
-        for (const z of newZones) safeZonePool.push(z);
-        while (safeZonePool.length > SAFE_ZONE_POOL_MAX) safeZonePool.shift();
+        const slots = nextObstacle(scene, obstacles, elapsed);
+        for (const s of slots) slotPool.push(s);
+        // Cap pool to avoid stale positions building up
+        while (slotPool.length > 30) slotPool.shift();
     }
 
     /* ── Move + fade-in obstacles ──────────────────────── */
@@ -717,31 +710,22 @@ function loop() {
     if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
     updatePlanet(dt, speed);
 
-    /* ── Fuel pickups ─────────────────────────────────── */
     fuelPUTimer += dt;
     if (fuelPUTimer >= POWERUP_EVERY) {
         fuelPUTimer -= POWERUP_EVERY;
-        const sz = _consumeSafeZone('single');
-        spawnFuelPickup(scene, sz);
+        spawnFuelPickup(scene, _consumeSlot('single'));
     }
 
-    /* ── Points / shield pickups ──────────────────────── */
+    /* ── Points / shield pickups ────────────────────────── */
     pickupTimer += dt;
     if (pickupTimer >= PICKUP_EVERY) {
         pickupTimer -= PICKUP_EVERY;
-        const roll = Math.random();
-        if (roll < 0.20) {
-            // 20 % chance: shield
-            const sz = _consumeSafeZone('single');
-            spawnShieldPickup(scene, sz);
-        } else if (roll < 0.50) {
-            // 30 % chance: high-value single pickup
-            const sz = _consumeSafeZone('single');
-            spawnHighValuePickup(scene, sz);
-        } else {
-            // 50 % chance: low-value formation (diagonal / semicircle / line)
-            const sz = _consumeSafeZone('formation');
+        const sz = _consumeSlot('formation');
+        if (sz) {
             spawnLowValueFormation(scene, sz);
+        } else {
+            // Fallback: spawn a high-value single if no formation slot available
+            spawnHighValuePickup(scene, _consumeSlot('single'));
         }
     }
 

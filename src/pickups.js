@@ -12,7 +12,20 @@ export const pickups = [];
 // Collection radius — wider than PLANE_RADIUS so pickups feel generous to grab
 // TODO fine tune this and check that it works for all pickups
 // TODO put on github asap
-const COLLECT_RADIUS = PLANE_RADIUS * 3;
+// Dynamic collection radius: increases up to 50% as player nears screen edge
+function getCollectRadius(aircraftPos) {
+    // Compute normalized distance to nearest edge (0=center, 1=edge)
+    // BOUNDS_X and BOUNDS_Y are half-widths
+    const dx = Math.abs(aircraftPos.x) / (BOUNDS_X * 0.5);
+    const dy = Math.abs(aircraftPos.y) / (BOUNDS_Y * 0.5);
+    // Clamp to [0, 1]
+    const edgeProximity = Math.max(dx, dy);
+    // Scale: 0 at center, 1 at edge
+    const base = PLANE_RADIUS * 2.2;
+    const maxScale = 1.4; // 40% larger at edge
+    const scale = 1 + (maxScale - 1) * Math.min(edgeProximity, 1);
+    return base * scale;
+}
 
 /* ═══════════════════════════════════════════════════════════
    COLLECTION BURST PARTICLES
@@ -65,7 +78,7 @@ export function clearBurstParticles(scene) {
    ═══════════════════════════════════════════════════════════ */
 
 /** Yellow octahedron — refills fuel tank.
- *  If pos {x,y,z} is provided, spawns there; otherwise random. */
+ *  If pos {x,y,z} is provided (from safe zone), spawns there; otherwise random. */
 export function spawnFuelPickup(scene, pos) {
     const matPU = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
     const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.0, 0), matPU);
@@ -76,9 +89,11 @@ export function spawnFuelPickup(scene, pos) {
     });
     m.add(new THREE.Mesh(new THREE.SphereGeometry(2.8, 8, 6), hazeMat));
     m.add(new THREE.PointLight(0xffcc00, 4, 22));
+    
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
+        // Fallback: random placement if no safe zone available
         m.position.set(
             (Math.random() - 0.5) * BOUNDS_X * 0.7,
             (Math.random() - 0.5) * BOUNDS_Y * 0.5,
@@ -91,7 +106,7 @@ export function spawnFuelPickup(scene, pos) {
 
 /* ── High-value points pickup ─────────────────────────────
    Large glowing green octahedron.  Worth 200 pts.
-   Spawned by the pickup scheduler (not in formation). */
+   Spawned from safe zones or randomly. */
 export function spawnHighValuePickup(scene, pos) {
     const mat = new THREE.MeshBasicMaterial({ color: 0x22ff66 });
     const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.1, 0), mat);
@@ -106,6 +121,7 @@ export function spawnHighValuePickup(scene, pos) {
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
+        // Fallback: random placement if no safe zone available
         m.position.set(
             (Math.random() - 0.5) * BOUNDS_X * 0.8,
             (Math.random() - 0.5) * BOUNDS_Y * 0.6,
@@ -137,6 +153,7 @@ function _spawnLowPickupAt(scene, wx, wy, wz) {
 const LOW_Z_STEP = 14;  // world-units between successive pickups in a formation
 
 function _lowFormationDiagonal(scene, corridor) {
+    // ...existing code...
     const count = 3 + Math.floor(Math.random() * 3);  // 3–5
     const ox = corridor ? corridor.x : (Math.random() - 0.5) * BOUNDS_X * 0.5;
     const oy = corridor ? corridor.y : (Math.random() - 0.5) * BOUNDS_Y * 0.4;
@@ -144,8 +161,13 @@ function _lowFormationDiagonal(scene, corridor) {
     // Generate random direction locally
     const dx = (Math.random() < 0.5 ? 1 : -1) * (2.5 + Math.random());
     const dy = (Math.random() < 0.5 ? 1 : -1) * (2.0 + Math.random());
+    // ...existing code...
     for (let i = 0; i < count; i++) {
-        _spawnLowPickupAt(scene, ox + dx * i, oy + dy * i, baseZ - i * LOW_Z_STEP);
+        const px = ox + dx * i;
+        const py = oy + dy * i;
+        const pz = baseZ - i * LOW_Z_STEP;
+        // ...existing code...
+        _spawnLowPickupAt(scene, px, py, pz);
     }
 }
 
@@ -163,61 +185,51 @@ function _lowFormationSemicircle(scene, corridor) {
     }
 }
 
-function _lowFormationLine(scene, corridor, obstacles) {
+function _lowFormationLine(scene, corridor) {
+    if (!corridor) {
+        // No corridor provided — skip formation
+        return;
+    }
+    
     const count = 3 + Math.floor(Math.random() * 3);  // 3–5
     const vert = Math.random() < 0.5;
-
-    // Determine safe starting position
-    let ox, oy, baseZ;
-    do {
-        ox = corridor ? corridor.x : (Math.random() - 0.5) * BOUNDS_X * 0.5;
-        oy = corridor ? corridor.y : (Math.random() - 0.5) * BOUNDS_Y * 0.4;
-        baseZ = corridor ? corridor.z : SPAWN_Z + 10; // Ensure Z is significantly forward
-    } while (!isSafePosition(ox, oy, obstacles));
+    const ox = corridor.x;
+    const oy = corridor.y;
+    const baseZ = corridor.z;
 
     const spacing = 2.0 + Math.random() * 1.5;
     for (let i = 0; i < count; i++) {
         const x = ox + (vert ? 0 : (i - count / 2) * spacing);
         const y = oy + (vert ? (i - count / 2) * spacing : 0);
-        const pickup = _spawnLowPickupAt(scene, x, y, baseZ - i * LOW_Z_STEP);
-
-        // Add fade-in effect
-        if (pickup) {
-            pickup.material.opacity = 0;
-            new TWEEN.Tween(pickup.material)
-                .to({ opacity: 1 }, 1000) // Fade in over 1 second
-                .start();
-        }
+        _spawnLowPickupAt(scene, x, y, baseZ - i * LOW_Z_STEP);
     }
-}
-
-function isSafePosition(x, y, obstacles) {
-    // Check against obstacles for safe distance
-    for (const obstacle of obstacles) {
-        const dx = x - obstacle.x;
-        const dy = y - obstacle.y;
-        if (Math.sqrt(dx * dx + dy * dy) < 10) return false; // Example safe distance
-    }
-    return true;
 }
 
 const LOW_FORMATIONS = [_lowFormationDiagonal, _lowFormationSemicircle, _lowFormationLine];
 
 /** Spawn a random low-value formation.
  *  If corridor {x, y, z, dx, dy} is given, the formation is anchored there. */
-export function spawnLowValueFormation(scene, corridor, obstacles) {
+export function spawnLowValueFormation(scene, corridor) {
+    // ...existing code...
+    if (!corridor) {
+        // ...existing code...
+        return;  // Skip if no safe zone provided
+    }
+    // ...existing code...
     const fn = LOW_FORMATIONS[Math.floor(Math.random() * LOW_FORMATIONS.length)];
-    fn(scene, corridor, obstacles);
+    // ...existing code...
+    fn(scene, corridor);
 }
 
 /** Blue torus — temporary shield.
- *  If pos {x,y,z} is provided, spawns there; otherwise random. */
+ *  If pos {x,y,z} is provided (from safe zone), spawns there; otherwise random. */
 export function spawnShieldPickup(scene, pos) {
     const m = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.2, 6, 8), matShield.clone());
     m.material.opacity = 0.7;
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
+        // Fallback: random placement if no safe zone available
         m.position.set(
             (Math.random() - 0.5) * BOUNDS_X * 0.6,
             (Math.random() - 0.5) * BOUNDS_Y * 0.5,
@@ -227,6 +239,29 @@ export function spawnShieldPickup(scene, pos) {
     m.add(new THREE.PointLight(0x33aaff, 1.5, 10));
     scene.add(m);
     pickups.push({ mesh: m, type: 'shield' });
+}
+
+// Add a function to visualize the COLLECT_RADIUS
+let collectRadiusMesh = null;
+export function visualizeCollectRadius(scene, aircraftPos) {
+    const radius = getCollectRadius(aircraftPos);
+    if (!collectRadiusMesh) {
+        const geometry = new THREE.SphereGeometry(radius, 32, 32);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffff00, // Yellow color
+            transparent: true,
+            opacity: 0.2, // Semi-transparent
+        });
+        collectRadiusMesh = new THREE.Mesh(geometry, material);
+        scene.add(collectRadiusMesh);
+    } else {
+        // Update geometry if radius changed significantly
+        if (Math.abs(collectRadiusMesh.geometry.parameters.radius - radius) > 0.01) {
+            collectRadiusMesh.geometry.dispose();
+            collectRadiusMesh.geometry = new THREE.SphereGeometry(radius, 32, 32);
+        }
+    }
+    collectRadiusMesh.position.copy(aircraftPos);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -239,14 +274,18 @@ export function spawnShieldPickup(scene, pos) {
  */
 export function updatePickups(scene, dt, speed, aircraftPos) {
     const result = { fuel: 0, points: 0, pointsPos: null, shield: 0 };
+
+    // Update the collect radius visualization
+    visualizeCollectRadius(scene, aircraftPos);
+
     for (let i = pickups.length - 1; i >= 0; i--) {
         const p = pickups[i];
         p.mesh.position.z += speed * dt;
         p.mesh.rotation.y += dt * 3;
         p.mesh.rotation.x += dt * 1.7;
 
-        // Collection — use expanded COLLECT_RADIUS for generous feel
-        if (aircraftPos.distanceTo(p.mesh.position) < COLLECT_RADIUS) {
+        // Collection — use dynamic collect radius for generous feel
+        if (aircraftPos.distanceTo(p.mesh.position) < getCollectRadius(aircraftPos)) {
             switch (p.type) {
                 case 'fuel':         result.fuel   = FUEL_MAX;  break;
                 case 'points_high':  result.points += 200; result.pointsPos = p.mesh.position.clone(); break;
