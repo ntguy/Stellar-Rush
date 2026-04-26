@@ -134,91 +134,37 @@ export function spawnHighValuePickup(scene, pos) {
 
 /* ── Low-value points pickup ──────────────────────────────
    Small dim gem.  Worth 40 pts.  Spawned in formations.
-   worldX/Y/Z are absolute world positions — caller places them. */
+   Geometry and material are shared across all low pickups to
+   avoid per-pickup GPU allocations. No PointLight — formations
+   can have many pickups at once and per-light cost adds up fast. */
+const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
+const _lowMat = new THREE.MeshBasicMaterial({ color: 0x55ee99 });
+
 function _spawnLowPickupAt(scene, wx, wy, wz) {
-    const mat = new THREE.MeshBasicMaterial({ color: 0x55ee99 });
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), mat);
-    m.add(new THREE.PointLight(0x44ff88, 1, 8));
+    const m = new THREE.Mesh(_lowGeo, _lowMat);
     m.position.set(wx, wy, wz);
     scene.add(m);
     pickups.push({ mesh: m, type: 'points_low' });
 }
 
-/* Formation patterns for low-value pickups.
-   Z is staggered so pickups arrive closer together.
-   (at base speed ~45 u/s, spacing = 14 units ≈ 0.31 s).
-   
-   If a corridor {x, y, z} is provided, it's used as the starting point.
-   Direction is always randomly generated locally (ignoring corridor.dx/dy). */
-const LOW_Z_STEP = 14;  // world-units between successive pickups in a formation
-
-function _lowFormationDiagonal(scene, corridor) {
-    // ...existing code...
-    const count = 3 + Math.floor(Math.random() * 3);  // 3–5
-    const ox = corridor ? corridor.x : (Math.random() - 0.5) * BOUNDS_X * 0.5;
-    const oy = corridor ? corridor.y : (Math.random() - 0.5) * BOUNDS_Y * 0.4;
-    const baseZ = corridor ? corridor.z : SPAWN_Z;
-    // Generate random direction locally
-    const dx = (Math.random() < 0.5 ? 1 : -1) * (2.5 + Math.random());
-    const dy = (Math.random() < 0.5 ? 1 : -1) * (2.0 + Math.random());
-    // ...existing code...
+/** Spawn a formation of low-value pickups.
+ *  Uses slot.x/y as the anchor, slot.dx/dy as the per-pickup x/y step,
+ *  and slot.count for how many pickups. All placed at SPAWN_Z with a
+ *  small z-stagger (8 units) so they arrive in quick succession. */
+export function spawnLowValueFormation(scene, slot) {
+    if (!slot) return;
+    const count = slot.count ?? 4;
+    const dx    = slot.dx   ?? 0;
+    const dy    = slot.dy   ?? 0;
+    const Z_STEP = 8;  // world-units between successive pickups (~0.18 s at base speed)
     for (let i = 0; i < count; i++) {
-        const px = ox + dx * i;
-        const py = oy + dy * i;
-        const pz = baseZ - i * LOW_Z_STEP;
-        // ...existing code...
-        _spawnLowPickupAt(scene, px, py, pz);
+        _spawnLowPickupAt(
+            scene,
+            slot.x + dx * i,
+            slot.y + dy * i,
+            SPAWN_Z - i * Z_STEP,
+        );
     }
-}
-
-function _lowFormationSemicircle(scene, corridor) {
-    const count = 3 + Math.floor(Math.random() * 3);  // 3–5
-    const r = 3 + Math.random() * 2.5;
-    const cx = corridor ? corridor.x : (Math.random() - 0.5) * BOUNDS_X * 0.4;
-    const cy = corridor ? corridor.y : (Math.random() - 0.5) * BOUNDS_Y * 0.3;
-    const baseZ = corridor ? corridor.z : SPAWN_Z;
-    const startAngle = Math.random() * Math.PI * 2;
-    const angle = Math.PI;
-    for (let i = 0; i < count; i++) {
-        const a = startAngle + (i / Math.max(1, count - 1)) * angle;
-        _spawnLowPickupAt(scene, cx + Math.cos(a) * r, cy + Math.sin(a) * r, baseZ - i * LOW_Z_STEP);
-    }
-}
-
-function _lowFormationLine(scene, corridor) {
-    if (!corridor) {
-        // No corridor provided — skip formation
-        return;
-    }
-    
-    const count = 3 + Math.floor(Math.random() * 3);  // 3–5
-    const vert = Math.random() < 0.5;
-    const ox = corridor.x;
-    const oy = corridor.y;
-    const baseZ = corridor.z;
-
-    const spacing = 2.0 + Math.random() * 1.5;
-    for (let i = 0; i < count; i++) {
-        const x = ox + (vert ? 0 : (i - count / 2) * spacing);
-        const y = oy + (vert ? (i - count / 2) * spacing : 0);
-        _spawnLowPickupAt(scene, x, y, baseZ - i * LOW_Z_STEP);
-    }
-}
-
-const LOW_FORMATIONS = [_lowFormationDiagonal, _lowFormationSemicircle, _lowFormationLine];
-
-/** Spawn a random low-value formation.
- *  If corridor {x, y, z, dx, dy} is given, the formation is anchored there. */
-export function spawnLowValueFormation(scene, corridor) {
-    // ...existing code...
-    if (!corridor) {
-        // ...existing code...
-        return;  // Skip if no safe zone provided
-    }
-    // ...existing code...
-    const fn = LOW_FORMATIONS[Math.floor(Math.random() * LOW_FORMATIONS.length)];
-    // ...existing code...
-    fn(scene, corridor);
 }
 
 /** Blue torus — temporary shield.
@@ -293,12 +239,21 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
                 case 'shield':       result.shield = SHIELD_DURATION; break;
             }
             scene.remove(p.mesh);
+            if (p.type !== 'points_low') {
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+            }
             pickups.splice(i, 1);
             continue;
         }
 
         if (p.mesh.position.z > DESPAWN_Z) {
             scene.remove(p.mesh);
+            // Low pickups share geo+mat — don't dispose. Others own theirs.
+            if (p.type !== 'points_low') {
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+            }
             pickups.splice(i, 1);
         }
     }

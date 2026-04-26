@@ -2,15 +2,15 @@ import * as THREE from 'three';
 
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z, PLANE_RADIUS,
-    FUEL_MAX, POWERUP_EVERY, PICKUP_EVERY,
+    FUEL_MAX, FUEL_PICKUP_EVERY, FORMATION_EVERY, POINTS_PICKUP_EVERY, SHIELD_PICKUP_EVERY,
     OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
     BOOST_SPEED_MULT, BOOST_SCORE_MULT, SHIELD_DURATION,
     matBody, matAccent, matGlow, matAsteroid, matLine,
 } from './config.js';
 
 import { nextObstacle, resetSequencer } from './patterns.js';
-import { enemies, spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
-import { pickups, spawnFuelPickup, spawnHighValuePickup, spawnLowValueFormation, spawnShieldPickup, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
+import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
+import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
 import {
     playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
@@ -362,7 +362,7 @@ function clearPointsText(scene) {
    STATE
    ═══════════════════════════════════════════════════════════ */
 let fuel, score, elapsed, gameOver, boosting;
-let spawnTimer, asteroidTimer, fuelPUTimer, pickupTimer, enemyTimer;
+let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, pointsTimer, shieldPUTimer, enemyTimer;
 let shieldTimer;
 // How many times enemies have been spawned — drives multi-enemy probability ramp
 let enemySpawnCount;
@@ -452,7 +452,7 @@ function init() {
     fuel = FUEL_MAX; score = 0; elapsed = 0;
     gameOver = false; boosting = false;
     spawnTimer = 0; asteroidTimer = 0;
-    fuelPUTimer = 0; pickupTimer = 0; enemyTimer = 0;
+    fuelPUTimer = 0; formationTimer = 0; pointsTimer = 0; shieldPUTimer = 0; enemyTimer = 0;
     shieldTimer = 0;
     enemySpawnCount = 0;
     prevBoosting = false;
@@ -656,6 +656,7 @@ function loop() {
     if (spawnTimer > interval) {
         spawnTimer -= interval;
         const slots = nextObstacle(scene, obstacles, elapsed);
+        // Pool all slots. Timers below decide when each type is actually spawned.
         for (const s of slots) slotPool.push(s);
         // Cap pool to avoid stale positions building up
         while (slotPool.length > 30) slotPool.shift();
@@ -710,23 +711,39 @@ function loop() {
     if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
     updatePlanet(dt, speed);
 
+    /* ── Pickup timers ─────────────────────────────────────────
+       Each timer fires independently. When it fires it consumes
+       one slot from the pool of positions returned by the last
+       few pattern steps. If no suitable slot is available the
+       pickup still spawns (at a random fallback position).       */
+
+    // Gem formations (low-value collected in a chain)
+    formationTimer += dt;
+    if (formationTimer >= FORMATION_EVERY) {
+        formationTimer -= FORMATION_EVERY;
+        const slot = _consumeSlot('formation');
+        if (slot) spawnLowValueFormation(scene, slot);
+    }
+
+    // Fuel canister
     fuelPUTimer += dt;
-    if (fuelPUTimer >= POWERUP_EVERY) {
-        fuelPUTimer -= POWERUP_EVERY;
+    if (fuelPUTimer >= FUEL_PICKUP_EVERY) {
+        fuelPUTimer -= FUEL_PICKUP_EVERY;
         spawnFuelPickup(scene, _consumeSlot('single'));
     }
 
-    /* ── Points / shield pickups ────────────────────────── */
-    pickupTimer += dt;
-    if (pickupTimer >= PICKUP_EVERY) {
-        pickupTimer -= PICKUP_EVERY;
-        const sz = _consumeSlot('formation');
-        if (sz) {
-            spawnLowValueFormation(scene, sz);
-        } else {
-            // Fallback: spawn a high-value single if no formation slot available
-            spawnHighValuePickup(scene, _consumeSlot('single'));
-        }
+    // High-value point gem
+    pointsTimer += dt;
+    if (pointsTimer >= POINTS_PICKUP_EVERY) {
+        pointsTimer -= POINTS_PICKUP_EVERY;
+        spawnHighValuePickup(scene, _consumeSlot('single'));
+    }
+
+    // Shield bubble
+    shieldPUTimer += dt;
+    if (shieldPUTimer >= SHIELD_PICKUP_EVERY) {
+        shieldPUTimer -= SHIELD_PICKUP_EVERY;
+        spawnShieldPickup(scene, _consumeSlot('single'));
     }
 
     /* ── Enemies ──────────────────────────────────────── */

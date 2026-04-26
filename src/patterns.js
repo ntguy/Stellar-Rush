@@ -3,7 +3,13 @@ import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, PLANE_RADIUS,
     OBS_TARGET_OPACITY, matObs, matFrame,
 } from './config.js';
-import { PICKUP_LAYOUTS, FORCE_PATTERN } from './pickup-layouts.js';
+/* ── Testing control ────────────────────────────────────────
+   Set to a pattern name to lock the game to only that pattern.
+   null = normal random rotation.
+   Valid: 'patternLeftRight' | 'patternTopDown' | 'patternCorners'
+          'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
+          'patternScatter'                                     */
+const FORCE_PATTERN = null;
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -28,24 +34,59 @@ function _secondCoverage(first) {
 
 /* ── Layout helpers ──────────────────────────────────────── */
 
-/** Return the layout row for a given pattern name and step index.
- *  Cycles through the layout array if stepIdx >= entries. */
-function _layoutFor(patternName, stepIdx) {
-    const rows = PICKUP_LAYOUTS[patternName];
-    if (!rows || rows.length === 0) return [];
-    return rows[stepIdx % rows.length];
-}
+/** Rand helper: returns a value in [-v, +v]. */
+function _pm(v) { return (Math.random() - 0.5) * 2 * v; }
 
-/** Apply jitter to an authored slot so neighbouring steps aren't identical.
- *  Keeps positions inside playfield bounds. */
-function _jitter(slot) {
-    const jx = (Math.random() - 0.5) * 4;
-    const jy = (Math.random() - 0.5) * 3;
-    return {
-        ...slot,
-        x: THREE.MathUtils.clamp(slot.x + jx, -BOUNDS_X + 4, BOUNDS_X - 4),
-        y: THREE.MathUtils.clamp(slot.y + jy, -BOUNDS_Y + 3, BOUNDS_Y - 3),
-    };
+/** Pick one element at random from an array. */
+function _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/** Evaluate a slot spec into a concrete spawnable slot.
+ *
+ *  For every variance field (xV, yV, dxV, dyV, countV), a random
+ *  value in [-V, +V] is added to the base value at spawn time.
+ *  This means each wave rolls fresh positions even when the same
+ *  layout row is reused.
+ *
+ *  Boundary safety rules applied here so no spawned pickup can
+ *  drift off-screen regardless of authored values:
+ *   • x is clamped to [-BOUNDS_X+5, BOUNDS_X-5]
+ *   • y is clamped to [-BOUNDS_Y+5, BOUNDS_Y-5]
+ *   • For formations, dx/dy are auto-corrected if the chain would
+ *     exit bounds: the sign of each is flipped to point back inward
+ *     when the anchor + full chain extent would go out of range.
+ *   • count is clamped to [1, 8].
+ */
+function _evaluateSpec(spec) {
+    // --- anchor position with variance ---
+    const x = THREE.MathUtils.clamp(
+        spec.x + _pm(spec.xV ?? 0),
+        -BOUNDS_X + 5, BOUNDS_X - 5,
+    );
+    const y = THREE.MathUtils.clamp(
+        spec.y + _pm(spec.yV ?? 0),
+        -BOUNDS_Y + 5, BOUNDS_Y - 5,
+    );
+
+    if (spec.type === 'single') {
+        return { type: 'single', x, y, z: spec.z };
+    }
+
+    // --- formation ---
+    let dx = spec.dx + _pm(spec.dxV ?? 0);
+    let dy = spec.dy + _pm(spec.dyV ?? 0);
+    const count = THREE.MathUtils.clamp(
+        Math.round(spec.count + _pm(spec.countV ?? 0)),
+        1, 8,
+    );
+
+    // Boundary guard: if the chain tip would exit the play area,
+    // flip the offending direction so it points back inward.
+    const tipX = x + dx * (count - 1);
+    const tipY = y + dy * (count - 1);
+    if (tipX < -BOUNDS_X + 5 || tipX > BOUNDS_X - 5) dx = -dx;
+    if (tipY < -BOUNDS_Y + 5 || tipY > BOUNDS_Y - 5) dy = -dy;
+
+    return { type: 'formation', x, y, z: spec.z, dx, dy, count };
 }
 
 export function makeBox(scene, w, h, d, x, y, z, mat, group) {
@@ -91,14 +132,54 @@ export function patternLeftRight(params = {}) {
 
     for (let i = 0; i < p.count; i++) {
         const side = i % 2 === 0 ? -1 : 1;
-        const stepIdx = i;
         const isFirst = i % 2 === 0;
 
         steps.push((scene, obstacles) => {
             const cov = isFirst ? _firstCoverage() : _secondCoverage(prevCov);
             prevCov = cov;
             spawnSideWall(scene, obstacles, side, cov);
-            return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
+
+            if (side === -1) {
+                // Left wall → open RIGHT — pick one formation, pick one single
+                return [
+                    _pick([
+                        // Drifts up or down from centre
+                        { type: 'formation', x:  12, y:  0, z: SPAWN_Z, dx:    0, dy:  2.5, count: 4, xV: 4, yV: 0, dxV: 0,   dyV: 0.5, countV: 1 },
+                        // Cascades down from near the top
+                        { type: 'formation', x:  12, y: 10, z: SPAWN_Z, dx:    0, dy: -2.5, count: 4, xV: 3, yV: 2, dxV: 0,   dyV: 0.3, countV: 1 },
+                        // Drifts left across the open half at a random height
+                        { type: 'formation', x:  18, y:  0, z: SPAWN_Z, dx: -2.5, dy:    0, count: 4, xV: 3, yV: 8, dxV: 0.3, dyV: 0,   countV: 1 },
+                        // Diagonal — sweeps right and up together
+                        { type: 'formation', x:  12, y: -4, z: SPAWN_Z, dx:  1.5, dy:  2.0, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 },
+                    ]),
+                    _pick([
+                        // Lone pickup in the open half
+                        { type: 'single', x:  10, y:  0, z: SPAWN_Z, xV: 4, yV: 6 },
+                        // Bonus pickup near the far-right edge
+                        { type: 'single', x:  18, y:  0, z: SPAWN_Z, xV: 2, yV: 3 },
+                    ]),
+                ].map(_evaluateSpec);
+            }
+
+            // Right wall → open LEFT — pick one formation, pick one single
+            return [
+                _pick([
+                    // Drifts up or down from centre
+                    { type: 'formation', x: -12, y:  0, z: SPAWN_Z, dx:    0, dy:  2.5, count: 4, xV: 4, yV: 0, dxV: 0,   dyV: 0.5, countV: 1 },
+                    // Cascades down from near the top
+                    { type: 'formation', x: -12, y: 10, z: SPAWN_Z, dx:    0, dy: -2.5, count: 4, xV: 3, yV: 2, dxV: 0,   dyV: 0.3, countV: 1 },
+                    // Drifts right across the open half at a random height
+                    { type: 'formation', x: -18, y:  0, z: SPAWN_Z, dx:  2.5, dy:    0, count: 4, xV: 3, yV: 8, dxV: 0.3, dyV: 0,   countV: 1 },
+                    // Diagonal — sweeps left and up together
+                    { type: 'formation', x: -12, y: -4, z: SPAWN_Z, dx: -1.5, dy:  2.0, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 },
+                ]),
+                _pick([
+                    // Lone pickup in the open half
+                    { type: 'single', x: -10, y:  0, z: SPAWN_Z, xV: 4, yV: 6 },
+                    // Bonus pickup near the far-left edge
+                    { type: 'single', x: -18, y:  0, z: SPAWN_Z, xV: 2, yV: 3 },
+                ]),
+            ].map(_evaluateSpec);
         });
     }
     return steps;
@@ -119,10 +200,64 @@ export function patternTopDown(params = {}) {
             const cov = isFirst ? _firstCoverage() : _secondCoverage(prevCov);
             prevCov = cov;
             spawnBar(scene, obstacles, dir, cov);
-            return _layoutFor('patternTopDown', stepIdx).map(_jitter);
+            if (dir === 1) {
+                // Top bar → open BELOW — pick one formation + one single
+                return [
+                    _pick([
+                        // Sweeps right through the lower half
+                        { type: 'formation', x:  0, y: -6, z: SPAWN_Z, dx:  3, dy:  0, count: 4, xV: 5, yV: 3, dxV: 0.5, dyV: 0.3, countV: 1 },
+                        // Short diagonal that drifts down and to the right
+                        { type: 'formation', x: -8, y: -5, z: SPAWN_Z, dx:  2, dy: -1, count: 3, xV: 2, yV: 2, dxV: 0.4, dyV: 0.3, countV: 1 },
+                    ]),
+                    _pick([
+                        { type: 'single', x:  9, y: -9, z: SPAWN_Z, xV: 3, yV: 3 },
+                        { type: 'single', x: -9, y: -9, z: SPAWN_Z, xV: 3, yV: 3 },
+                    ]),
+                ].map(_evaluateSpec);
+            }
+            // Bottom bar → open ABOVE — pick one formation + one single
+            return [
+                _pick([
+                    // Sweeps left through the upper half
+                    { type: 'formation', x:  0, y:  6, z: SPAWN_Z, dx: -3, dy:  0, count: 4, xV: 5, yV: 3, dxV: 0.5, dyV: 0.3, countV: 1 },
+                    // Short diagonal that drifts up and to the left
+                    { type: 'formation', x:  8, y:  5, z: SPAWN_Z, dx: -2, dy:  1, count: 3, xV: 2, yV: 2, dxV: 0.4, dyV: 0.3, countV: 1 },
+                ]),
+                _pick([
+                    { type: 'single', x: -9, y:  9, z: SPAWN_Z, xV: 3, yV: 3 },
+                    { type: 'single', x:  9, y:  9, z: SPAWN_Z, xV: 3, yV: 3 },
+                ]),
+            ].map(_evaluateSpec);
         });
     }
     return steps;
+}
+
+/* ── Slots for each corner combo, indexed by comboIdx (0–3). ───────
+   combo 0: left wall + top bar  → open BOTTOM-RIGHT
+   combo 1: right wall + bot bar → open TOP-LEFT
+   combo 2: left wall + bot bar  → open TOP-RIGHT
+   combo 3: right wall + top bar → open BOTTOM-LEFT            */
+function _cornerSlots(comboIdx) {
+    const specs = [
+        [ // combo 0: diagonal toward bottom-right
+            { type: 'formation', x:  9, y: -6, z: SPAWN_Z, dx:  1.5, dy: -1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
+            { type: 'single',    x: 15, y: -9, z: SPAWN_Z, xV: 3, yV: 2 },
+        ],
+        [ // combo 1: diagonal toward top-left
+            { type: 'formation', x: -9, y:  6, z: SPAWN_Z, dx: -1.5, dy:  1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
+            { type: 'single',    x: -15, y:  9, z: SPAWN_Z, xV: 3, yV: 2 },
+        ],
+        [ // combo 2: diagonal toward top-right
+            { type: 'formation', x:  9, y:  6, z: SPAWN_Z, dx:  1.5, dy:  1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
+            { type: 'single',    x: 15, y:  9, z: SPAWN_Z, xV: 3, yV: 2 },
+        ],
+        [ // combo 3: diagonal toward bottom-left
+            { type: 'formation', x: -9, y: -6, z: SPAWN_Z, dx: -1.5, dy: -1.5, count: 4, xV: 2, yV: 2, dxV: 0.4, dyV: 0.4, countV: 1 },
+            { type: 'single',    x: -15, y: -9, z: SPAWN_Z, xV: 3, yV: 2 },
+        ],
+    ];
+    return specs[comboIdx].map(_evaluateSpec);
 }
 
 /* ── 3. Combined side + bar (L+Top, R+Bot, …) ──────────────────── */
@@ -139,7 +274,7 @@ export function patternCorners(params = {}) {
         steps.push((scene, obstacles) => {
             spawnSideWall(scene, obstacles, sd, 0.2 + Math.random() * 0.45);
             spawnBar(scene, obstacles, bd, 0.2 + Math.random() * 0.45);
-            return _layoutFor('patternCorners', comboIdx).map(_jitter);
+            return _cornerSlots(comboIdx);
         });
 
         // Step B: center wall as its own layer
@@ -147,7 +282,7 @@ export function patternCorners(params = {}) {
             const parts = [];
             makeBox(scene, BOUNDS_X * 0.60, BOUNDS_Y * 0.60, 4, 0, 0, SPAWN_Z, matObs, parts);
             obstacles.push({ parts, fadeAge: 0 });
-            return _layoutFor('patternCorners', comboIdx).map(_jitter);
+            return _cornerSlots(comboIdx);
         });
     }
     return steps;
@@ -188,7 +323,21 @@ export function patternScatter(params = {}) {
         const stepIdx = i;
         steps.push((scene, obstacles) => {
             const slots = spawnSingleBlock(scene, obstacles, p.wallSize);
-            return slots.length ? slots : _layoutFor('patternScatter', stepIdx).map(_jitter);
+            if (slots.length) return slots;
+            // Fallback: broad diagonal scatter
+            const scatterFallbacks = [
+                [
+                    { type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx:  2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 },
+                    { type: 'single',    x: -6, y:  3, z: SPAWN_Z, xV: 5, yV: 5 },
+                    { type: 'single',    x:  6, y: -3, z: SPAWN_Z, xV: 5, yV: 5 },
+                ],
+                [
+                    { type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx: -2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 },
+                    { type: 'single',    x:  6, y:  3, z: SPAWN_Z, xV: 5, yV: 5 },
+                    { type: 'single',    x: -6, y: -3, z: SPAWN_Z, xV: 5, yV: 5 },
+                ],
+            ];
+            return scatterFallbacks[stepIdx % scatterFallbacks.length].map(_evaluateSpec);
         });
     }
     return steps;
@@ -253,10 +402,20 @@ export function patternSlalomGate(params = {}) {
     const startSide = Math.random() < 0.5 ? -1 : 1;
     for (let i = 0; i < p.count - 1; i++) {
         const side = i % 2 === 0 ? startSide : -startSide;
-        const stepIdx = i;
         steps.push((scene, obstacles) => {
             spawnSideWall(scene, obstacles, side, Math.random() * 0.35 + 0.4);
-            return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
+            if (side === -1) {
+                // Left wall → open RIGHT
+                return [
+                    { type: 'formation', x:  12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 },
+                    { type: 'single',    x:  16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 },
+                ].map(_evaluateSpec);
+            }
+            // Right wall → open LEFT
+            return [
+                { type: 'formation', x: -12, y:  0, z: SPAWN_Z, dx: 0, dy: 2.5, count: 4, xV: 4, yV: 3, dxV: 0, dyV: 0.5, countV: 1 },
+                { type: 'single',    x: -16, y:  0, z: SPAWN_Z, xV: 3, yV: 6 },
+            ].map(_evaluateSpec);
         });
     }
     steps.push((scene, obstacles) => {
@@ -386,7 +545,7 @@ export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   SEQUENCER
+   seQUENCER
    Picks pattern templates, scales params by difficulty, and
    feeds one step per spawn tick to the game loop.
    ═══════════════════════════════════════════════════════════ */
@@ -401,6 +560,7 @@ const ALL_PATTERN_MAP = {
     patternShiftingGates,
     patternNarrow,
     patternSlalomGate,
+    patternScatter,
 };
 
 const ALL_TEMPLATES = Object.values(ALL_PATTERN_MAP);

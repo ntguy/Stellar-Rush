@@ -14,14 +14,16 @@ export const SPAWN_Z  = -200;     // Z where new objects appear (behind camera) 
 export const DESPAWN_Z = 25;      // Z where objects are removed (past camera)
 
 /* ── Gameplay ─────────────────────────────────────────────── */
-export const FUEL_MAX        = 30;      // seconds
-export const POWERUP_EVERY   = 10;      // seconds between fuel pickups
-export const PICKUP_EVERY    = 6;       // seconds between point/shield pickups
+export const FUEL_MAX             = 30;  // seconds of fuel
+export const FUEL_PICKUP_EVERY    = 15;  // seconds between fuel drops
+export const FORMATION_EVERY      = 5;   // seconds between gem formations
+export const POINTS_PICKUP_EVERY  = 10;  // seconds between high-value point gems
+export const SHIELD_PICKUP_EVERY  = 30;  // seconds between shield drops
 export const PLANE_RADIUS    = 1.4;   // hatbox radius — matches fuselage body width
 export const OBS_BASE_SPEED  = 45;
 export const OBS_SPEED_RAMP  = 0.30;   // units/s² — reduced from 0.55 for gentler acceleration
 export const OBS_TARGET_OPACITY = 0.78;
-export const OBS_FADE_TIME   = 3.0;  // increased from 2.0 to fade over 4s
+export const OBS_FADE_TIME   = 3.0;
 export const BOOST_SPEED_MULT = 1.15;   // +15 % forward speed while boosting
 export const BOOST_SCORE_MULT = 1.15;   // +15 % points while boosting
 export const SHIELD_DURATION  = 10;      // seconds
@@ -32,22 +34,7 @@ export const SHIELD_DURATION  = 10;      // seconds
 
    SINGLE ZONES: spots where a fuel / shield / high-value pickup
    can be placed.  Each pattern step generates up to this many:  */
-export const SAFE_ZONE_SINGLES_PER_STEP = 3;   // max single-item safe spots per obstacle step
-/*  Minimum clearance (world units) between a safe-zone centre
-    and the nearest obstacle edge.  Larger = more breathing room.  */
-export const SAFE_ZONE_MARGIN = 3.5;
 
-/*  FORMATION ZONES: corridors where a chain of small pickups can
-    be laid out.  Each pattern step generates up to this many:    */
-export const SAFE_ZONE_FORMATIONS_PER_STEP = 2; // max formation corridors per obstacle step
-/*  Max lateral extent (x/y) of a formation corridor.  Formations
-    are clipped so they don't wander outside this radius from the
-    corridor origin.                                               */
-export const SAFE_ZONE_FORMATION_RADIUS = 8;
-
-/*  How many safe zones to keep pooled before discarding old ones.
-    Higher = more choices for the pickup scheduler but more memory. */
-export const SAFE_ZONE_POOL_MAX = 24;
 
 /* ── Enemy tuning ─────────────────────────────────────────── */
 export const ENEMY_MOVER_SPEED = 13;   // was 8 — faster movers
