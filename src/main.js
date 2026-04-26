@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z, PLANE_RADIUS,
-    FUEL_MAX, FUEL_PICKUP_EVERY, FORMATION_EVERY, POINTS_PICKUP_EVERY, SHIELD_PICKUP_EVERY,
+    FUEL_MAX, FUEL_PICKUP_BASE, FORMATION_BASE, POINTS_PICKUP_BASE, SHIELD_PICKUP_BASE,
     OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
     BOOST_SPEED_MULT, BOOST_SCORE_MULT, SHIELD_DURATION,
     matBody, matAccent, matGlow, matAsteroid, matLine,
@@ -452,7 +452,13 @@ function init() {
     fuel = FUEL_MAX; score = 0; elapsed = 0;
     gameOver = false; boosting = false;
     spawnTimer = 0; asteroidTimer = 0;
-    fuelPUTimer = 0; formationTimer = 0; pointsTimer = 0; shieldPUTimer = 0; enemyTimer = 0;
+    // Initialise pickup timers as objects with value and threshold
+    const _jitter0 = base => base * (0.8 + Math.random() * 0.4);
+    fuelPUTimer    = { value: 0, _threshold: _jitter0(FUEL_PICKUP_BASE) };
+    formationTimer = { value: 0, _threshold: _jitter0(FORMATION_BASE) };
+    pointsTimer    = { value: 0, _threshold: _jitter0(POINTS_PICKUP_BASE) };
+    shieldPUTimer  = { value: 0, _threshold: _jitter0(SHIELD_PICKUP_BASE) };
+    enemyTimer = 0;
     shieldTimer = 0;
     enemySpawnCount = 0;
     prevBoosting = false;
@@ -712,38 +718,34 @@ function loop() {
     updatePlanet(dt, speed);
 
     /* ── Pickup timers ─────────────────────────────────────────
-       Each timer fires independently. When it fires it consumes
-       one slot from the pool of positions returned by the last
-       few pattern steps. If no suitable slot is available the
-       pickup still spawns (at a random fallback position).       */
+       Timers count up. When one reaches its threshold it marks
+       itself "ready". At most ONE pickup spawns per obstacle tick,
+       chosen by priority: fuel > shield > big points > formation.
+       Each threshold is randomised ±20 % around its base value
+       so spawns don't drift into lockstep.                        */
+    formationTimer.value  += dt;
+    fuelPUTimer.value     += dt;
+    pointsTimer.value     += dt;
+    shieldPUTimer.value   += dt;
 
-    // Gem formations (low-value collected in a chain)
-    formationTimer += dt;
-    if (formationTimer >= FORMATION_EVERY) {
-        formationTimer -= FORMATION_EVERY;
+    // Determine which timer (if any) has crossed its threshold.
+    // Priority: fuel → shield → points → formation.
+    // _jitter(base): returns base ±20 % (uniform)
+    const _jitter = base => base * (0.8 + Math.random() * 0.4);
+
+    if (fuelPUTimer.value >= fuelPUTimer._threshold) {
+        fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
+        spawnFuelPickup(scene, _consumeSlot('single'));
+    } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
+        shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
+        spawnShieldPickup(scene, _consumeSlot('single'));
+    } else if (pointsTimer.value >= pointsTimer._threshold) {
+        pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
+        spawnHighValuePickup(scene, _consumeSlot('single'));
+    } else if (formationTimer.value >= formationTimer._threshold) {
+        formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
         const slot = _consumeSlot('formation');
         if (slot) spawnLowValueFormation(scene, slot);
-    }
-
-    // Fuel canister
-    fuelPUTimer += dt;
-    if (fuelPUTimer >= FUEL_PICKUP_EVERY) {
-        fuelPUTimer -= FUEL_PICKUP_EVERY;
-        spawnFuelPickup(scene, _consumeSlot('single'));
-    }
-
-    // High-value point gem
-    pointsTimer += dt;
-    if (pointsTimer >= POINTS_PICKUP_EVERY) {
-        pointsTimer -= POINTS_PICKUP_EVERY;
-        spawnHighValuePickup(scene, _consumeSlot('single'));
-    }
-
-    // Shield bubble
-    shieldPUTimer += dt;
-    if (shieldPUTimer >= SHIELD_PICKUP_EVERY) {
-        shieldPUTimer -= SHIELD_PICKUP_EVERY;
-        spawnShieldPickup(scene, _consumeSlot('single'));
     }
 
     /* ── Enemies ──────────────────────────────────────── */

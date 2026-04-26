@@ -15,10 +15,10 @@ export const DESPAWN_Z = 25;      // Z where objects are removed (past camera)
 
 /* ── Gameplay ─────────────────────────────────────────────── */
 export const FUEL_MAX             = 30;  // seconds of fuel
-export const FUEL_PICKUP_EVERY    = 15;  // seconds between fuel drops
-export const FORMATION_EVERY      = 5;   // seconds between gem formations
-export const POINTS_PICKUP_EVERY  = 10;  // seconds between high-value point gems
-export const SHIELD_PICKUP_EVERY  = 30;  // seconds between shield drops
+export const FUEL_PICKUP_BASE     = 15;  // baseline seconds between fuel drops
+export const FORMATION_BASE       = 5;   // baseline seconds between gem formations
+export const POINTS_PICKUP_BASE   = 10;  // baseline seconds between high-value point gems
+export const SHIELD_PICKUP_BASE   = 30;  // baseline seconds between shield drops
 export const PLANE_RADIUS    = 1.4;   // hatbox radius — matches fuselage body width
 export const OBS_BASE_SPEED  = 45;
 export const OBS_SPEED_RAMP  = 0.30;   // units/s² — reduced from 0.55 for gentler acceleration
