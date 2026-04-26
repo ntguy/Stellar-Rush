@@ -276,7 +276,7 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
     const result = { fuel: 0, points: 0, pointsPos: null, shield: 0 };
 
     // Update the collect radius visualization
-    visualizeCollectRadius(scene, aircraftPos);
+    // visualizeCollectRadius(scene, aircraftPos);
 
     for (let i = pickups.length - 1; i >= 0; i--) {
         const p = pickups[i];

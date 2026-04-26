@@ -9,15 +9,21 @@ import { PICKUP_LAYOUTS, FORCE_PATTERN } from './pickup-layouts.js';
    HELPERS
    ═══════════════════════════════════════════════════════════ */
 
-function getSafeSideWallSize(size = 1) {
-    // Ensure LeftRight pattern walls never overlap and always allow passage
-    // With walls at ±BOUNDS_X*0.58, width BOUNDS_X*1.05*size:
-    //   gap = BOUNDS_X*1.16 - BOUNDS_X*1.05*size
-    // Constraint: gap >= 2*PLANE_RADIUS + 10 (player width + margin)
-    // Therefore: size <= (BOUNDS_X*1.16 - 2*PLANE_RADIUS - 10) / (BOUNDS_X*1.05)
-    const minGap = 2 * PLANE_RADIUS + 10;
-    const maxSafe = (BOUNDS_X * 1.16 - minGap) / (BOUNDS_X * 1.05);
-    return Math.min(size, maxSafe);
+// Coverage fractions: how much of the FULL playfield dimension a wall/bar covers.
+// A wall with coverage 0.5 extends exactly to the center. >0.5 extends past it.
+const COV_MIN  = 0.2;
+const COV_MAX  = 0.65;
+const COV_PAIR = 0.85;  // Any two consecutive walls/bars must total at least this
+
+function _firstCoverage() {
+    return COV_MIN + Math.random() * (COV_MAX - COV_MIN);
+}
+
+function _secondCoverage(first) {
+    // Minimum needed so total >= COV_PAIR, clamped to COV_MIN
+    const minNeeded = Math.max(COV_MIN, COV_PAIR - first);
+    // Random in [minNeeded, COV_MAX]
+    return minNeeded + Math.random() * (COV_MAX - minNeeded);
 }
 
 /* ── Layout helpers ──────────────────────────────────────── */
@@ -81,11 +87,17 @@ function defaults(p, overrides) {
 export function patternLeftRight(params = {}) {
     const p = defaults(params, { count: 4 });
     const steps = [];
+    let prevCov = 0;
+
     for (let i = 0; i < p.count; i++) {
         const side = i % 2 === 0 ? -1 : 1;
         const stepIdx = i;
+        const isFirst = i % 2 === 0;
+
         steps.push((scene, obstacles) => {
-            spawnSideWall(scene, obstacles, side, p.wallSize, true);
+            const cov = isFirst ? _firstCoverage() : _secondCoverage(prevCov);
+            prevCov = cov;
+            spawnSideWall(scene, obstacles, side, cov);
             return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
         });
     }
@@ -96,29 +108,45 @@ export function patternLeftRight(params = {}) {
 export function patternTopDown(params = {}) {
     const p = defaults(params, { count: 4 });
     const steps = [];
+    let prevCov = 0;
+
     for (let i = 0; i < p.count; i++) {
         const dir = i % 2 === 0 ? 1 : -1;
-        const yFactor = 0.50 + Math.random() * 0.28;
         const stepIdx = i;
+        const isFirst = i % 2 === 0;
+
         steps.push((scene, obstacles) => {
-            spawnBar(scene, obstacles, dir, p.wallSize, yFactor);
+            const cov = isFirst ? _firstCoverage() : _secondCoverage(prevCov);
+            prevCov = cov;
+            spawnBar(scene, obstacles, dir, cov);
             return _layoutFor('patternTopDown', stepIdx).map(_jitter);
         });
     }
     return steps;
 }
 
-/* ── 3. Combined side + bar (L+Top, R+Bot, …) ────────────── */
+/* ── 3. Combined side + bar (L+Top, R+Bot, …) ──────────────────── */
 export function patternCorners(params = {}) {
     const p = defaults(params, { count: 4 });
     const steps = [];
     const combos = [[-1, 1], [1, -1], [-1, -1], [1, 1]];
+
     for (let i = 0; i < p.count; i++) {
         const [sd, bd] = combos[i % combos.length];
         const comboIdx = i % combos.length;
+
+        // Step A: corner walls (side + bar, 20-65% coverage each)
         steps.push((scene, obstacles) => {
-            spawnSideWall(scene, obstacles, sd, p.wallSize * 0.65, false);
-            spawnBar(scene, obstacles, bd, p.wallSize * 0.65, undefined);
+            spawnSideWall(scene, obstacles, sd, 0.2 + Math.random() * 0.45);
+            spawnBar(scene, obstacles, bd, 0.2 + Math.random() * 0.45);
+            return _layoutFor('patternCorners', comboIdx).map(_jitter);
+        });
+
+        // Step B: center wall as its own layer
+        steps.push((scene, obstacles) => {
+            const parts = [];
+            makeBox(scene, BOUNDS_X * 0.60, BOUNDS_Y * 0.60, 4, 0, 0, SPAWN_Z, matObs, parts);
+            obstacles.push({ parts, fadeAge: 0 });
             return _layoutFor('patternCorners', comboIdx).map(_jitter);
         });
     }
@@ -143,8 +171,9 @@ export function patternShiftingGates(params = {}) {
                   dx: Math.cos(angle) * 2.0, dy: Math.sin(angle) * 2.0, count: 4 },
             ];
         });
-        gx += (Math.random() - 0.5) * p.gapOffset * 2.0;
-        gy += (Math.random() - 0.5) * p.gapOffset * 1.2;
+        // Increase variance in hole location: higher multipliers
+        gx += (Math.random() - 0.5) * p.gapOffset * 4;
+        gy += (Math.random() - 0.5) * p.gapOffset * 4;
         gx = THREE.MathUtils.clamp(gx, -BOUNDS_X * 0.35, BOUNDS_X * 0.35);
         gy = THREE.MathUtils.clamp(gy, -BOUNDS_Y * 0.3, BOUNDS_Y * 0.3);
     }
@@ -166,21 +195,28 @@ export function patternScatter(params = {}) {
 }
 
 /* ── 6. Narrowing corridor — gap position & size randomized ───────────── */
+let narrowUsageCount = 0;
+
 export function patternNarrow(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
-    const minGapWidth = PLANE_RADIUS * 2 + 2.2;  // ~5.0 units (plane width + small margin)
-    const maxGapWidth = p.gapSizeMax ?? BOUNDS_X;  // from difficulty curve
-    
+
+    // Decrease multiplier by 0.05 per use, starting at 1.6, floor at 1.0
+    const multiplier = Math.max(1.0, 1.6 - (narrowUsageCount * 0.05));
+    narrowUsageCount++;
+
     for (let i = 0; i < p.count; i++) {
         steps.push((scene, obstacles) => {
             const parts = [];
-            const gapCenterX = (Math.random() - 0.5) * BOUNDS_X * 1.6;
-            const gapWidth = THREE.MathUtils.lerp(
-                minGapWidth,
-                maxGapWidth,
-                Math.random()
-            );
+
+            // Width between 3 * PLANE_RADIUS and 8 * PLANE_RADIUS, multiplied by decreasing multiplier
+            const baseWidth = THREE.MathUtils.lerp(PLANE_RADIUS * 3, PLANE_RADIUS * 10, Math.random());
+            const gapWidth = baseWidth * multiplier;
+            
+            // Middle 50% of play area for gap center
+            const playAreaLimit = BOUNDS_X * 0.5;
+            const gapCenterX = THREE.MathUtils.lerp(-playAreaLimit, playAreaLimit, Math.random());
+            
             const halfGap = gapWidth / 2;
             
             const leftWallRight = gapCenterX - halfGap;
@@ -214,17 +250,18 @@ export function patternNarrow(params = {}) {
 export function patternSlalomGate(params = {}) {
     const p = defaults(params, { count: 3, gapSize: 7 });
     const steps = [];
+    const startSide = Math.random() < 0.5 ? -1 : 1;
     for (let i = 0; i < p.count - 1; i++) {
-        const side = i % 2 === 0 ? -1 : 1;
+        const side = i % 2 === 0 ? startSide : -startSide;
         const stepIdx = i;
         steps.push((scene, obstacles) => {
-            spawnSideWall(scene, obstacles, side, p.wallSize, false);
+            spawnSideWall(scene, obstacles, side, Math.random() * 0.35 + 0.4);
             return _layoutFor('patternLeftRight', stepIdx).map(_jitter);
         });
     }
     steps.push((scene, obstacles) => {
-        const gx = (Math.random() - 0.5) * (p.gapOffset ?? 4) * 2;
-        const gy = (Math.random() - 0.5) * 3;
+        const gx = (Math.random() - 0.5) * (p.gapOffset ?? 4) * 5;
+        const gy = (Math.random() - 0.5) * 15;
         spawnWallCircleHole(scene, obstacles, gx, gy, p.gapSize);
         const angle = Math.random() * Math.PI * 2;
         return [
@@ -236,41 +273,26 @@ export function patternSlalomGate(params = {}) {
     return steps;
 }
 
-/* ── 8. Horizontal bars sandwich ──────────────────────────── */
-export function patternBars(params = {}) {
-    const p = defaults(params, { count: 4 });
-    const steps = [];
-    for (let i = 0; i < p.count; i++) {
-        const dir = i % 2 === 0 ? 1 : -1;
-        const yFactor = 0.48 + Math.random() * 0.32;
-        const stepIdx = i;
-        steps.push((scene, obstacles) => {
-            spawnBar(scene, obstacles, dir, p.wallSize, yFactor);
-            return _layoutFor('patternBars', stepIdx).map(_jitter);
-        });
-    }
-    return steps;
-}
 
 /* ═══════════════════════════════════════════════════════════
    PRIMITIVE SPAWNERS  (used by templates above)
    ═══════════════════════════════════════════════════════════ */
 
-function spawnSideWall(scene, obstacles, side, size = 1, forceNarrow = false) {
-    const narrows = forceNarrow ? 0.45 : 1.0;
+// coverage: fraction of the full playfield dimension the wall/bar covers.
+// A coverage of 0.5 reaches exactly to centre; >0.5 extends past it.
+function spawnSideWall(scene, obstacles, side, coverage = 0.5) {
     const parts = [];
-    const clampedSize = Math.min(size * narrows, 1.0);
-    makeBox(scene, BOUNDS_X * 1.05 * clampedSize, BOUNDS_Y * 2.4, 4.5,
-        side * (BOUNDS_X * 0.58), 0, SPAWN_Z, matObs, parts);
-    const obsData = { parts, fadeAge: 0 };
-    obstacles.push(obsData);
+    const wallW = coverage * BOUNDS_X * 2;          // e.g. 0.5 * 48 = 24 units
+    const centerX = side * (BOUNDS_X - wallW / 2);  // anchored to the edge
+    makeBox(scene, wallW, BOUNDS_Y * 2.4, 4.5, centerX, 0, SPAWN_Z, matObs, parts);
+    obstacles.push({ parts, fadeAge: 0 });
 }
 
-function spawnBar(scene, obstacles, dir, size = 1, yFactor = 0.75) {
+function spawnBar(scene, obstacles, dir, coverage = 0.5) {
     const parts = [];
-    const clampedSize = Math.min(size, 1.20);
-    makeBox(scene, BOUNDS_X * 2.5, BOUNDS_Y * 0.95 * clampedSize, 4, 0,
-        dir * BOUNDS_Y * yFactor, SPAWN_Z, matObs, parts);
+    const barH = coverage * BOUNDS_Y * 2;            // e.g. 0.5 * 32 = 16 units
+    const centerY = dir * (BOUNDS_Y - barH / 2);    // anchored to the edge
+    makeBox(scene, BOUNDS_X * 2.5, barH, 4, 0, centerY, SPAWN_Z, matObs, parts);
     obstacles.push({ parts, fadeAge: 0 });
 }
 
@@ -368,7 +390,10 @@ export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR) {
    Picks pattern templates, scales params by difficulty, and
    feeds one step per spawn tick to the game loop.
    ═══════════════════════════════════════════════════════════ */
-
+// Pass elapsed time to patterns that need dynamic difficulty scaling
+function enrichParams(params, elapsed) {
+    return { ...params, elapsed };
+}
 const ALL_PATTERN_MAP = {
     patternLeftRight,
     patternTopDown,
@@ -376,7 +401,6 @@ const ALL_PATTERN_MAP = {
     patternShiftingGates,
     patternNarrow,
     patternSlalomGate,
-    patternBars,
 };
 
 const ALL_TEMPLATES = Object.values(ALL_PATTERN_MAP);
@@ -405,11 +429,12 @@ function difficultyParams(elapsed) {
 export function nextObstacle(scene, obstacles, elapsed) {
     // If we've finished the current pattern, generate a new one
     if (stepIdx >= currentSteps.length || currentSteps.length === 0) {
+        const params = enrichParams(difficultyParams(elapsed), elapsed);
         if (FORCE_PATTERN) {
             // Lock to a single pattern for testing
             const fn = ALL_PATTERN_MAP[FORCE_PATTERN];
             if (!fn) throw new Error(`FORCE_PATTERN: unknown pattern "${FORCE_PATTERN}"`);
-            currentSteps = fn(difficultyParams(elapsed));
+            currentSteps = fn(params);
             currentPatternName = FORCE_PATTERN;
             // ...existing code...
         } else {
@@ -420,7 +445,7 @@ export function nextObstacle(scene, obstacles, elapsed) {
             const patternFn = ALL_TEMPLATES[idx];
             const patternKeys = Object.keys(ALL_PATTERN_MAP);
             currentPatternName = patternKeys[idx];
-            currentSteps = patternFn(difficultyParams(elapsed));
+            currentSteps = patternFn(params);
             // ...existing code...
         }
         stepIdx = 0;

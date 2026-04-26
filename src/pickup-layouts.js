@@ -9,7 +9,7 @@ import { BOUNDS_X, BOUNDS_Y, SPAWN_Z } from './config.js';
    Valid values:
      'patternLeftRight' | 'patternTopDown'    | 'patternCorners'
      'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
-     'patternBars'          | 'patternScatter'
+     'patternScatter'
    ═══════════════════════════════════════════════════════════ */
 export const FORCE_PATTERN = null; // e.g. 'patternNarrow'
 
@@ -107,26 +107,6 @@ export const PICKUP_LAYOUTS = {
             F( -9, -5, -1.5, -1.5 ),
             F(-14, -3,  0.0, -2.0 ),
             S(-12, -7 ),
-        ],
-    ],
-
-    /* ── patternBars ───────────────────────────────────────
-       Horizontal bars — same open-space logic as topDown but
-       with denser coverage and slightly different positions.  */
-    patternBars: [
-        // step 0: top bar  →  open below
-        [
-            F(  4, -5,  2.0,    0 ),
-            F( -9, -3,  1.0, -1.5 ),
-            S( 11, -6 ),
-            S(-11, -6 ),
-        ],
-        // step 1: bottom bar  →  open above
-        [
-            F( -4,  5, -2.0,   0 ),
-            F(  9,  3, -1.0,  1.5 ),
-            S(-11,  6 ),
-            S( 11,  6 ),
         ],
     ],
 
