@@ -85,7 +85,7 @@ camera.position.set(0, 10, 20);
 /* ═══════════════════════════════════════════════════════════
    LIGHTS
    ═══════════════════════════════════════════════════════════ */
-scene.add(new THREE.AmbientLight(0x224466, 1.0));
+scene.add(new THREE.AmbientLight(0x335588, 1.2));
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(4, 12, 8);
 scene.add(sun);

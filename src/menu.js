@@ -74,9 +74,54 @@ function createSun(cfg) {
     });
     group.add(new THREE.Mesh(new THREE.SphereGeometry(cfg.sunRadius * cfg.sunGlowScale, 48, 48), glowMat));
 
+    const flareGeo = new THREE.BufferGeometry();
+    const flareCount = 20;
+    const flarePos = new Float32Array(flareCount * 3);
+    const flareData = new Float32Array(flareCount * 3);
+    for(let i=0; i<flareCount; i++) {
+        const u = Math.random(), v = Math.random();
+        const theta = 2 * Math.PI * u, phi = Math.acos(2 * v - 1);
+        flarePos[i*3] = Math.sin(phi) * Math.cos(theta) * cfg.sunRadius;
+        flarePos[i*3+1] = Math.sin(phi) * Math.sin(theta) * cfg.sunRadius;
+        flarePos[i*3+2] = Math.cos(phi) * cfg.sunRadius;
+        flareData[i*3] = Math.random() * Math.PI * 2;
+        flareData[i*3+1] = 0.5 + Math.random();
+        flareData[i*3+2] = 2.0 + Math.random() * 6.0;
+    }
+    flareGeo.setAttribute('position', new THREE.BufferAttribute(flarePos, 3));
+    flareGeo.setAttribute('aData', new THREE.BufferAttribute(flareData, 3));
+    const flareMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(cfg.sunColor) } },
+        vertexShader: `
+            uniform float uTime;
+            attribute vec3 aData;
+            varying float vAlpha;
+            void main() {
+                vec3 n = normalize(position);
+                float t = fract(uTime * 0.1 * aData.y + aData.x);
+                vec3 pos = position + n * (t * aData.z);
+                vAlpha = sin(t * 3.14159) * (1.0 - t);
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = (3500.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 uColor;
+            varying float vAlpha;
+            void main() {
+                float d = length(gl_PointCoord - vec2(0.5));
+                if(d > 0.5) discard;
+                gl_FragColor = vec4(uColor * 2.5, (0.5 - d) * 2.0 * vAlpha);
+            }
+        `,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    group.add(new THREE.Points(flareGeo, flareMat));
+
     group.add(new THREE.PointLight(cfg.sunColor, cfg.sunIntensity, 900));
     group.position.set(...cfg.sunPosition);
-    return { group, glowMat, coreMat };
+    return { group, glowMat, coreMat, flareMat };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -91,8 +136,12 @@ function createTrail(path, cfg) {
             float along=vUv.x; if(along>uProgress) discard;
             float d=uProgress-along; if(d>uDecay) discard;
             float alpha=pow(1.0-d/uDecay,0.7)*uOpacity;
-            alpha+=smoothstep(uDecay*0.25,0.0,d)*0.3;
-            gl_FragColor=vec4(uColor,alpha);
+            
+            vec3 bluePulse = mix(uColor, vec3(0.5, 0.8, 1.0), sin(along * 35.0)*0.5+0.5);
+            vec3 finalColor = mix(bluePulse, vec3(1.0, 1.0, 1.0), smoothstep(uDecay*0.15, 0.0, d));
+            
+            alpha+=smoothstep(uDecay*0.25,0.0,d)*0.5;
+            gl_FragColor=vec4(finalColor,alpha);
         }`;
     const makeTube = (radius, color, opacity) => {
         const geo = new THREE.TubeGeometry(path, cfg.trailSegments, radius, 8, false);
@@ -165,7 +214,7 @@ function playMenuJet(fadeDuration) {
     _menuJetSource.playbackRate.value = 0.85;
     _menuJetGain = _menuAudioCtx.createGain();
     _menuJetGain.gain.value = 0.0001;
-    _menuJetGain.gain.exponentialRampToValueAtTime(0.25, _menuAudioCtx.currentTime + fadeDuration);
+    _menuJetGain.gain.exponentialRampToValueAtTime(0.95, _menuAudioCtx.currentTime + fadeDuration);
     _menuJetSource.connect(_menuJetGain).connect(_menuAudioCtx.destination);
     _menuJetSource.start();
 }
@@ -202,7 +251,7 @@ export function createMenu(scene, camera, cfg) {
     const tracked = [];
     const track = obj => { tracked.push(obj); return obj; };
 
-    scene.add(track(new THREE.AmbientLight(0x182848, 1.2)));
+    scene.add(track(new THREE.AmbientLight(0x334466, 1.5)));
     const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(5, 15, 10); scene.add(track(dir));
 
     const { mesh: starMesh, material: starMat, syncToCamera } = buildStarField(cfg.starCount, undefined, true);
@@ -288,6 +337,7 @@ export function createMenu(scene, camera, cfg) {
 
         sun.coreMat.uniforms.uTime.value = elapsed;
         sun.glowMat.uniforms.uTime.value = elapsed;
+        if (sun.flareMat) sun.flareMat.uniforms.uTime.value = elapsed;
         starMat.uniforms.uTime.value = elapsed;
         syncToCamera(camera);
 

@@ -19,6 +19,7 @@ export function getMenuConfig() {
         sunPosition: [0, 0, -240],
         sunRadius: 60,
         sunColor: 0xffb84d,
+        sunFlareColor: 0xff5682,
         sunEdgeColor: 0xcc3300,
         sunGlowColor: 0xff9933,
         sunGlowScale: 1.03,
@@ -37,8 +38,8 @@ export function getMenuConfig() {
         planeFinalRotation: null,
 
         /* ── Trail ───────────────────────────────────────────*/
-        trailColor: 0x0088ff,
-        trailGlowColor: 0x00ccff,
+        trailColor: 0x00aaff,
+        trailGlowColor: 0x44ddff,
         trailRadius: 0.22,
         trailGlowRadius: 0.65,
         trailOpacity: 0.92,
