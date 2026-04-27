@@ -17,8 +17,25 @@ import {
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel
 } from './audio.js';
+import { initTunnel, updateTunnel } from './tunnel.js';
+import { makeAircraft } from './aircraft.js';
+import { buildStarField } from './stars.js';
+import { createMenu } from './menu.js';
 
+// ─── Menu animation config ───
+import { getMenuConfig } from './menu-variation-1.js';
 
+/* ═══════════════════════════════════════════════════════════
+   DEVELOPMENT_MODE  —  set true to skip menu and boot into game
+   ═══════════════════════════════════════════════════════════ */
+const DEVELOPMENT_MODE = false;
+
+/* ═══════════════════════════════════════════════════════════
+   GAME STATE  —  'MENU' | 'PLAYING'
+   ═══════════════════════════════════════════════════════════ */
+let gameState = 'MENU';
+let paused = false;
+let menuController = null;
 
 // Initialize audio loading
 initAudio();
@@ -26,8 +43,6 @@ initAudio();
 // Resume audio context on first interaction
 window.addEventListener('mousedown', resumeAudioContext, { once: true });
 window.addEventListener('keydown', resumeAudioContext, { once: true });
-
-import { initTunnel, updateTunnel } from './tunnel.js';
 
 /* ═══════════════════════════════════════════════════════════
    RENDERER  /  SCENE  /  CAMERA
@@ -58,51 +73,7 @@ scene.add(rim);
 /* ═══════════════════════════════════════════════════════════
    AIRCRAFT
    ═══════════════════════════════════════════════════════════ */
-function makeAircraft() {
-    const g = new THREE.Group();
-
-    const fuse = new THREE.Mesh(new THREE.ConeGeometry(0.45, 3.2, 4), matBody);
-    fuse.rotation.x = -Math.PI / 2;
-    fuse.position.z = -0.3;
-    g.add(fuse);
-
-    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.32, 4, 3), matAccent);
-    cockpit.scale.set(1, 0.55, 1.3);
-    cockpit.position.set(0, 0.25, -0.4);
-    g.add(cockpit);
-
-    // Wings — narrower than before so the visual roughly matches the hitbox
-    for (const s of [-1, 1]) {
-        const wing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 0.7), matBody);
-        wing.position.set(s * 1.0, -0.08, 0.25);
-        wing.rotation.y = s * 0.15;
-        wing.rotation.z = s * 0.05;
-        g.add(wing);
-    }
-
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.9, 0.7), matAccent);
-    fin.position.set(0, 0.45, 1.1);
-    g.add(fin);
-
-    for (const s of [-1, 1]) {
-        const stab = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.4), matBody);
-        stab.position.set(s * 0.42, 0.0, 1.1);
-        stab.rotation.y = s * 0.2;
-        g.add(stab);
-    }
-
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 4, 4), matGlow);
-    glow.position.z = 1.4;
-    g.add(glow);
-    g.userData.glow = glow;
-
-    const eLight = new THREE.PointLight(0x00ffee, 1.2, 10);
-    eLight.position.z = 1.6;
-    g.add(eLight);
-    g.userData.eLight = eLight;
-
-    return g;
-}
+// Aircraft is now imported from aircraft.js (shared with menu)
 const aircraft = makeAircraft();
 scene.add(aircraft);
 
@@ -183,46 +154,13 @@ scene.add(guideLine);
 /* ═══════════════════════════════════════════════════════════
    STAR FIELD  (twinkling shader)
    ═══════════════════════════════════════════════════════════ */
-// Performance concern
+// Star field is now imported from stars.js (shared with menu)
 const STAR_COUNT = 3000;
-(function buildStars() {
-    const geo = new THREE.BufferGeometry();
-    const pos   = new Float32Array(STAR_COUNT * 3);
-    const phase = new Float32Array(STAR_COUNT);
-    const size  = new Float32Array(STAR_COUNT);
-    for (let i = 0; i < STAR_COUNT; i++) {
-        pos[i * 3]     = (Math.random() - 0.5) * 700;
-        pos[i * 3 + 1] = (Math.random() - 0.5) * 350;
-        pos[i * 3 + 2] = -Math.random() * 480;
-        phase[i]        = Math.random() * Math.PI * 2;
-        size[i]         = 1 + Math.random() * 3; //
-    }
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('aPhase',   new THREE.Float32BufferAttribute(phase, 1));
-    geo.setAttribute('aSize',    new THREE.Float32BufferAttribute(size,  1));
-    const mat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 } },
-        vertexShader: `
-            attribute float aPhase;
-            attribute float aSize;
-            uniform float uTime;
-            void main() {
-                float twinkle = 0.3 + 0.9 * sin(uTime * 1.5 + aPhase);
-                gl_PointSize = aSize * twinkle;
-                gl_Position  = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }`,
-        fragmentShader: `
-            void main() {
-                float d = length(gl_PointCoord - 0.5) * 2.0;
-                if (d > 1.0) discard;
-                gl_FragColor = vec4(1.2, 1.2, 1.2, 1.0 - d * 0.5);
-            }`,
-        transparent: true,
-        depthWrite: false,
-    });
-    const starField = new THREE.Points(geo, mat);
-    scene.add(starField);
-    scene.userData.starField = starField;
+(function initStars() {
+    const { mesh, material } = buildStarField(STAR_COUNT);
+    scene.add(mesh);
+    scene.userData.starField = mesh;
+    scene.userData.starField.material = material;
 })();
 
 /* ═══════════════════════════════════════════════════════════
@@ -426,13 +364,20 @@ window.addEventListener('mousemove', e => {
     mouseNDC.x =  (e.clientX / innerWidth)  * 2 - 1;
     mouseNDC.y = -(e.clientY / innerHeight) * 2 + 1;
 });
-window.addEventListener('mousedown', e => { if (e.button === 0) boosting = true; });
+window.addEventListener('mousedown', e => { if (e.button === 0 && gameState === 'PLAYING') boosting = true; });
 window.addEventListener('mouseup',   e => { if (e.button === 0) boosting = false; });
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ── Pause / Escape handling ──────────────────────────────── */
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && gameState === 'PLAYING') {
+        togglePause();
+    }
 });
 
 /* ═══════════════════════════════════════════════════════════
@@ -444,7 +389,13 @@ const elBoost   = document.getElementById('boost-indicator');
 const elShield  = document.getElementById('shield-indicator');
 const elOverlay = document.getElementById('game-over');
 const elFinal   = document.getElementById('final-score');
+const elHud     = document.getElementById('hud');
+const elMenuBtn = document.getElementById('menu-btn');
+const elPause   = document.getElementById('pause-menu');
+
 document.getElementById('restart-btn').addEventListener('click', restart);
+document.getElementById('pause-back-btn').addEventListener('click', backToMainMenu);
+elMenuBtn.addEventListener('click', () => { if (gameState === 'PLAYING') togglePause(); });
 
 /* ═══════════════════════════════════════════════════════════
    CLOCK  /  RAYCASTER
@@ -460,6 +411,7 @@ function init() {
     fuel = FUEL_MAX; score = 0; elapsed = 0;
     gameOver = false; boosting = false;
     fuelOut = false; fuelOutTimer = 0;
+    paused = false;
 
     spawnTimer = 0; asteroidTimer = 0;
     // Initialise pickup timers as objects with value and threshold
@@ -480,6 +432,7 @@ function init() {
 
     aircraft.position.set(0, 0, 0);
     aircraft.rotation.set(0, 0, 0);
+    aircraft.scale.setScalar(1);
     vel.set(0, 0, 0);
     matGlow.color.set(0x00fff7);
 
@@ -500,6 +453,13 @@ function init() {
     exploding = false; explodeTimer = 0;
     aircraft.visible = true;
 
+    // Make sure aircraft is in the scene (menu may have removed it)
+    if (!aircraft.parent) scene.add(aircraft);
+    // Make sure star field is in the scene
+    if (scene.userData.starField && !scene.userData.starField.parent) {
+        scene.add(scene.userData.starField);
+    }
+
     resetSequencer();
     pendingPickups.length = 0;
     initTunnel(scene);
@@ -509,18 +469,105 @@ function init() {
     startBaseEngine();
 
     // Seed initial asteroids
-
     for (let i = 0; i < 30; i++) {
         spawnAsteroid(SPAWN_Z + Math.random() * (DESPAWN_Z - SPAWN_Z));
     }
 
     scene.userData.starField.material.uniforms.uTime.value = 0;
     elOverlay.classList.remove('show');
+    elPause.classList.remove('show');
+
+    // Show gameplay UI
+    elHud.classList.remove('hidden');
+    elMenuBtn.classList.add('visible');
+
+    // Reset camera
+    camera.position.set(0, 10, 20);
+
+    gameState = 'PLAYING';
     clock.getDelta();
 }
 
 function restart() { init(); }
-init();
+
+/* ═══════════════════════════════════════════════════════════
+   PAUSE / MENU TRANSITIONS
+   ═══════════════════════════════════════════════════════════ */
+function togglePause() {
+    if (gameOver) return;
+    paused = !paused;
+    if (paused) {
+        elPause.classList.add('show');
+        document.body.style.cursor = 'default';
+    } else {
+        elPause.classList.remove('show');
+        document.body.style.cursor = 'crosshair';
+        clock.getDelta(); // eat accumulated dt
+    }
+}
+
+function backToMainMenu() {
+    paused = false;
+    elPause.classList.remove('show');
+    elOverlay.classList.remove('show');
+    stopAllAudio();
+    document.body.style.cursor = 'default';
+    enterMenu();
+}
+
+function enterMenu() {
+    gameState = 'MENU';
+    elHud.classList.add('hidden');
+    elMenuBtn.classList.remove('visible');
+
+    // Clean up gameplay objects from scene
+    for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
+    obstacles.length = 0;
+    for (const a of asteroids) scene.remove(a.mesh);
+    asteroids.length = 0;
+    clearPickups(scene);
+    clearEnemies(scene);
+    clearPointsText(scene);
+    clearExhaust();
+    for (const p of explosionParts) scene.remove(p.mesh);
+    explosionParts.length = 0;
+    if (shieldMesh) { scene.remove(shieldMesh); shieldMesh = null; shieldMat = null; }
+    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    aircraft.visible = false;
+    // Remove gameplay star field and tunnel so menu has its own
+    if (scene.userData.starField) scene.remove(scene.userData.starField);
+    // Remove gameplay lights (menu adds its own)
+    scene.children
+        .filter(c => c.isLight || c === guideLine)
+        .forEach(c => scene.remove(c));
+
+    // Create menu
+    if (menuController) menuController.dispose();
+    menuController = createMenu(scene, camera, getMenuConfig());
+    menuController.onPlay(() => {
+        menuController.dispose();
+        menuController = null;
+        // Re-add gameplay lights
+        scene.add(new THREE.AmbientLight(0x224466, 1.0));
+        const s = new THREE.DirectionalLight(0xffffff, 1.5);
+        s.position.set(4, 12, 8);
+        scene.add(s);
+        const r = new THREE.DirectionalLight(0x4488ff, 0.6);
+        r.position.set(-3, -4, -6);
+        scene.add(r);
+        scene.add(guideLine);
+        document.body.style.cursor = 'crosshair';
+        init();
+    });
+    clock.getDelta();
+}
+
+/* ── Startup ──────────────────────────────────────────────── */
+if (DEVELOPMENT_MODE) {
+    init();
+} else {
+    enterMenu();
+}
 
 /* ═══════════════════════════════════════════════════════════
    END GAME
@@ -578,6 +625,16 @@ function _doSpawnEnemy(zOffset = 0) {
 function loop() {
     requestAnimationFrame(loop);
     const dt = Math.min(clock.getDelta(), 0.05);
+
+    /* ── MENU state ───────────────────────────────────── */
+    if (gameState === 'MENU') {
+        if (menuController) menuController.update(dt);
+        renderer.render(scene, camera);
+        return;
+    }
+
+    /* ── PAUSED ───────────────────────────────────────── */
+    if (paused) { renderer.render(scene, camera); return; }
 
     if (gameOver) { renderer.render(scene, camera); return; }
 
