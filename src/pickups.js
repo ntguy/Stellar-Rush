@@ -7,6 +7,23 @@ import {
 import { playCollect1, playCollect2 } from './audio.js';
 
 /* ═══════════════════════════════════════════════════════════
+   SHARED GEOMETRIES & MATERIALS
+   ═══════════════════════════════════════════════════════════ */
+const fuelGeo = new THREE.OctahedronGeometry(1.0, 0);
+const fuelMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+const fuelHazeGeo = new THREE.SphereGeometry(2.8, 8, 6);
+const fuelHazeMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false });
+
+const highValueGeo = new THREE.OctahedronGeometry(1.1, 0);
+const highValueMat = new THREE.MeshBasicMaterial({ color: 0x22ff66 });
+const highValueHazeGeo = new THREE.SphereGeometry(3.0, 8, 6);
+const highValueHazeMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.20, side: THREE.BackSide, depthWrite: false });
+
+const shieldGeo = new THREE.TorusGeometry(0.55, 0.2, 6, 8);
+const shieldMatClone = matShield.clone();
+shieldMatClone.opacity = 0.7;
+
+/* ═══════════════════════════════════════════════════════════
    SHARED STATE
    ═══════════════════════════════════════════════════════════ */
 export const pickups = [];
@@ -51,6 +68,7 @@ export function updateBurstParticles(scene, dt) {
         p.userData.life -= dt * 4.5;
         if (p.userData.life <= 0) {
             scene.remove(p);
+            p.material.dispose();
             burstParticles.splice(i, 1);
             continue;
         }
@@ -62,7 +80,10 @@ export function updateBurstParticles(scene, dt) {
 }
 
 export function clearBurstParticles(scene) {
-    for (const p of burstParticles) scene.remove(p);
+    for (const p of burstParticles) {
+        scene.remove(p);
+        p.material.dispose();
+    }
     burstParticles.length = 0;
 }
 
@@ -71,13 +92,8 @@ export function clearBurstParticles(scene) {
    ═══════════════════════════════════════════════════════════ */
 
 export function spawnFuelPickup(scene, pos) {
-    const matPU = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.0, 0), matPU);
-    const hazeMat = new THREE.MeshBasicMaterial({
-        color: 0xffdd44, transparent: true, opacity: 0.18,
-        side: THREE.BackSide, depthWrite: false,
-    });
-    m.add(new THREE.Mesh(new THREE.SphereGeometry(2.8, 8, 6), hazeMat));
+    const m = new THREE.Mesh(fuelGeo, fuelMat);
+    m.add(new THREE.Mesh(fuelHazeGeo, fuelHazeMat));
     m.add(new THREE.PointLight(0xffcc00, 4, 22));
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
@@ -89,13 +105,8 @@ export function spawnFuelPickup(scene, pos) {
 }
 
 export function spawnHighValuePickup(scene, pos) {
-    const mat = new THREE.MeshBasicMaterial({ color: 0x22ff66 });
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.1, 0), mat);
-    const hazeMat = new THREE.MeshBasicMaterial({
-        color: 0x44ff88, transparent: true, opacity: 0.20,
-        side: THREE.BackSide, depthWrite: false,
-    });
-    m.add(new THREE.Mesh(new THREE.SphereGeometry(3.0, 8, 6), hazeMat));
+    const m = new THREE.Mesh(highValueGeo, highValueMat);
+    m.add(new THREE.Mesh(highValueHazeGeo, highValueHazeMat));
     m.add(new THREE.PointLight(0x44ff88, 3, 18));
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
@@ -128,8 +139,7 @@ export function spawnLowValueFormation(scene, slot) {
 }
 
 export function spawnShieldPickup(scene, pos) {
-    const m = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.2, 6, 8), matShield.clone());
-    m.material.opacity = 0.7;
+    const m = new THREE.Mesh(shieldGeo, shieldMatClone);
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
@@ -175,20 +185,12 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
                     break;
             }
             scene.remove(p.mesh);
-            if (p.type !== 'points_low') {
-                p.mesh.geometry.dispose();
-                p.mesh.material.dispose();
-            }
             pickups.splice(i, 1);
             continue;
         }
 
         if (p.mesh.position.z > DESPAWN_Z) {
             scene.remove(p.mesh);
-            if (p.type !== 'points_low') {
-                p.mesh.geometry.dispose();
-                p.mesh.material.dispose();
-            }
             pickups.splice(i, 1);
         }
     }

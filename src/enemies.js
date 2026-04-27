@@ -8,6 +8,23 @@ import { playLaserFire, playLaserWarning } from './audio.js';
 
 
 /* ═══════════════════════════════════════════════════════════
+   SHARED GEOMETRIES & MATERIALS
+   ═══════════════════════════════════════════════════════════ */
+const moverBodyGeo = new THREE.SphereGeometry(3.8, 7, 6);
+const moverBoosterGeo = new THREE.ConeGeometry(2.0, 1.5, 5);
+
+const turretBodyGeo = new THREE.SphereGeometry(1, 6, 5);
+const turretStripeGeo = new THREE.CylinderGeometry(1.02, 1.02, 0.45, 16);
+const turretStripeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+const turretEyeGeo = new THREE.SphereGeometry(0.35, 5, 4);
+const turretBarrelGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.2, 6);
+const turretBarrelMat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
+
+const warnGeo = new THREE.RingGeometry(0.8, 1.2, 16);
+const beamGeo = new THREE.CylinderGeometry(0.35, 0.35, 1, 6);
+const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.85 });
+
+/* ═══════════════════════════════════════════════════════════
    SHARED STATE  — owned by main.js, mutated here
    ═══════════════════════════════════════════════════════════ */
 export const enemies = [];
@@ -20,10 +37,10 @@ export const enemies = [];
 
 export function spawnMover(scene, moveType = 'horizontal', zOffset = 0) {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(3.8, 7, 6), matEnemy);
+    const body = new THREE.Mesh(moverBodyGeo, matEnemy);
     g.add(body);
     // Booster cone
-    const booster = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.5, 5), matEnemyGlow);
+    const booster = new THREE.Mesh(moverBoosterGeo, matEnemyGlow);
     g.add(booster);
 
 
@@ -84,25 +101,23 @@ export function spawnMover(scene, moveType = 'horizontal', zOffset = 0) {
 
 export function spawnLaserTurret(scene, zOffset = 0) {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), matEnemy);
+    const body = new THREE.Mesh(turretBodyGeo, matEnemy);
     g.add(body);
     
     // Black stripe through the center — visible from the front (horizontal)
-    const stripeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.45, 16), stripeMat);
+    const stripe = new THREE.Mesh(turretStripeGeo, turretStripeMat);
     stripe.rotation.z = Math.PI / 2; // horizontal band across the Y axis
     g.add(stripe);
 
 
 
     // "Eye" — glowing red sphere
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.35, 5, 4), matEnemyGlow);
+    const eye = new THREE.Mesh(turretEyeGeo, matEnemyGlow);
     eye.position.z = -0.7;
     g.add(eye);
 
     // Turret barrel — bright white cylinder so it's visible against the dark scene
-    const barrelMat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 6), barrelMat);
+    const barrel = new THREE.Mesh(turretBarrelGeo, turretBarrelMat);
     barrel.rotation.x = Math.PI / 2; // point forward (-Z)
     barrel.position.z = -1.2;
     g.add(barrel);
@@ -187,7 +202,6 @@ export function updateEnemies(scene, dt, speed, aircraftPos, shielded, camera) {
                 // Lock on current player XY
                 e.lockPos = { x: aircraftPos.x, y: aircraftPos.y };
                 // Create warning reticle
-                const warnGeo = new THREE.RingGeometry(0.8, 1.2, 16);
                 const warnMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0, side: THREE.DoubleSide });
                 e.warningMesh = new THREE.Mesh(warnGeo, warnMat);
                 e.warningMesh.position.set(e.lockPos.x, e.lockPos.y, aircraftPos.z);
@@ -209,10 +223,13 @@ export function updateEnemies(scene, dt, speed, aircraftPos, shielded, camera) {
                 if (e.timer >= ENEMY_LASER_WARN) {
                     e.state = 'firing';
                     e.timer = 0;
-                    if (e.warningMesh) { scene.remove(e.warningMesh); e.warningMesh = null; }
+                    if (e.warningMesh) { 
+                        scene.remove(e.warningMesh); 
+                        e.warningMesh.material.dispose();
+                        e.warningMesh = null; 
+                    }
                     // Build beam as a thick cylinder between turret and lock position
-                    const beamMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.85 });
-                    e.laserMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1, 6), beamMat);
+                    e.laserMesh = new THREE.Mesh(beamGeo, beamMat);
                     scene.add(e.laserMesh);
                     // TODO: SOUND
                     playLaserFire();
@@ -264,7 +281,10 @@ export function updateEnemies(scene, dt, speed, aircraftPos, shielded, camera) {
 
 function cleanupEnemy(scene, e) {
     scene.remove(e.group);
-    if (e.warningMesh) scene.remove(e.warningMesh);
+    if (e.warningMesh) {
+        scene.remove(e.warningMesh);
+        e.warningMesh.material.dispose();
+    }
     if (e.laserMesh)   scene.remove(e.laserMesh);
 }
 

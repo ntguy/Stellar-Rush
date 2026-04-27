@@ -158,8 +158,8 @@ function playMenuJet(fadeDuration) {
     _menuJetSource.loop = true;
     _menuJetSource.playbackRate.value = 0.85;
     _menuJetGain = _menuAudioCtx.createGain();
-    _menuJetGain.gain.value = 0;
-    _menuJetGain.gain.linearRampToValueAtTime(0.35, _menuAudioCtx.currentTime + fadeDuration);
+    _menuJetGain.gain.value = 0.0001;
+    _menuJetGain.gain.exponentialRampToValueAtTime(0.25, _menuAudioCtx.currentTime + fadeDuration);
     _menuJetSource.connect(_menuJetGain).connect(_menuAudioCtx.destination);
     _menuJetSource.start();
 }
@@ -190,7 +190,7 @@ function applyTitleStyle(cfg) {
    MENU CONTROLLER
    ═══════════════════════════════════════════════════════════ */
 const ANIM_DURATION = 7.5;
-const JET_START_DELAY = 1.5;
+const JET_START_DELAY = 3.5;
 
 export function createMenu(scene, camera, cfg) {
     const tracked = [];
@@ -251,7 +251,7 @@ export function createMenu(scene, camera, cfg) {
         elapsed += dt;
         const rawT = Math.min(elapsed / ANIM_DURATION, 1.0);
 
-        if (!jetStarted && elapsed >= JET_START_DELAY) { jetStarted = true; playMenuJet(7); }
+        if (!jetStarted && elapsed >= JET_START_DELAY) { jetStarted = true; playMenuJet(4.0); }
 
         camera.position.lerpVectors(camStart, camEnd, rawT);
         const tmpLook = new THREE.Vector3();

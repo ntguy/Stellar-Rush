@@ -167,15 +167,15 @@ const STAR_COUNT = 3000;
    ASTEROIDS  (decoration only — off to the sides)
    ═══════════════════════════════════════════════════════════ */
 const asteroids = [];
+const asteroidGeo = new THREE.IcosahedronGeometry(1, 0);
 
 function spawnAsteroid(zOverride) {
-    const r = 0.7 + Math.random() * 4.5;
-    const geo = new THREE.IcosahedronGeometry(r, 0);
     const mat = matAsteroid.clone();
     mat.transparent = true;
     mat.opacity = 0;
-    const m = new THREE.Mesh(geo, mat);
-    m.scale.set(0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8);
+    const m = new THREE.Mesh(asteroidGeo, mat);
+    const r = 0.7 + Math.random() * 4.5;
+    m.scale.set(r * (0.6 + Math.random() * 0.8), r * (0.6 + Math.random() * 0.8), r * (0.6 + Math.random() * 0.8));
     const side = Math.random() < 0.5 ? -1 : 1;
     // Pushed asteroids on average 20 units further away from the play area
     m.position.x = side * (BOUNDS_X + 26 + Math.random() * 55);
@@ -203,7 +203,12 @@ let planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 const PLANET_INTERVAL = 60;  // seconds between planets
 
 function spawnPlanet() {
-    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    if (planetMesh) {
+        scene.remove(planetMesh);
+        planetMesh.geometry.dispose();
+        planetMesh.material.dispose();
+        planetMesh = null;
+    }
     const r = 30 + Math.random() * 45;
     
     // Curated planet colors — pick one at random
@@ -253,6 +258,8 @@ function updatePlanet(dt, speed) {
     planetMesh.material.opacity = (planetMesh.userData.fadeAge / 10) * 0.70;
     if (planetMesh.position.z > DESPAWN_Z + 100) {
         scene.remove(planetMesh);
+        planetMesh.geometry.dispose();
+        planetMesh.material.dispose();
         planetMesh = null;
     }
 }
@@ -296,6 +303,8 @@ function updatePointsText(scene, dt) {
         s.userData.life -= dt * 2.2;  // fade over ~0.45s
         if (s.userData.life <= 0) {
             scene.remove(s);
+            s.material.map.dispose();
+            s.material.dispose();
             pointsTextMeshes.splice(i, 1);
             continue;
         }
@@ -306,7 +315,11 @@ function updatePointsText(scene, dt) {
 }
 
 function clearPointsText(scene) {
-    for (const s of pointsTextMeshes) scene.remove(s);
+    for (const s of pointsTextMeshes) {
+        scene.remove(s);
+        s.material.map.dispose();
+        s.material.dispose();
+    }
     pointsTextMeshes.length = 0;
 }
 
@@ -446,12 +459,19 @@ function init() {
     // Clean up world
     for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
     obstacles.length = 0;
-    for (const a of asteroids) scene.remove(a.mesh);
+    for (const a of asteroids) {
+        scene.remove(a.mesh);
+        a.mesh.material.dispose();
+    }
     asteroids.length = 0;
     clearPickups(scene);
     clearEnemies(scene);
     clearPointsText(scene);
-    for (const p of explosionParts) scene.remove(p.mesh);
+    for (const p of explosionParts) {
+        scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+    }
     explosionParts.length = 0;
     exploding = false; explodeTimer = 0;
     aircraft.visible = true;
@@ -466,7 +486,12 @@ function init() {
     resetSequencer();
     pendingPickups.length = 0;
     initTunnel(scene);
-    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    if (planetMesh) {
+        scene.remove(planetMesh);
+        planetMesh.geometry.dispose();
+        planetMesh.material.dispose();
+        planetMesh = null;
+    }
     planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
     startBaseEngine();
@@ -502,6 +527,13 @@ function togglePause() {
     if (paused) {
         elPause.classList.add('show');
         document.body.style.cursor = 'default';
+        
+        // Stop looping sounds so they don't get stuck while paused
+        stopBoostHum?.();
+        stopBoostHum = null;
+        stopShieldHum?.();
+        stopShieldHum = null;
+        stopFuelLowBeep();
     } else {
         elPause.classList.remove('show');
         document.body.style.cursor = 'crosshair';
@@ -526,16 +558,28 @@ function enterMenu() {
     // Clean up gameplay objects from scene
     for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
     obstacles.length = 0;
-    for (const a of asteroids) scene.remove(a.mesh);
+    for (const a of asteroids) {
+        scene.remove(a.mesh);
+        a.mesh.material.dispose();
+    }
     asteroids.length = 0;
     clearPickups(scene);
     clearEnemies(scene);
     clearPointsText(scene);
     clearExhaust();
-    for (const p of explosionParts) scene.remove(p.mesh);
+    for (const p of explosionParts) {
+        scene.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+    }
     explosionParts.length = 0;
     if (shieldMesh) { scene.remove(shieldMesh); shieldMesh = null; shieldMat = null; }
-    if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
+    if (planetMesh) {
+        scene.remove(planetMesh);
+        planetMesh.geometry.dispose();
+        planetMesh.material.dispose();
+        planetMesh = null;
+    }
     aircraft.visible = false;
     if (scene.userData.starField) scene.remove(scene.userData.starField);
     clearTunnel(scene);
@@ -653,7 +697,12 @@ function loop() {
             p.mesh.rotation.z += dt * 5;
             p.mesh.material.opacity = Math.max(0, p.life);
             p.mesh.scale.setScalar(Math.max(0.01, p.life));
-            if (p.life <= 0) { scene.remove(p.mesh); explosionParts.splice(i, 1); }
+            if (p.life <= 0) {
+                scene.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+                explosionParts.splice(i, 1);
+            }
         }
         if (explodeTimer > 1.8) { exploding = false; endGame(); }
         renderer.render(scene, camera);
@@ -825,6 +874,7 @@ function loop() {
         a.mesh.material.opacity = a.fadeAge / 1.5;
         if (a.mesh.position.z > DESPAWN_Z + 20) {
             scene.remove(a.mesh);
+            a.mesh.material.dispose();
             asteroids.splice(i, 1);
         }
     }
