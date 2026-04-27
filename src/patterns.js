@@ -264,11 +264,28 @@ export function patternShiftingGates(params = {}) {
 export function patternScatter(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
+    // Double the density: each step spawns two blocks staggered in Z.
+    // We calculate the current world speed and interval to find the halfway point.
+    const interval = Math.max(0.7, 1.6 - (params.elapsed ?? 0) * 0.004);
+    const speed = 45 + (params.elapsed ?? 0) * 0.30; // OBS_BASE_SPEED + ramp
+    const zOffset = (interval * speed) * 0.5;
+
+
     for (let i = 0; i < p.count; i++) {
         const stepIdx = i;
         steps.push((scene, obstacles) => {
-            const slots = spawnSingleBlock(scene, obstacles, p.wallSize);
-            if (slots.length) return slots;
+            // Layer 1
+            const slots1 = spawnSingleBlock(scene, obstacles, p.wallSize * 1.5, SPAWN_Z);
+            // Layer 2 (staggered)
+            const slots2 = spawnSingleBlock(scene, obstacles, p.wallSize * 3, SPAWN_Z - zOffset);
+
+
+            // Merge slots
+            const s1 = slots1 ?? [];
+            const s2 = (slots2 ?? []).map(s => ({ ...s, z: SPAWN_Z - zOffset }));
+            
+            if (s1.length || s2.length) return [...s1, ...s2];
+
             const scatterFallbacks = [
                 [{ type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx:  2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 }, { type: 'single', x: -6, y: 3, z: SPAWN_Z, xV: 5, yV: 5 }],
                 [{ type: 'formation', x:  0, y:  0, z: SPAWN_Z, dx: -2, dy:  1, count: 4, xV: 7, yV: 6, dxV: 0.5, dyV: 0.5, countV: 2 }, { type: 'single', x:  6, y: 3, z: SPAWN_Z, xV: 5, yV: 5 }],
@@ -277,6 +294,7 @@ export function patternScatter(params = {}) {
             return [Math.random() < 0.5 ? _evaluateSpec(fallback[0]) : _evaluateSpec(fallback[1])];
         });
     }
+
     return steps;
 }
 
@@ -359,18 +377,19 @@ function spawnBar(scene, obstacles, dir, coverage = 0.5) {
     obstacles.push({ parts, fadeAge: 0 });
 }
 
-function spawnSingleBlock(scene, obstacles, size = 1) {
+function spawnSingleBlock(scene, obstacles, size = 1, z = SPAWN_Z) {
     const parts = [];
     const side = Math.random() < 0.5 ? -1 : 1;
     const s = 3 * size;
     const bx = side * (4 + Math.random() * BOUNDS_X * 0.5);
     const by = (Math.random() - 0.5) * BOUNDS_Y * 0.7;
-    makeBox(scene, s + Math.random() * 3, s + Math.random() * 3, 1, bx, by, SPAWN_Z, matObs, parts);
+    makeBox(scene, s + Math.random() * 3, s + Math.random() * 3, 1, bx, by, z, matObs, parts);
     obstacles.push({ parts, fadeAge: 0 });
     const openX = -side * BOUNDS_X * 0.3;
     const dx = -side * (2 + Math.random()); const dy = (Math.random() - 0.5) * 2;
-    return [Math.random() < 0.5 ? { type: 'single', x: openX, y: by, z: SPAWN_Z } : { type: 'formation', x: openX, y: by, z: SPAWN_Z, dx, dy, count: 4 }];
+    return [Math.random() < 0.5 ? { type: 'single', x: openX, y: by, z: z } : { type: 'formation', x: openX, y: by, z: z, dx, dy, count: 4 }];
 }
+
 
 export function spawnWallCircleHole(scene, obstacles, gapX, gapY, gapR) {
     const ow = BOUNDS_X * 2.5, oh = BOUNDS_Y * 2.4;

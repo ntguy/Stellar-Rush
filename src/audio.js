@@ -31,7 +31,7 @@ export async function initAudio() {
     }
 
     await Promise.all([
-        loadBuffer('engine',     '/src/audio/spaceship-hum-low-frequency-trimmed.mp3'),
+        loadBuffer('engine',     '/src/audio/spaceship-hum-low-frequeny.mp3'),
         loadBuffer('boost',      '/src/audio/fighter-jet-taking-off-trimmed.mp3'),
         loadBuffer('collect1',   '/src/audio/collect1.mp3'),
         loadBuffer('collect2',   '/src/audio/collect2.mp3'),
@@ -69,7 +69,8 @@ export function startBaseEngine() {
     engineSource.loop = true;
 
     const gain = ctx.createGain();
-    gain.gain.value = 0.15; 
+
+    gain.gain.value = 0.05; 
 
     engineSource.connect(gain).connect(ctx.destination);
     engineSource.start();
