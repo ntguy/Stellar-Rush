@@ -15,6 +15,7 @@ import {
     playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
 } from './audio.js';
+import { initTunnel, updateTunnel } from './tunnel.js';
 
 /* ═══════════════════════════════════════════════════════════
    RENDERER  /  SCENE  /  CAMERA
@@ -484,6 +485,7 @@ function init() {
 
     resetSequencer();
     pendingPickups.length = 0;
+    initTunnel(scene);
     if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
     planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
@@ -909,6 +911,9 @@ function loop() {
     const emitCount = boosting ? 2 : 1;
     for (let i = 0; i < emitCount; i++) emitExhaust(boosting);
     updateExhaust(dt);
+
+    /* ── Hyperspace tunnel ────────────────────────────── */
+    updateTunnel(dt, speed, elapsed);
 
     renderer.render(scene, camera);
 }
