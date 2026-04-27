@@ -687,16 +687,19 @@ function loop() {
         obs.fadeAge = Math.min(obs.fadeAge + dt, OBS_FADE_TIME);
         const opacity = (obs.fadeAge / OBS_FADE_TIME) * OBS_TARGET_OPACITY;
         let rm = false;
+
         for (const m of obs.parts) {
             if (m.material.transparent) {
-                // ShaderMaterial (circle-hole walls) uses a uniform; standard mats use .opacity
+                // ShaderMaterial (circle-hole walls & premium boxes) uses uniforms
                 if (m.material.isShaderMaterial) {
                     m.material.uniforms.uOpacity.value = opacity;
+                    if (m.material.uniforms.uTime) m.material.uniforms.uTime.value = elapsed;
                 } else {
                     m.material.opacity = opacity;
                 }
             }
             m.position.z += speed * dt;
+
             if (m.position.z > DESPAWN_Z) rm = true;
         }
         if (rm) {
