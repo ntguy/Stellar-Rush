@@ -14,7 +14,17 @@ import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValue
 import {
     playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
+    initAudio, resumeAudioContext, stopAllAudio, startBaseEngine
 } from './audio.js';
+
+
+// Initialize audio loading
+initAudio();
+
+// Resume audio context on first interaction
+window.addEventListener('mousedown', resumeAudioContext, { once: true });
+window.addEventListener('keydown', resumeAudioContext, { once: true });
+
 import { initTunnel, updateTunnel } from './tunnel.js';
 
 /* ═══════════════════════════════════════════════════════════
@@ -489,7 +499,10 @@ function init() {
     if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
     planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
+    startBaseEngine();
+
     // Seed initial asteroids
+
     for (let i = 0; i < 30; i++) {
         spawnAsteroid(SPAWN_Z + Math.random() * (DESPAWN_Z - SPAWN_Z));
     }
@@ -509,7 +522,9 @@ function endGame() {
     gameOver = true;
     elFinal.textContent = Math.floor(score);
     elOverlay.classList.add('show');
+    stopAllAudio();
 }
+
 
 /* ═══════════════════════════════════════════════════════════
    EXPLOSION
@@ -784,7 +799,7 @@ function loop() {
 
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position);
-    if (puResult.fuel > 0)   { fuel = FUEL_MAX; /* TODO: SOUND */ playFuelCollect(); }
+    if (puResult.fuel > 0)   { fuel = FUEL_MAX; }
     if (puResult.points > 0) {
         score += puResult.points;
         // Spawn collection burst at pickup world position
@@ -792,13 +807,12 @@ function loop() {
             spawnCollectBurst(scene, puResult.pointsPos, 0x44ff88);
             spawnPointsText(scene, puResult.pointsPos, puResult.points);
         }
-        /* TODO: SOUND */ playPointsCollect();
     }
     if (puResult.shield > 0) {
         shieldTimer = SHIELD_DURATION;
-        /* TODO: SOUND */ playShieldCollect();
         if (!stopShieldHum) stopShieldHum = startShieldHum();
     }
+
     updateBurstParticles(scene, dt);
     updatePointsText(scene, dt);
 
