@@ -17,7 +17,7 @@ import {
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel
 } from './audio.js';
-import { initTunnel, updateTunnel } from './tunnel.js';
+import { initTunnel, updateTunnel, clearTunnel } from './tunnel.js';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
@@ -28,7 +28,7 @@ import { getMenuConfig } from './menu-variation-1.js';
 /* ═══════════════════════════════════════════════════════════
    DEVELOPMENT_MODE  —  set true to skip menu and boot into game
    ═══════════════════════════════════════════════════════════ */
-const DEVELOPMENT_MODE = false;
+const DEVELOPMENT_MODE = true;
 
 /* ═══════════════════════════════════════════════════════════
    GAME STATE  —  'MENU' | 'PLAYING'
@@ -177,7 +177,8 @@ function spawnAsteroid(zOverride) {
     const m = new THREE.Mesh(geo, mat);
     m.scale.set(0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8, 0.6 + Math.random() * 0.8);
     const side = Math.random() < 0.5 ? -1 : 1;
-    m.position.x = side * (BOUNDS_X + 6 + Math.random() * 55);
+    // Pushed asteroids on average 20 units further away from the play area
+    m.position.x = side * (BOUNDS_X + 26 + Math.random() * 55);
     m.position.y = (Math.random() - 0.5) * 50;
     m.position.z = zOverride !== undefined ? zOverride : SPAWN_Z;
     m.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, 0);
@@ -392,9 +393,11 @@ const elFinal   = document.getElementById('final-score');
 const elHud     = document.getElementById('hud');
 const elMenuBtn = document.getElementById('menu-btn');
 const elPause   = document.getElementById('pause-menu');
+const elResume  = document.getElementById('pause-resume-btn');
 
 document.getElementById('restart-btn').addEventListener('click', restart);
 document.getElementById('pause-back-btn').addEventListener('click', backToMainMenu);
+elResume.addEventListener('click', togglePause);
 elMenuBtn.addEventListener('click', () => { if (gameState === 'PLAYING') togglePause(); });
 
 /* ═══════════════════════════════════════════════════════════
@@ -534,8 +537,8 @@ function enterMenu() {
     if (shieldMesh) { scene.remove(shieldMesh); shieldMesh = null; shieldMat = null; }
     if (planetMesh) { scene.remove(planetMesh); planetMesh = null; }
     aircraft.visible = false;
-    // Remove gameplay star field and tunnel so menu has its own
     if (scene.userData.starField) scene.remove(scene.userData.starField);
+    clearTunnel(scene);
     // Remove gameplay lights (menu adds its own)
     scene.children
         .filter(c => c.isLight || c === guideLine)
@@ -586,7 +589,7 @@ function endGame() {
 function spawnExplosion(pos) {
     exploding = true; explodeTimer = 0;
     aircraft.visible = false;
-    // TODO: SOUND
+    clearExhaust();
     playCrash();
     const cols = [0xff6600, 0xff3300, 0xffaa00, 0xffffff, 0xff8800];
     for (let i = 0; i < 24; i++) {

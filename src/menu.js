@@ -5,54 +5,8 @@ import * as THREE from 'three';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 
-function easeInOutCubic(t) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
 /* ═══════════════════════════════════════════════════════════
-   SPEED CURVE  (smooth sigmoid ramp, no abrupt step)
-   boostStart: path-u where acceleration begins
-   boostPeak:  path-u where peak speed is reached (smooth ramp between)
-   boostEnd:   path-u where speed stays at peak until end
-   boostAmount: peak speed multiplier (1.0 = unchanged)
-   ═══════════════════════════════════════════════════════════ */
-function buildSpeedCurve(boostStart, boostPeak, boostEnd, boostAmount) {
-    const N = 4000;
-    const cumulative = new Float32Array(N + 1);
-    cumulative[0] = 0;
-    for (let i = 0; i < N; i++) {
-        const u = i / N;
-        let speed;
-        if (u <= boostStart) {
-            speed = 1.0;                                        // pre-boost: normal
-        } else if (u <= boostPeak) {
-            // Smooth ramp-up using smoothstep
-            const t = (u - boostStart) / (boostPeak - boostStart);
-            const s = t * t * (3.0 - 2.0 * t);                // smoothstep [0→1]
-            speed = 1.0 + (boostAmount - 1.0) * s;
-        } else if (u <= boostEnd) {
-            speed = boostAmount;                                // sustained peak
-        } else {
-            // Slight ease near the very end so freeze isn't jarring
-            const t = (u - boostEnd) / (1.0 - boostEnd);
-            const s = t * t * (3.0 - 2.0 * t);
-            speed = boostAmount * (1.0 - s * 0.2);             // gently tapers 100%→80%
-        }
-        cumulative[i + 1] = cumulative[i] + speed;
-    }
-    const total = cumulative[N];
-    for (let i = 0; i <= N; i++) cumulative[i] /= total;
-    return function pathTFromElapsed(elapsed) {
-        let lo = 0, hi = N;
-        while (lo < hi) { const mid = (lo + hi) >> 1; if (cumulative[mid] < elapsed) lo = mid + 1; else hi = mid; }
-        const idx = Math.max(0, lo - 1);
-        const frac = (elapsed - cumulative[idx]) / Math.max(1e-9, cumulative[idx + 1] - cumulative[idx]);
-        return Math.min(1, (idx + frac) / N);
-    };
-}
-
-/* ═══════════════════════════════════════════════════════════
-   SUN  (procedural fire core + tight glowing corona)
+   SUN  (solid fire core + glowing corona)
    ═══════════════════════════════════════════════════════════ */
 function createSun(cfg) {
     const group = new THREE.Group();
@@ -89,10 +43,11 @@ function createSun(cfg) {
                 col=mix(col, uColor1, smoothstep(0.55, 0.7, turb)*0.3);
                 gl_FragColor=vec4(col,1.0);
             }`,
+        transparent: false,
+        depthWrite: true,
     });
     group.add(new THREE.Mesh(new THREE.SphereGeometry(cfg.sunRadius, 48, 48), coreMat));
 
-    // Tight glowing corona — low opacity but bright/saturated color, steep falloff
     const glowMat = new THREE.ShaderMaterial({
         uniforms: {
             uColor: { value: new THREE.Color(cfg.sunGlowColor) },
@@ -110,9 +65,8 @@ function createSun(cfg) {
             varying vec3 vNormal, vViewDir;
             void main(){
                 float f=1.0-abs(dot(vNormal,vViewDir));
-                f=pow(f, 3.0);               // Wider glow (was 5.0)
+                f=pow(f, 3.0);
                 float pulse=0.85+0.15*sin(uTime*1.8);
-                // Increased brightness and opacity for a much stronger glow
                 gl_FragColor=vec4(uColor * 2.8 * pulse, f * 0.9);
             }`,
         transparent: true, blending: THREE.AdditiveBlending,
@@ -155,39 +109,25 @@ function createTrail(path, cfg) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   ASTEROID BELT  (small rocks crossing the top of the sun)
+   ASTEROID BELT  (One single belt, further away)
    ═══════════════════════════════════════════════════════════ */
 function createAsteroidBelt(scene, sunPos, sunRadius) {
     const meshes = [];
-    const count = 100;
-    // Belt arc: sweeping across the top-ish of the sun, in front of it (slightly less negative Z)
-    const beltZ = sunPos[2] + sunRadius * 0.5;   // in front of the sun sphere
+    const count = 150;
+    // Belt is further away from the sun surface
+    const beltZ = sunPos[2] + sunRadius * 1.6;
 
     for (let i = 0; i < count; i++) {
-        const angle = (Math.random() - 0.5) * Math.PI * 0.9;  // spread across ~160° arc
-        const dist  = sunRadius * (0.85 + Math.random() * 0.5); // ring radius relative to sun
-
-        // Belt in the X-Y plane around the sun center, focused near the top
-        const beltAngleOffset = Math.PI * 0.5;  // offset to aim at top of sun
-        const a = angle + beltAngleOffset;
-
+        const angle = (Math.random() - 0.25) * Math.PI * 1.4;
+        const dist  = sunRadius * (1.6 + Math.random() * 1.1);
+        const a = angle + Math.PI * 0.5;
         const x = sunPos[0] + Math.cos(a) * dist;
-        const y = sunPos[1] + Math.sin(a) * dist * 0.4;  // flatten vertically
-        const z = beltZ + (Math.random() - 0.5) * sunRadius * 0.4;
-
-        // Small rocks: radius 0.5–3 world units
-        const r = 0.5 + Math.random() * 2.5;
+        const y = sunPos[1] + Math.sin(a) * dist * 0.7; // Increased Y-spacing by 40%
+        const z = beltZ + (Math.random() - 0.5) * sunRadius * 1.4;
+        const r = 1 + Math.random() * 3;
         const geo = new THREE.IcosahedronGeometry(r, 0);
-        const mat = new THREE.MeshPhongMaterial({
-            color: 0x776655, flatShading: true,
-            transparent: true, opacity: 0.55 + Math.random() * 0.35,
-        });
+        const mat = new THREE.MeshPhongMaterial({ color: 0x554433, flatShading: true });
         const m = new THREE.Mesh(geo, mat);
-        m.scale.set(
-            0.5 + Math.random() * 0.8,
-            0.5 + Math.random() * 0.8,
-            0.5 + Math.random() * 0.8,
-        );
         m.position.set(x, y, z);
         m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
         scene.add(m);
@@ -197,63 +137,36 @@ function createAsteroidBelt(scene, sunPos, sunRadius) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   JET AUDIO  (starts 4s in, fades in, fades out at freeze)
+   JET AUDIO
    ═══════════════════════════════════════════════════════════ */
-let _menuAudioCtx = null;
-let _menuJetSource = null;
-let _menuJetGain = null;
-let _jetBuf = null;          // cached decoded buffer
-let _jetScheduled = false;
+let _menuAudioCtx = null, _menuJetSource = null, _menuJetGain = null, _jetBuf = null;
 
 async function loadJetBuffer() {
-    try {
-        if (!_menuAudioCtx) _menuAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (_jetBuf) return _jetBuf;
-        const res = await fetch('/src/audio/fighter-jet-taking-off-trimmed.mp3');
-        const raw = await res.arrayBuffer();
-        _jetBuf = await _menuAudioCtx.decodeAudioData(raw);
-        return _jetBuf;
-    } catch (e) { console.warn('Jet buffer load failed:', e); return null; }
-}
-
-async function scheduleMenuJet(startDelay, fadeDuration) {
-    // Pre-load the buffer as soon as possible
-    await loadJetBuffer();
+    if (_jetBuf) return _jetBuf;
+    if (!_menuAudioCtx) _menuAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const res = await fetch('/src/audio/fighter-jet-taking-off-trimmed.mp3');
+    const raw = await res.arrayBuffer();
+    _jetBuf = await _menuAudioCtx.decodeAudioData(raw);
+    return _jetBuf;
 }
 
 function playMenuJet(fadeDuration) {
     if (!_menuAudioCtx || !_jetBuf || _menuJetSource) return;
-    try {
-        if (_menuAudioCtx.state === 'suspended') _menuAudioCtx.resume();
-
-        _menuJetSource = _menuAudioCtx.createBufferSource();
-        _menuJetSource.buffer = _jetBuf;
-        _menuJetSource.loop = true;
-        _menuJetSource.playbackRate.value = 0.85;
-
-        _menuJetGain = _menuAudioCtx.createGain();
-        _menuJetGain.gain.value = 0;
-        // Fade in over fadeDuration seconds (ramps up to 0.35)
-        _menuJetGain.gain.linearRampToValueAtTime(0.35, _menuAudioCtx.currentTime + fadeDuration);
-
-        _menuJetSource.connect(_menuJetGain).connect(_menuAudioCtx.destination);
-        _menuJetSource.start();
-    } catch (e) { console.warn('Menu jet play failed:', e); }
-}
-
-function fadeOutMenuJet(duration = 0.6) {
-    if (_menuJetGain && _menuAudioCtx) {
-        _menuJetGain.gain.setTargetAtTime(0, _menuAudioCtx.currentTime, duration * 0.4);
-    }
-    setTimeout(() => {
-        try { _menuJetSource?.stop(); } catch (_) {}
-        _menuJetSource = null; _menuJetGain = null;
-    }, duration * 1000 + 200);
+    if (_menuAudioCtx.state === 'suspended') _menuAudioCtx.resume();
+    _menuJetSource = _menuAudioCtx.createBufferSource();
+    _menuJetSource.buffer = _jetBuf;
+    _menuJetSource.loop = true;
+    _menuJetSource.playbackRate.value = 0.85;
+    _menuJetGain = _menuAudioCtx.createGain();
+    _menuJetGain.gain.value = 0;
+    _menuJetGain.gain.linearRampToValueAtTime(0.35, _menuAudioCtx.currentTime + fadeDuration);
+    _menuJetSource.connect(_menuJetGain).connect(_menuAudioCtx.destination);
+    _menuJetSource.start();
 }
 
 function stopMenuJet() {
     try { _menuJetSource?.stop(); } catch (_) {}
-    _menuJetSource = null; _menuJetGain = null; _jetScheduled = false;
+    _menuJetSource = null; _menuJetGain = null;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -263,237 +176,137 @@ function applyTitleStyle(cfg) {
     const stellar = document.getElementById('title-stellar');
     const rush    = document.getElementById('title-rush');
     if (!stellar || !rush) return;
-    const s = { fontFamily: cfg.titleFont, color: cfg.titleColor, textShadow: cfg.titleGlow, letterSpacing: cfg.titleLetterSpacing };
-    Object.assign(stellar.style, s); stellar.style.fontSize = cfg.stellarSize;
-    Object.assign(rush.style,    s); rush.style.fontSize    = cfg.rushSize;
+    const s = { 
+        fontFamily: cfg.titleFont || "'Orbitron', sans-serif", 
+        color: cfg.titleColor || '#ffffff', 
+        textShadow: cfg.titleGlow || 'none', 
+        letterSpacing: cfg.titleLetterSpacing || 'normal' 
+    };
+    Object.assign(stellar.style, s); stellar.style.fontSize = cfg.stellarSize || '82px';
+    Object.assign(rush.style,    s); rush.style.fontSize    = cfg.rushSize || '82px';
 }
 
 /* ═══════════════════════════════════════════════════════════
    MENU CONTROLLER
    ═══════════════════════════════════════════════════════════ */
-const ANIM_DURATION = 10;
-const JET_START_DELAY = 1.5;    // seconds after animation start
-const JET_FADE_IN  = 7.0;       // fade in over the remaining animation time
-const JET_FADE_OUT = 0.0;       // 0 = hard stop
+const ANIM_DURATION = 7.5;
+const JET_START_DELAY = 1.5;
 
 export function createMenu(scene, camera, cfg) {
     const tracked = [];
     const track = obj => { tracked.push(obj); return obj; };
 
-    /* Lights */
     scene.add(track(new THREE.AmbientLight(0x182848, 1.2)));
     const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(5, 15, 10); scene.add(track(dir));
 
-    /* Stars — synced to camera each frame to eliminate parallax */
-    const { mesh: starMesh, material: starMat, syncToCamera } = buildStarField(
-        cfg.starCount, undefined, cfg.starMoveWithCamera ?? false
-    );
+    const { mesh: starMesh, material: starMat, syncToCamera } = buildStarField(cfg.starCount, undefined, true);
     scene.add(track(starMesh));
-    // Sync position immediately so stars are visible from frame 1
-    if (cfg.starMoveWithCamera) syncToCamera(camera);
 
-    /* Sun */
     const sun = createSun(cfg); scene.add(track(sun.group));
+    const belt = createAsteroidBelt(scene, cfg.sunPosition, cfg.sunRadius);
+    belt.forEach(m => tracked.push(m));
 
-    /* Asteroid belt across the top of the sun — denser */
-    const beltMeshes = createAsteroidBelt(scene, cfg.sunPosition, cfg.sunRadius * 1.15);
-    beltMeshes.forEach(m => tracked.push(m));
-
-    /* Aircraft */
     const plane = makeAircraft();
-    plane.scale.setScalar(cfg.planeStartScale);
     scene.add(track(plane));
 
-    /* Path */
     const pathPts = cfg.planePathPoints.map(p => new THREE.Vector3(...p));
     const path = new THREE.CatmullRomCurve3(pathPts, false, 'catmullrom', 0.5);
-
-    /* Speed curve */
-    const getPathT = buildSpeedCurve(
-        cfg.speedBoostStart  ?? 0.25,
-        cfg.speedBoostPeak   ?? 0.55,
-        cfg.speedBoostEnd    ?? 0.90,
-        cfg.speedBoostAmount ?? 1.6,
-    );
-
-    /* Trail */
     const trail = createTrail(path, cfg);
     scene.add(track(trail.tube)); scene.add(track(trail.glow));
 
-    /* Background asteroids — 28, varied sizes, deep field */
-    const astGeo = new THREE.IcosahedronGeometry(1, 0);
-    for (let i = 0; i < 28; i++) {
-        const r = 3 + Math.random() * 18;
-        const mat = new THREE.MeshPhongMaterial({ color: 0x554433, flatShading: true, transparent: true, opacity: 0.28 + Math.random() * 0.3 });
-        const m = new THREE.Mesh(astGeo, mat);
-        m.scale.set(
-            r * (0.6 + Math.random() * 0.8),
-            r * (0.6 + Math.random() * 0.8),
-            r * (0.6 + Math.random() * 0.8),
-        );
-        m.position.set((Math.random() - 0.5) * 550, (Math.random() - 0.5) * 280, -160 - Math.random() * 380);
-        m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-        scene.add(track(m));
-    }
-
-    /* Foreground asteroids — smaller, closer to camera, scattered widely */
-    for (let i = 0; i < 35; i++) {
-        const r = 0.3 + Math.random() * 1.8;   // tiny rocks
-        const mat = new THREE.MeshPhongMaterial({ color: 0x665544, flatShading: true, transparent: true, opacity: 0.4 + Math.random() * 0.4 });
-        const m = new THREE.Mesh(astGeo, mat);
-        m.scale.set(
-            r * (0.5 + Math.random() * 1.0),
-            r * (0.5 + Math.random() * 1.0),
-            r * (0.5 + Math.random() * 1.0),
-        );
-        // Spread across the view, z between -50 and -150 (closer to camera)
-        m.position.set(
-            (Math.random() - 0.5) * 200,
-            (Math.random() - 0.5) * 120,
-            -50 - Math.random() * 100,
-        );
-        m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-        scene.add(track(m));
-    }
-
     applyTitleStyle(cfg);
+
     const playBtn = document.getElementById('play-btn');
     const menuEl  = document.getElementById('main-menu');
-    if (playBtn) { playBtn.className = 'menu-btn-base'; playBtn.classList.add('align-' + cfg.playButtonAlign); }
+    const skipBtn = document.getElementById('skip-intro');
 
-    /* Camera */
+    if (playBtn) { playBtn.className = 'btn-premium menu-btn-base align-' + cfg.playButtonAlign; }
+    if (skipBtn) { skipBtn.style.display = 'block'; skipBtn.style.pointerEvents = 'auto'; }
+
     const camStart  = new THREE.Vector3(...cfg.cameraStartPos);
     const camEnd    = new THREE.Vector3(...cfg.cameraEndPos);
     const lookStart = new THREE.Vector3(...cfg.cameraStartLookAt);
     const lookEnd   = new THREE.Vector3(...cfg.cameraEndLookAt);
-    camera.position.copy(camStart);
-    camera.lookAt(lookStart);
 
-    /* Distance-based scale reference points */
-    const camEndVec = new THREE.Vector3(...cfg.cameraEndPos);
-
-    // Compute path total length to determine start/end distances
     const pathStart3D = new THREE.Vector3(...cfg.planePathPoints[0]);
-    const pathEnd3D   = new THREE.Vector3(...cfg.planePathPoints[cfg.planePathPoints.length - 1]);
-    const distAtStart = pathStart3D.distanceTo(camEndVec);
-    const distAtEnd   = pathEnd3D.distanceTo(camEndVec);   // ≈ 0 at camera
+    const distAtStart = pathStart3D.distanceTo(camEnd);
 
-    let elapsed = 0, animDone = false, onPlayCb = null;
-    let jetStarted = false;
-    const tmpLook = new THREE.Vector3();
+    let elapsed = 0, animDone = false, jetStarted = false, onPlayCb = null;
+    const frozenPos = new THREE.Vector3(), frozenQuat = new THREE.Quaternion();
+    let frozenScale = 1;
 
-    /* Freeze state */
-    const frozenPos  = new THREE.Vector3();
-    const frozenQuat = new THREE.Quaternion();
-    let frozenScale  = 1;
-
-    function showUI() { if (menuEl) menuEl.style.display = 'flex'; }
-    function hideUI() {
-        if (menuEl) menuEl.style.display = 'none';
-        const tc = document.getElementById('title-container');
-        if (tc) tc.classList.remove('visible','anim-slide-glow','anim-glitch','anim-typewriter');
-        if (playBtn) playBtn.classList.remove('visible');
-    }
-
-    function _onPlayClick() { if (onPlayCb) onPlayCb(); }
+    const _onPlayClick = () => { if (onPlayCb) onPlayCb(); };
     if (playBtn) playBtn.addEventListener('click', _onPlayClick);
 
-    // Pre-load jet buffer immediately (no autoplay yet)
-    const onInteractLoad = () => {
-        loadJetBuffer();
-        window.removeEventListener('mousedown', onInteractLoad);
-        window.removeEventListener('keydown', onInteractLoad);
+    const _onSkipClick = (e) => {
+        if (e) e.stopPropagation();
+        elapsed = ANIM_DURATION;
+        if (skipBtn) skipBtn.style.display = 'none';
     };
-    loadJetBuffer(); // attempt immediately; browser may allow it
-    window.addEventListener('mousedown', onInteractLoad, { once: true });
-    window.addEventListener('keydown', onInteractLoad, { once: true });
+    if (skipBtn) skipBtn.addEventListener('click', _onSkipClick);
+
+    loadJetBuffer();
 
     function update(dt) {
         elapsed += dt;
-        const rawElapsed = Math.min(elapsed / ANIM_DURATION, 1);
+        const rawT = Math.min(elapsed / ANIM_DURATION, 1.0);
 
-        /* ── Jet audio: starts at JET_START_DELAY, fades in ─── */
-        if (!jetStarted && elapsed >= JET_START_DELAY) {
-            jetStarted = true;
-            playMenuJet(JET_FADE_IN);
-        }
+        if (!jetStarted && elapsed >= JET_START_DELAY) { jetStarted = true; playMenuJet(7); }
 
-        /* ── Camera: linear sweep so it keeps moving until t=1 ── */
-        // Using rawElapsed directly (no ease-out) so the camera
-        // never appears to stop before the animation ends.
-        camera.position.lerpVectors(camStart, camEnd, rawElapsed);
-        tmpLook.lerpVectors(lookStart, lookEnd, rawElapsed);
+        camera.position.lerpVectors(camStart, camEnd, rawT);
+        const tmpLook = new THREE.Vector3();
+        tmpLook.lerpVectors(lookStart, lookEnd, rawT);
         camera.lookAt(tmpLook);
 
-        /* ── Plane: non-uniform speed, distance-based scale ─ */
         if (!animDone) {
-            const pathT    = getPathT(rawElapsed);
-            const clampedT = Math.min(pathT, 0.9999);
-
-            const pos = path.getPointAt(clampedT);
-            const tan = path.getTangentAt(clampedT);
+            // Linear motion
+            const pathT = rawT;
+            const clampedPathT = Math.min(pathT, 0.9999);
+            const pos = path.getPointAt(clampedPathT);
+            const tan = path.getTangentAt(clampedPathT);
 
             plane.position.copy(pos);
             plane.lookAt(pos.clone().sub(tan.clone().multiplyScalar(3)));
 
-            // Perspective scale: 1/5 at far end → full size at camera.
-            const curDist   = pos.distanceTo(camera.position);
-            const dMin = Math.max(distAtEnd, 5);
-            const dMax = distAtStart;
-            const dFrac = THREE.MathUtils.clamp((curDist - dMin) / (dMax - dMin), 0, 1);
-            // dFrac=1 when far (1/5 size), dFrac=0 when close (full size)
-            const perspScale = THREE.MathUtils.lerp(cfg.planeEndScale, cfg.planeEndScale / 5.0, dFrac);
-            plane.scale.setScalar(perspScale);
+            const curDist = pos.distanceTo(camera.position);
+            const dFrac = THREE.MathUtils.clamp((curDist - 5) / (distAtStart - 5), 0, 1);
+            const scale = THREE.MathUtils.lerp(cfg.planeEndScale, cfg.planeEndScale / 5, dFrac);
+            plane.scale.setScalar(scale);
 
-            if (plane.userData.glow) plane.userData.glow.scale.setScalar(1.2 + Math.sin(elapsed * 8) * 0.3);
-
-            trail.setProgress(clampedT);
-
-            frozenPos.copy(plane.position);
-            frozenQuat.copy(plane.quaternion);
-            frozenScale = plane.scale.x;
+            // Offset the trail rendering slightly behind the plane's actual position
+            trail.setProgress(Math.max(0, pathT - 0.004));
+            frozenPos.copy(plane.position); frozenQuat.copy(plane.quaternion); frozenScale = plane.scale.x;
         } else {
-            plane.position.copy(frozenPos);
-            plane.quaternion.copy(frozenQuat);
-            plane.scale.setScalar(frozenScale);
+            plane.position.copy(frozenPos); plane.quaternion.copy(frozenQuat); plane.scale.setScalar(frozenScale);
         }
 
         sun.coreMat.uniforms.uTime.value = elapsed;
         sun.glowMat.uniforms.uTime.value = elapsed;
         starMat.uniforms.uTime.value = elapsed;
-        if (cfg.starMoveWithCamera) syncToCamera(camera);
+        syncToCamera(camera);
 
-        /* ── Animation complete ──────────────────────────── */
-        if (rawElapsed >= 1 && !animDone) {
+        if (rawT >= 1.0 && !animDone) {
             animDone = true;
-            // Hard stop: cut jet immediately
-            if (JET_FADE_OUT === 0) {
-                stopMenuJet();
-            } else {
-                fadeOutMenuJet(JET_FADE_OUT);
-            }
+            stopMenuJet();
+            if (skipBtn) skipBtn.style.display = 'none';
             const tc = document.getElementById('title-container');
-            if (tc) { tc.classList.add('visible'); tc.classList.add('anim-' + cfg.titleAnimation); }
+            if (tc) { tc.classList.add('visible', 'anim-' + cfg.titleAnimation); }
             setTimeout(() => { if (playBtn) playBtn.classList.add('visible'); }, 600);
         }
     }
 
     function dispose() {
         if (playBtn) playBtn.removeEventListener('click', _onPlayClick);
-        hideUI();
+        if (skipBtn) skipBtn.removeEventListener('click', _onSkipClick);
+        if (menuEl) menuEl.style.display = 'none';
         stopMenuJet();
-        for (const obj of tracked) {
+        tracked.forEach(obj => {
             scene.remove(obj);
-            if (obj.traverse) obj.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material?.dispose) c.material.dispose(); });
-            else { if (obj.geometry) obj.geometry.dispose(); if (obj.material?.dispose) obj.material.dispose(); }
-        }
+            obj.traverse?.(c => { c.geometry?.dispose(); c.material?.dispose?.(); });
+        });
         tracked.length = 0;
     }
 
-    showUI();
-    return {
-        update,
-        dispose,
-        onPlay(cb) { onPlayCb = cb; },
-    };
+    if (menuEl) menuEl.style.display = 'flex';
+    return { update, dispose, onPlay(cb) { onPlayCb = cb; } };
 }

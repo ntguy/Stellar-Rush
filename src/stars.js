@@ -23,7 +23,7 @@ export function buildStarField(count = 3000, spread = { x: 700, y: 350, z: 480 }
             // Distribute on a sphere of radius 280 — safely inside far-clip of 500
             const theta = Math.random() * Math.PI * 2;
             const phi   = Math.acos(2 * Math.random() - 1);
-            const r     = 240 + Math.random() * 40;
+            const r     = 430 + Math.random() * 40;
             pos[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
             pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
             pos[i * 3 + 2] = r * Math.cos(phi);

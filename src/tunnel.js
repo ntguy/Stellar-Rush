@@ -100,3 +100,10 @@ export function initTunnel(scene) {
 export function updateTunnel(dt, speed, elapsed) {
     _tunnel?.update(dt, speed, elapsed);
 }
+
+export function clearTunnel(scene) {
+    if (_tunnel) {
+        _tunnel.dispose();
+        _tunnel = null;
+    }
+}
