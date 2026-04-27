@@ -826,10 +826,11 @@ function loop() {
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position);
     if (puResult.fuel > 0)   { 
-        fuel = FUEL_MAX; 
+        fuel = Math.min(FUEL_MAX, fuel + puResult.fuel);
         stopFuelLowBeep();
         prevFuelLow = false;
     }
+
 
     if (puResult.points > 0) {
         score += puResult.points;

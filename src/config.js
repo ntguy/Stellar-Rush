@@ -14,8 +14,10 @@ export const SPAWN_Z  = -200;     // Z where new objects appear (behind camera) 
 export const DESPAWN_Z = 25;      // Z where objects are removed (past camera)
 
 /* ── Gameplay ─────────────────────────────────────────────── */
-export const FUEL_MAX             = 30;  // seconds of fuel
-export const FUEL_PICKUP_BASE     = 15;  // baseline seconds between fuel drops
+export const FUEL_MAX             = 42;  // seconds of fuel
+export const FUEL_PICKUP_VALUE    = 21;  // seconds per pickup
+export const FUEL_PICKUP_BASE     = 14;  // baseline seconds between fuel drops
+
 export const FORMATION_BASE       = 5;   // baseline seconds between gem formations
 export const POINTS_PICKUP_BASE   = 10;  // baseline seconds between high-value point gems
 export const SHIELD_PICKUP_BASE   = 30;  // baseline seconds between shield drops
@@ -37,7 +39,8 @@ export const SHIELD_DURATION  = 10;      // seconds
 
 
 /* ── Enemy tuning ─────────────────────────────────────────── */
-export const ENEMY_MOVER_SPEED = 13;   // was 8 — faster movers
+export const ENEMY_MOVER_SPEED = 16;   // increased from 13
+
 export const ENEMY_LASER_RANGE = 80;    // z-dist at which turret locks on
 export const ENEMY_LASER_WARN  = 1;   // seconds of warning flashes
 export const ENEMY_LASER_DURATION = 0.3;

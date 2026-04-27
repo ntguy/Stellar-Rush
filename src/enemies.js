@@ -22,9 +22,11 @@ export function spawnMover(scene, moveType = 'horizontal', zOffset = 0) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.SphereGeometry(3.8, 7, 6), matEnemy);
     g.add(body);
-    // Booster cone — larger to match bigger body
+    // Booster cone
     const booster = new THREE.Mesh(new THREE.ConeGeometry(2.0, 1.5, 5), matEnemyGlow);
     g.add(booster);
+
+
 
     // Starting position
     const startX = (Math.random() - 0.5) * BOUNDS_X * 1.2;
@@ -64,12 +66,15 @@ export function spawnMover(scene, moveType = 'horizontal', zOffset = 0) {
     }
 
     scene.add(g);
+    scene.add(g);
     enemies.push({
         type: 'mover', group: g, vel, moveType, spd,
         circleCenter, circleAngle,
-        radius: 3.2,   // slightly larger than visual radius for fair collision
+        radius: 3.2,
     });
 }
+
+
 
 /* ═══════════════════════════════════════════════════════════
    LASER TURRET ENEMY
@@ -81,10 +86,20 @@ export function spawnLaserTurret(scene, zOffset = 0) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), matEnemy);
     g.add(body);
+    
+    // Black stripe through the center — visible from the front (horizontal)
+    const stripeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(1.02, 1.02, 0.45, 16), stripeMat);
+    stripe.rotation.z = Math.PI / 2; // horizontal band across the Y axis
+    g.add(stripe);
+
+
+
     // "Eye" — glowing red sphere
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.35, 5, 4), matEnemyGlow);
     eye.position.z = -0.7;
     g.add(eye);
+
     // Turret barrel — bright white cylinder so it's visible against the dark scene
     const barrelMat = new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true });
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 1.2, 6), barrelMat);
@@ -117,8 +132,9 @@ export function spawnLaserTurret(scene, zOffset = 0) {
    ═══════════════════════════════════════════════════════════ */
 
 export function updateEnemies(scene, dt, speed, aircraftPos, shielded, camera) {
-    const CIRCLE_RADIUS = 6;
+    const CIRCLE_RADIUS = 10;
     const CIRCLE_SPEED  = 2.5;
+
     let killed = false;
 
     for (let i = enemies.length - 1; i >= 0; i--) {

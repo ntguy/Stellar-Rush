@@ -142,7 +142,7 @@ export function playLaserFire() {
 }
 
 export function playLaserWarning(speedMultiplier = 1.0) {
-    playOneShot('warning', 0.22, speedMultiplier);
+    playOneShot('warning', 0.06, speedMultiplier);
 }
 
 export function playCrash() {

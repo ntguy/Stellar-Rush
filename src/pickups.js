@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import {
     SPAWN_Z, DESPAWN_Z, BOUNDS_X, BOUNDS_Y, PLANE_RADIUS,
-    FUEL_MAX, SHIELD_DURATION, matShield
+    FUEL_MAX, FUEL_PICKUP_VALUE, SHIELD_DURATION, matShield
 } from './config.js';
+
 import { playCollect1, playCollect2 } from './audio.js';
 
 /* ═══════════════════════════════════════════════════════════
@@ -154,9 +155,10 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
         if (aircraftPos.distanceTo(p.mesh.position) < getCollectRadius(aircraftPos)) {
             switch (p.type) {
                 case 'fuel':
-                    result.fuel = FUEL_MAX;
+                    result.fuel = FUEL_PICKUP_VALUE;
                     playCollect1();
                     break;
+
                 case 'points_high':
                     result.points += 200;
                     result.pointsPos = p.mesh.position.clone();
