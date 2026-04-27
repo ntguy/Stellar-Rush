@@ -6,6 +6,8 @@ let ctx = null;
 const buffers = {};
 let engineSource = null;
 let boostSource = null;
+let lowFuelSource = null;
+let lowFuelGain = null;
 
 /**
  * Loads an audio file and decodes it into a buffer.
@@ -29,10 +31,15 @@ export async function initAudio() {
     }
 
     await Promise.all([
-        loadBuffer('engine',   '/src/audio/spaceship-hum-low-frequency-trimmed.mp3'),
-        loadBuffer('boost',    '/src/audio/fighter-jet-taking-off-trimmed.mp3'),
-        loadBuffer('collect1', '/src/audio/collect1.mp3'),
-        loadBuffer('collect2', '/src/audio/collect2.mp3'),
+        loadBuffer('engine',     '/src/audio/spaceship-hum-low-frequency-trimmed.mp3'),
+        loadBuffer('boost',      '/src/audio/fighter-jet-taking-off-trimmed.mp3'),
+        loadBuffer('collect1',   '/src/audio/collect1.mp3'),
+        loadBuffer('collect2',   '/src/audio/collect2.mp3'),
+        loadBuffer('explode',    '/src/audio/explode.mp3'),
+        loadBuffer('laser',      '/src/audio/laser.mp3'),
+        loadBuffer('warning',    '/src/audio/warning.mp3'),
+        loadBuffer('lowFuel',    '/src/audio/LowOnFuel.mp3'),
+        loadBuffer('outOfFuel',  '/src/audio/OutOfFuel.mp3'),
     ]);
 
     startBaseEngine();
@@ -62,7 +69,7 @@ export function startBaseEngine() {
     engineSource.loop = true;
 
     const gain = ctx.createGain();
-    gain.gain.value = 0.10; 
+    gain.gain.value = 0.15; 
 
     engineSource.connect(gain).connect(ctx.destination);
     engineSource.start();
@@ -80,16 +87,18 @@ export function stopAllAudio() {
         try { boostSource.stop(); } catch(e) {}
         boostSource = null;
     }
+    stopFuelLowBeep();
 }
 
 /**
  * Helper to play a one-shot sound buffer.
  */
-function playOneShot(key, volume = 0.5) {
+function playOneShot(key, volume = 0.5, playbackRate = 1.0) {
     if (!ctx || !buffers[key]) return;
     
     const src = ctx.createBufferSource();
     src.buffer = buffers[key];
+    src.playbackRate.value = playbackRate;
     
     const gain = ctx.createGain();
     gain.gain.value = volume;
@@ -128,25 +137,34 @@ function startLoop(key, volume = 0.5) {
 
 /* ── One-shot sounds ──────────────────────────────────────── */
 
-export function playLaserFire()   {}
-export function playCrash()       {
+export function playLaserFire() {
+    playOneShot('laser', 0.2);
+}
+
+export function playLaserWarning(speedMultiplier = 1.0) {
+    playOneShot('warning', 0.22, speedMultiplier);
+}
+
+export function playCrash() {
     stopAllAudio();
+    playOneShot('explode', 0.8);
 }
 
-/** Played when a single pickup is collected. */
 export function playCollect1() {
-    playOneShot('collect1', 0.2);
+    playOneShot('collect1', 0.4);
 }
 
-/** Played when an item in a formation is collected. */
 export function playCollect2() {
-    playOneShot('collect2', 0.45);
+    playOneShot('collect2', 1);
+}
+
+export function playOutOfFuel() {
+    playOneShot('outOfFuel', 0.1);
 }
 
 export function playFuelCollect()   {}
 export function playPointsCollect() {}
 export function playShieldCollect() {}
-
 
 /* ── Looping sounds ───────────────────────────────────────── */
 
@@ -155,9 +173,46 @@ export function startShieldHum() {
 }
 
 export function startBoostHum() {
-    return startLoop('boost', 0.4);
+    return startLoop('boost', 0.8);
 }
 
+/**
+ * Starts the low-fuel warning loop.
+ */
 export function startFuelLowBeep() {
-    return () => {};
+    if (!ctx || !buffers['lowFuel']) return;
+    
+    // Stop existing
+    stopFuelLowBeep();
+
+    lowFuelSource = ctx.createBufferSource();
+    lowFuelSource.buffer = buffers['lowFuel'];
+    lowFuelSource.loop = true;
+
+    lowFuelGain = ctx.createGain();
+    lowFuelGain.gain.value = 0; 
+
+    lowFuelSource.connect(lowFuelGain).connect(ctx.destination);
+    lowFuelSource.start();
+}
+
+/**
+ * Updates the low-fuel warning volume.
+ * @param {number} volume - Volume (0 to 1).
+ */
+export function setLowFuelVolume(volume) {
+    if (lowFuelGain) {
+        lowFuelGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.1);
+    }
+}
+
+/**
+ * Stops the low-fuel warning.
+ */
+export function stopFuelLowBeep() {
+    if (lowFuelSource) {
+        try { lowFuelSource.stop(); } catch(e) {}
+        lowFuelSource = null;
+        lowFuelGain = null;
+    }
 }

@@ -14,8 +14,10 @@ import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValue
 import {
     playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
-    initAudio, resumeAudioContext, stopAllAudio, startBaseEngine
+    initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
+    setLowFuelVolume, stopFuelLowBeep, playOutOfFuel
 } from './audio.js';
+
 
 
 // Initialize audio loading
@@ -373,6 +375,8 @@ function clearPointsText(scene) {
    STATE
    ═══════════════════════════════════════════════════════════ */
 let fuel, score, elapsed, gameOver, boosting;
+let fuelOut = false, fuelOutTimer = 0;
+
 let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, pointsTimer, shieldPUTimer, enemyTimer;
 let shieldTimer;
 // How many times enemies have been spawned — drives multi-enemy probability ramp
@@ -410,7 +414,7 @@ function createShieldMesh() {
 /* ── Looping sound stop-function handles ──────────────────── */
 let stopBoostHum    = null;
 let stopShieldHum   = null;
-let stopFuelLowBeep = null;
+
 // Previous-frame flags for detecting transitions
 let prevBoosting = false;
 let prevFuelLow  = false;
@@ -455,6 +459,8 @@ const zPlane    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 function init() {
     fuel = FUEL_MAX; score = 0; elapsed = 0;
     gameOver = false; boosting = false;
+    fuelOut = false; fuelOutTimer = 0;
+
     spawnTimer = 0; asteroidTimer = 0;
     // Initialise pickup timers as objects with value and threshold
     const _jitter0 = base => base * (0.8 + Math.random() * 0.4);
@@ -470,7 +476,8 @@ function init() {
     // Stop any active looping sounds
     stopBoostHum?.();    stopBoostHum    = null;
     stopShieldHum?.();   stopShieldHum   = null;
-    stopFuelLowBeep?.(); stopFuelLowBeep = null;
+    stopFuelLowBeep();
+
     aircraft.position.set(0, 0, 0);
     aircraft.rotation.set(0, 0, 0);
     vel.set(0, 0, 0);
@@ -598,13 +605,32 @@ function loop() {
     if (shielded) shieldTimer -= dt;
 
     const baseSpeed = OBS_BASE_SPEED + elapsed * OBS_SPEED_RAMP;
-    const speed = boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed;
+    let speed = boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed;
+    
+    // Out of fuel slowdown
+    if (fuelOut) {
+        fuelOutTimer += dt;
+        const slowdown = Math.max(0, 1 - fuelOutTimer / 5.0);
+        speed *= slowdown;
+        boosting = false; // can't boost without fuel
+        if (fuelOutTimer >= 5.0) { endGame(); return; }
+    }
+
     const scoreMult = boosting ? BOOST_SCORE_MULT : 1;
     score += dt * (10 + elapsed * 0.5) * scoreMult;
 
     /* ── Fuel ─────────────────────────────────────────── */
-    fuel -= dt * (boosting ? 2 : 1);
-    if (fuel <= 0) { fuel = 0; endGame(); return; }
+    if (!fuelOut) {
+        fuel -= dt * (boosting ? 2 : 1);
+        if (fuel <= 0) { 
+            fuel = 0; 
+            fuelOut = true; 
+            fuelOutTimer = 0; 
+            playOutOfFuel();
+            stopFuelLowBeep();
+        }
+    }
+
 
     /* ── Mouse → world target ─────────────────────────── */
     raycaster.setFromCamera(mouseNDC, camera);
@@ -799,7 +825,12 @@ function loop() {
 
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position);
-    if (puResult.fuel > 0)   { fuel = FUEL_MAX; }
+    if (puResult.fuel > 0)   { 
+        fuel = FUEL_MAX; 
+        stopFuelLowBeep();
+        prevFuelLow = false;
+    }
+
     if (puResult.points > 0) {
         score += puResult.points;
         // Spawn collection burst at pickup world position
@@ -901,27 +932,29 @@ function loop() {
     }
 
     /* ── Looping audio state transitions ──────────────── */
-    const fuelLow = fuel / FUEL_MAX < 0.20;
+    const fuelLow = fuel < 7 && !fuelOut;
     if (boosting !== prevBoosting) {
         prevBoosting = boosting;
         if (boosting) {
-            // TODO: SOUND
             stopBoostHum = startBoostHum();
         } else {
-            // TODO: SOUND
             stopBoostHum?.(); stopBoostHum = null;
         }
     }
     if (fuelLow !== prevFuelLow) {
         prevFuelLow = fuelLow;
         if (fuelLow) {
-            // TODO: SOUND
-            stopFuelLowBeep = startFuelLowBeep();
+            startFuelLowBeep();
         } else {
-            // TODO: SOUND
-            stopFuelLowBeep?.(); stopFuelLowBeep = null;
+            stopFuelLowBeep();
         }
     }
+    if (fuelLow) {
+        // Volume scales from 0.05 at 7s to 0.6 at 0s
+        const t = 1 - fuel / 7;
+        setLowFuelVolume(0.05 + t * 0.55);
+    }
+
 
     /* ── Exhaust particles ────────────────────────────── */
     // Emit several particles per frame; more when boosting

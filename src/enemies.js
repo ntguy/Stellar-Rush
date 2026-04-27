@@ -4,7 +4,8 @@ import {
     ENEMY_MOVER_SPEED, ENEMY_LASER_RANGE, ENEMY_LASER_WARN, ENEMY_LASER_DURATION,
     matEnemy, matEnemyGlow, matLaser
 } from './config.js';
-import { playLaserFire } from './audio.js';
+import { playLaserFire, playLaserWarning } from './audio.js';
+
 
 /* ═══════════════════════════════════════════════════════════
    SHARED STATE  — owned by main.js, mutated here
@@ -175,7 +176,10 @@ export function updateEnemies(scene, dt, speed, aircraftPos, shielded, camera) {
                 e.warningMesh = new THREE.Mesh(warnGeo, warnMat);
                 e.warningMesh.position.set(e.lockPos.x, e.lockPos.y, aircraftPos.z);
                 scene.add(e.warningMesh);
+                // Trigger warning sound — speedMultiplier 1.0 matches 1s ENEMY_LASER_WARN
+                playLaserWarning(1.0);
             }
+
 
             if (e.state === 'warning') {
                 e.timer += dt;
