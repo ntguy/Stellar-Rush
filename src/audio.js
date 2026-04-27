@@ -31,15 +31,15 @@ export async function initAudio() {
     }
 
     await Promise.all([
-        loadBuffer('engine',     '/src/audio/spaceship-hum-low-frequeny.mp3'),
-        loadBuffer('boost',      '/src/audio/fighter-jet-taking-off-trimmed.mp3'),
-        loadBuffer('collect1',   '/src/audio/collect1.mp3'),
-        loadBuffer('collect2',   '/src/audio/collect2.mp3'),
-        loadBuffer('explode',    '/src/audio/explode.mp3'),
-        loadBuffer('laser',      '/src/audio/laser.mp3'),
-        loadBuffer('warning',    '/src/audio/warning.mp3'),
-        loadBuffer('lowFuel',    '/src/audio/LowOnFuel.mp3'),
-        loadBuffer('outOfFuel',  '/src/audio/OutOfFuel.mp3'),
+        loadBuffer('engine',     'src/audio/spaceship-hum-low-frequency.mp3'),
+        loadBuffer('boost',      'src/audio/fighter-jet-taking-off-trimmed.mp3'),
+        loadBuffer('collect1',   'src/audio/collect1.mp3'),
+        loadBuffer('collect2',   'src/audio/collect2.mp3'),
+        loadBuffer('explode',    'src/audio/explode.mp3'),
+        loadBuffer('laser',      'src/audio/laser.mp3'),
+        loadBuffer('warning',    'src/audio/warning.mp3'),
+        loadBuffer('lowFuel',    'src/audio/LowOnFuel.mp3'),
+        loadBuffer('outOfFuel',  'src/audio/OutOfFuel.mp3'),
     ]);
 
     startBaseEngine();

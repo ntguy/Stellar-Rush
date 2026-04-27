@@ -143,8 +143,14 @@ let _menuAudioCtx = null, _menuJetSource = null, _menuJetGain = null, _jetBuf = 
 
 async function loadJetBuffer() {
     if (_jetBuf) return _jetBuf;
-    if (!_menuAudioCtx) _menuAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const res = await fetch('/src/audio/fighter-jet-taking-off-trimmed.mp3');
+    if (!_menuAudioCtx) {
+        _menuAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Resume on interaction
+        const resume = () => { if (_menuAudioCtx.state === 'suspended') _menuAudioCtx.resume(); };
+        window.addEventListener('mousedown', resume, { once: true });
+        window.addEventListener('keydown', resume, { once: true });
+    }
+    const res = await fetch('src/audio/fighter-jet-taking-off-trimmed.mp3');
     const raw = await res.arrayBuffer();
     _jetBuf = await _menuAudioCtx.decodeAudioData(raw);
     return _jetBuf;
