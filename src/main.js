@@ -21,6 +21,8 @@ import { initTunnel, updateTunnel, clearTunnel } from './tunnel.js';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
+import Stats from 'stats';
+import { settings, saveSettings } from './settings.js';
 
 // ─── Menu animation config ───
 import { getMenuConfig } from './menu-variation-1.js';
@@ -47,8 +49,28 @@ window.addEventListener('keydown', resumeAudioContext, { once: true });
 /* ═══════════════════════════════════════════════════════════
    RENDERER  /  SCENE  /  CAMERA
    ═══════════════════════════════════════════════════════════ */
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Init defaults
+if (!localStorage.getItem('stellarRushSettings')) {
+    settings.fpsEnabled = DEVELOPMENT_MODE;
+    saveSettings();
+}
+
+const stats = new Stats();
+stats.showPanel(0);
+stats.dom.style.display = settings.fpsEnabled ? 'block' : 'none';
+stats.dom.style.position = 'absolute';
+stats.dom.style.right = '0px';
+stats.dom.style.left = '';
+stats.dom.style.top = '';
+stats.dom.style.bottom = '0px';
+document.body.appendChild(stats.dom);
+
+const isLow = settings.preset === 'Low';
+const isMedium = settings.preset === 'Medium';
+
+const renderer = new THREE.WebGLRenderer({ antialias: !isLow });
+const pr = isLow ? 1.0 : (isMedium ? 1.5 : Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(pr);
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -56,7 +78,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000005);
 scene.fog = new THREE.FogExp2(0x000005, 0.0015);
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.1, 500);
 camera.position.set(0, 10, 20);
 
 /* ═══════════════════════════════════════════════════════════
@@ -155,7 +177,7 @@ scene.add(guideLine);
    STAR FIELD  (twinkling shader)
    ═══════════════════════════════════════════════════════════ */
 // Star field is now imported from stars.js (shared with menu)
-const STAR_COUNT = 3000;
+const STAR_COUNT = isLow ? 900 : (isMedium ? 1500 : 3000);
 (function initStars() {
     const { mesh, material } = buildStarField(STAR_COUNT);
     scene.add(mesh);
@@ -407,6 +429,37 @@ const elHud     = document.getElementById('hud');
 const elMenuBtn = document.getElementById('menu-btn');
 const elPause   = document.getElementById('pause-menu');
 const elResume  = document.getElementById('pause-resume-btn');
+const elSettingPreset = document.getElementById('setting-preset');
+const elSettingFps = document.getElementById('setting-fps');
+const elSettingFov = document.getElementById('setting-fov');
+
+// Init UI from settings
+if (elSettingPreset) elSettingPreset.value = settings.preset;
+if (elSettingFps) elSettingFps.checked = settings.fpsEnabled;
+if (elSettingFov) elSettingFov.value = settings.fov;
+
+if (elSettingPreset) {
+    elSettingPreset.addEventListener('change', (e) => {
+        settings.preset = e.target.value;
+        saveSettings();
+        location.reload();
+    });
+}
+if (elSettingFps) {
+    elSettingFps.addEventListener('change', (e) => {
+        settings.fpsEnabled = e.target.checked;
+        stats.dom.style.display = settings.fpsEnabled ? 'block' : 'none';
+        saveSettings();
+    });
+}
+if (elSettingFov) {
+    elSettingFov.addEventListener('change', (e) => {
+        settings.fov = parseInt(e.target.value);
+        saveSettings();
+        camera.fov = settings.fov;
+        camera.updateProjectionMatrix();
+    });
+}
 
 document.getElementById('restart-btn').addEventListener('click', restart);
 document.getElementById('pause-back-btn').addEventListener('click', backToMainMenu);
@@ -636,7 +689,8 @@ function spawnExplosion(pos) {
     clearExhaust();
     playCrash();
     const cols = [0xff6600, 0xff3300, 0xffaa00, 0xffffff, 0xff8800];
-    for (let i = 0; i < 24; i++) {
+    const maxParts = settings.preset === 'Low' ? 12 : 24;
+    for (let i = 0; i < maxParts; i++) {
         const r = 0.1 + Math.random() * 0.45;
         const mat = new THREE.MeshBasicMaterial({ color: cols[i % cols.length], transparent: true, opacity: 1 });
         const m = new THREE.Mesh(new THREE.TetrahedronGeometry(r, 0), mat);
@@ -671,19 +725,21 @@ function _doSpawnEnemy(zOffset = 0) {
    ═══════════════════════════════════════════════════════════ */
 function loop() {
     requestAnimationFrame(loop);
+    stats.begin();
     const dt = Math.min(clock.getDelta(), 0.05);
 
     /* ── MENU state ───────────────────────────────────── */
     if (gameState === 'MENU') {
         if (menuController) menuController.update(dt);
         renderer.render(scene, camera);
+        stats.end();
         return;
     }
 
     /* ── PAUSED ───────────────────────────────────────── */
-    if (paused) { renderer.render(scene, camera); return; }
+    if (paused) { renderer.render(scene, camera); stats.end(); return; }
 
-    if (gameOver) { renderer.render(scene, camera); return; }
+    if (gameOver) { renderer.render(scene, camera); stats.end(); return; }
 
     /* ── Explosion sequence ──────────────────────────── */
     if (exploding) {
@@ -1077,6 +1133,7 @@ function loop() {
     updateTunnel(dt, speed, elapsed);
 
     renderer.render(scene, camera);
+    stats.end();
 }
 
 loop();

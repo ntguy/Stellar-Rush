@@ -217,8 +217,8 @@ export function patternCorners(params = {}) {
             spawnBar(scene, obstacles, bd, 0.2 + Math.random() * 0.45);
             const openX = -sd; const openY = -bd;
             return [Math.random() < 0.5
-                ? _evaluateSpec({ type: 'formation', x: openX * 14, y: openY * 9, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.5, count: 4, xV: 2, yV: 2, dxV: 0.3, dyV: 0.3, countV: 1 })
-                : _evaluateSpec({ type: 'single',    x: openX * 16, y: openY * 10, z: SPAWN_Z, xV: 2, yV: 2 })
+                ? _evaluateSpec({ type: 'formation', x: openX * 12, y: openY * 6, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.2, count: 4, xV: 3, yV: 3, dxV: 0.5, dyV: 1, countV: 1 })
+                : _evaluateSpec({ type: 'single',    x: openX * 16, y: openY * 10, z: SPAWN_Z, xV: 5, yV: 5 })
             ];
         });
         steps.push((scene, obstacles) => {
@@ -228,8 +228,8 @@ export function patternCorners(params = {}) {
             const [nsd, nbd] = nextCombo;
             const openX = -nsd; const openY = -nbd;
             return [Math.random() < 0.5
-                ? _evaluateSpec({ type: 'formation', x: openX * 12, y: openY * 7, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.5, count: 4, xV: 3, yV: 3, dxV: 0.3, dyV: 0.3, countV: 1 })
-                : _evaluateSpec({ type: 'single',    x: openX * 14, y: openY * 8, z: SPAWN_Z, xV: 3, yV: 3 })
+                ? _evaluateSpec({ type: 'formation', x: openX * 10, y: openY * 9, z: SPAWN_Z, dx: openX * 1.5, dy: openY * 1.2, count: 4, xV: 4, yV: 4, dxV: 0.5, dyV: 1, countV: 1 })
+                : _evaluateSpec({ type: 'single',    x: openX * 14, y: openY * 8, z: SPAWN_Z, xV: 6, yV: 6 })
             ];
         });
     }

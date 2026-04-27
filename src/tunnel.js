@@ -3,6 +3,7 @@
  */
 import * as THREE from 'three';
 import { BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z } from './config.js';
+import { settings } from './settings.js';
 
 /* ── Shared geometry constants ───────────────────────────── */
 const Z_NEAR  = 20;              // Camera Z
@@ -17,8 +18,10 @@ function buildTunnelEffect(scene) {
     const BY = BOUNDS_Y;
 
     /* ── 1. Z-RAILS ───────────────────────────────────────── */
-    const RAILS_H = 800; 
-    const RAILS_V = 500; 
+    const isLow = settings.preset === 'Low';
+    const isMedium = settings.preset === 'Medium';
+    const RAILS_H = isLow ? 400 : (isMedium ? 560 : 800); 
+    const RAILS_V = isLow ? 250 : (isMedium ? 350 : 500); 
     const TOTAL_RAILS = RAILS_H * 2 + RAILS_V * 2;
 
     const railPos = new Float32Array(TOTAL_RAILS * 6);

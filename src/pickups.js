@@ -5,6 +5,7 @@ import {
 } from './config.js';
 
 import { playCollect1, playCollect2 } from './audio.js';
+import { settings } from './settings.js';
 
 /* ═══════════════════════════════════════════════════════════
    SHARED GEOMETRIES & MATERIALS
@@ -46,7 +47,8 @@ const burstParticles = [];
 const burstGeo = new THREE.OctahedronGeometry(0.15, 0);
 
 export function spawnCollectBurst(scene, pos, colour) {
-    for (let i = 0; i < 10; i++) {
+    const count = settings.preset === 'Low' ? 5 : 10;
+    for (let i = 0; i < count; i++) {
         const mat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 1 });
         const m = new THREE.Mesh(burstGeo, mat);
         m.position.copy(pos);
