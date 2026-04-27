@@ -15,7 +15,8 @@ import {
     playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
-    setLowFuelVolume, stopFuelLowBeep, playOutOfFuel
+    setLowFuelVolume, stopFuelLowBeep, playOutOfFuel,
+    startMenuMusic, stopMenuMusic
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel } from './tunnel.js';
 import { makeAircraft } from './aircraft.js';
@@ -498,6 +499,7 @@ function init() {
     stopBoostHum?.();    stopBoostHum    = null;
     stopShieldHum?.();   stopShieldHum   = null;
     stopFuelLowBeep();
+    stopMenuMusic();
 
     aircraft.position.set(0, 0, 0);
     aircraft.rotation.set(0, 0, 0);
@@ -644,6 +646,7 @@ function enterMenu() {
     // Create menu
     if (menuController) menuController.dispose();
     menuController = createMenu(scene, camera, getMenuConfig());
+    menuController.onReady(startMenuMusic);
     menuController.onPlay(() => {
         menuController.dispose();
         menuController = null;

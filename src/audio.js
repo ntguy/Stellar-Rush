@@ -8,6 +8,8 @@ let engineSource = null;
 let boostSource = null;
 let lowFuelSource = null;
 let lowFuelGain = null;
+let menuMusicSource = null;
+let menuMusicGain = null;
 
 /**
  * Loads an audio file and decodes it into a buffer.
@@ -40,6 +42,7 @@ export async function initAudio() {
         loadBuffer('warning',    'src/audio/warning.mp3'),
         loadBuffer('lowFuel',    'src/audio/LowOnFuel.mp3'),
         loadBuffer('outOfFuel',  'src/audio/OutOfFuel.mp3'),
+        loadBuffer('menuMusic',  'src/audio/chillTitleMusic.mp3'),
     ]);
 
     startBaseEngine();
@@ -89,6 +92,7 @@ export function stopAllAudio() {
         boostSource = null;
     }
     stopFuelLowBeep();
+    stopMenuMusic();
 }
 
 /**
@@ -216,4 +220,42 @@ export function stopFuelLowBeep() {
         lowFuelSource = null;
         lowFuelGain = null;
     }
+}
+
+/**
+ * Starts the menu music with a fade-in.
+ */
+export function startMenuMusic() {
+    if (!ctx || !buffers['menuMusic'] || menuMusicSource) return;
+
+    menuMusicSource = ctx.createBufferSource();
+    menuMusicSource.buffer = buffers['menuMusic'];
+    menuMusicSource.loop = true;
+
+    menuMusicGain = ctx.createGain();
+    menuMusicGain.gain.value = 0.4;
+    
+    menuMusicSource.connect(menuMusicGain).connect(ctx.destination);
+    menuMusicSource.start();
+}
+
+/**
+ * Stops the menu music with a fade-out.
+ */
+export function stopMenuMusic() {
+    if (!menuMusicSource) return;
+
+    const source = menuMusicSource;
+    const gain = menuMusicGain;
+    
+    menuMusicSource = null;
+    menuMusicGain = null;
+
+    if (gain) {
+        gain.gain.setTargetAtTime(0, ctx.currentTime, 0.2);
+    }
+    
+    setTimeout(() => {
+        try { source.stop(); } catch(e) {}
+    }, 1000);
 }

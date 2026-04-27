@@ -237,7 +237,7 @@ export function createMenu(scene, camera, cfg) {
     const pathStart3D = new THREE.Vector3(...cfg.planePathPoints[0]);
     const distAtStart = pathStart3D.distanceTo(camEnd);
 
-    let elapsed = 0, animDone = false, jetStarted = false, onPlayCb = null;
+    let elapsed = 0, animDone = false, jetStarted = false, onPlayCb = null, onReadyCb = null;
     const frozenPos = new THREE.Vector3(), frozenQuat = new THREE.Quaternion();
     let frozenScale = 1;
 
@@ -294,6 +294,7 @@ export function createMenu(scene, camera, cfg) {
         if (rawT >= 1.0 && !animDone) {
             animDone = true;
             stopMenuJet();
+            if (onReadyCb) onReadyCb();
             if (skipBtn) skipBtn.style.display = 'none';
             const tc = document.getElementById('title-container');
             if (tc) { tc.classList.add('visible', 'anim-' + cfg.titleAnimation); }
@@ -314,5 +315,5 @@ export function createMenu(scene, camera, cfg) {
     }
 
     if (menuEl) menuEl.style.display = 'flex';
-    return { update, dispose, onPlay(cb) { onPlayCb = cb; } };
+    return { update, dispose, onPlay(cb) { onPlayCb = cb; }, onReady(cb) { onReadyCb = cb; } };
 }
