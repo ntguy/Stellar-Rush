@@ -18,7 +18,8 @@ import {
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel,
     startMenuMusic, stopMenuMusic
 } from './audio.js';
-import { initTunnel, updateTunnel, clearTunnel } from './tunnel.js';
+import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor } from './tunnel.js';
+import { LEVELS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
@@ -360,6 +361,18 @@ let exploding = false, explodeTimer = 0;
 const explosionParts = [];
 const obstacles = [];
 
+/* ── Level Scaling — level system state ──────────────────── */
+let currentLevelIdx = 0;        // index into LEVELS[]
+let levelTimer = 0;             // seconds elapsed within current level
+// 'PLAYING' = normal gameplay, 'TRANSITION' = inter-level pickup formation & color shift
+let levelState = 'PLAYING';
+let transitionFormationDepth = 0;  // Z-depth of spawned inter-level formation
+let transitionWaitTimer = 0;       // counts up while waiting for formation to pass
+let formationSpawned = false;      // true once inter-level formation is triggered
+let colorShiftTimer = 0;           // 0→TUNNEL_TRANSITION_DURATION during colour shift
+let colorShiftFrom = null;         // THREE.Color we're transitioning from
+let colorShiftTo = null;           // THREE.Color we're transitioning to
+
 /* ── Pickup slot pool ──────────────────────────────────────
    nextObstacle() returns slot arrays; we accumulate them here
    and consume one per pickup-spawn event.                    */
@@ -483,6 +496,17 @@ function init() {
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
 
+    // Level Scaling — reset level state
+    currentLevelIdx = 0;
+    levelTimer = 0;
+    levelState = 'PLAYING';
+    transitionFormationDepth = 0;
+    transitionWaitTimer = 0;
+    formationSpawned = false;
+    colorShiftTimer = 0;
+    colorShiftFrom = null;
+    colorShiftTo = null;
+
     spawnTimer = 0; asteroidTimer = 0;
     // Initialise pickup timers as objects with value and threshold
     const _jitter0 = base => base * (0.8 + Math.random() * 0.4);
@@ -541,6 +565,8 @@ function init() {
     resetSequencer();
     pendingPickups.length = 0;
     initTunnel(scene);
+    // Level Scaling — set initial tunnel colour to level 1
+    setTunnelColor(LEVELS[0].tunnelColor);
     if (planetMesh) {
         scene.remove(planetMesh);
         planetMesh.geometry.dispose();
@@ -772,7 +798,14 @@ function loop() {
     const shielded = shieldTimer > 0;
     if (shielded) shieldTimer -= dt;
 
-    const baseSpeed = OBS_BASE_SPEED + elapsed * OBS_SPEED_RAMP;
+    // Level Scaling — speed is set per level, with optional ramp only on final level
+    const currentLevel = LEVELS[currentLevelIdx];
+    let levelSpeedRamp = 0;
+    if (currentLevel.speedRampPerSecond) {
+        // Level Scaling — minor speed increase over time only on final level
+        levelSpeedRamp = levelTimer * currentLevel.speedRampPerSecond;
+    }
+    const baseSpeed = (OBS_BASE_SPEED + levelSpeedRamp) * currentLevel.speedMultiplier;
     let speed = boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed;
     
     // Out of fuel slowdown
@@ -858,34 +891,117 @@ function loop() {
     camera.position.y += ((aircraft.position.y * 0.25 + 4.5) - camera.position.y) * 3 * dt;
     camera.lookAt(aircraft.position.x * 0.2, aircraft.position.y * 0.2, -35);
 
-    /* ── Spawn obstacles ──────────────────────────────── */
-    // Difficulty comes primarily from wallSize growing (wider obstacles = more traversal).
-    // Spawn frequency ramps slowly so the game stays readable.
-    const interval = Math.max(0.7, 1.6 - elapsed * 0.004);
-    spawnTimer += dt;
-    if (spawnTimer > interval) {
-        spawnTimer -= interval;
-        const slots = nextObstacle(scene, obstacles, elapsed);
-        
-        // Process pending pickups using the slots generated for this exact obstacle
-        // Priority: fuel > shield > points > formation
-        const priority = { 'fuel': 0, 'shield': 1, 'points': 2, 'formation': 3 };
-        pendingPickups.sort((a, b) => priority[a] - priority[b]);
+    /* ── Level State Machine (Level Scaling) ────────────────── */
+    if (levelState === 'PLAYING') {
+        levelTimer += dt;
 
-        for (let i = 0; i < pendingPickups.length; i++) {
-            const type = pendingPickups[i];
-            const reqSlotType = (type === 'formation') ? 'formation' : 'single';
-            
-            const slotIdx = slots.findIndex(s => s.type === reqSlotType);
-            if (slotIdx !== -1) {
-                const slot = slots.splice(slotIdx, 1)[0];
-                if (type === 'fuel') spawnFuelPickup(scene, slot);
-                else if (type === 'shield') spawnShieldPickup(scene, slot);
-                else if (type === 'points') spawnHighValuePickup(scene, slot);
-                else if (type === 'formation') spawnLowValueFormation(scene, slot);
+        if (levelTimer >= currentLevel.duration) {
+            if (currentLevelIdx < LEVELS.length - 1) {
+                currentLevelIdx++;
+                levelState = 'TRANSITION';
+            } else {
+                levelTimer = 0;
+            }
+            transitionWaitTimer = 0;
+            formationSpawned = false;
+            transitionFormationDepth = 0;
+        } else {
+            /* ── Spawn obstacles ──────────────────────────────── */
+            spawnTimer += dt;
+            if (spawnTimer > currentLevel.obstacleInterval) {
+                spawnTimer -= currentLevel.obstacleInterval;
+                const slots = nextObstacle(scene, obstacles, currentLevel.difficultyParams);
                 
-                pendingPickups.splice(i, 1);
-                i--; // adjust index after removal
+                const priority = { 'fuel': 0, 'shield': 1, 'points': 2, 'formation': 3 };
+                pendingPickups.sort((a, b) => priority[a] - priority[b]);
+
+                for (let i = 0; i < pendingPickups.length; i++) {
+                    const type = pendingPickups[i];
+                    const reqSlotType = (type === 'formation') ? 'formation' : 'single';
+                    
+                    const slotIdx = slots.findIndex(s => s.type === reqSlotType);
+                    if (slotIdx !== -1) {
+                        const slot = slots.splice(slotIdx, 1)[0];
+                        if (type === 'fuel') spawnFuelPickup(scene, slot);
+                        else if (type === 'shield') spawnShieldPickup(scene, slot);
+                        else if (type === 'points') spawnHighValuePickup(scene, slot);
+                        else if (type === 'formation') spawnLowValueFormation(scene, slot);
+                        
+                        pendingPickups.splice(i, 1);
+                        i--;
+                    }
+                }
+            }
+
+            /* ── Pickup timers ───────────────────────────────────────── */
+            formationTimer.value  += dt;
+            fuelPUTimer.value     += dt;
+            pointsTimer.value     += dt;
+            shieldPUTimer.value   += dt;
+
+            const _jitter = base => base * (0.8 + Math.random() * 0.4);
+
+            if (fuelPUTimer.value >= fuelPUTimer._threshold) {
+                pendingPickups.push('fuel');
+                fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
+            } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
+                pendingPickups.push('shield');
+                shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
+            } else if (pointsTimer.value >= pointsTimer._threshold) {
+                pendingPickups.push('points');
+                pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
+            } else if (formationTimer.value >= formationTimer._threshold) {
+                pendingPickups.push('formation');
+                formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
+            }
+
+            /* ── Enemies ──────────────────────────────────────── */
+            enemyTimer += dt;
+            if (enemyTimer >= currentLevel.enemyInterval) {
+                enemyTimer -= currentLevel.enemyInterval;
+                
+                let numEnemies = 1;
+                if (currentLevel.enemyMaxCount >= 2 && Math.random() < 0.4) numEnemies = 2;
+                if (currentLevel.enemyMaxCount >= 3 && Math.random() < 0.2) numEnemies = 3;
+                
+                for(let i=0; i<numEnemies; i++) {
+                    _doSpawnEnemy(-i * 18);
+                }
+            }
+        }
+    } else if (levelState === 'TRANSITION') {
+        transitionWaitTimer += dt;
+        
+        const EMPTY_SPACE_DELAY = 2.0; 
+
+        if (!formationSpawned && transitionWaitTimer >= EMPTY_SPACE_DELAY) {
+            const depthInfo = spawnInterLevelFormation(scene);
+            transitionFormationDepth = depthInfo.totalDepth;
+            formationSpawned = true;
+
+            // Level Scaling — capture color shift start state now that obstacles have cleared
+            colorShiftFrom = getTunnelColor().clone();
+            colorShiftTo = LEVELS[currentLevelIdx].tunnelColor;
+            colorShiftTimer = 0;
+        }
+        
+        if (formationSpawned) {
+            // Level Scaling — process tunnel color shift during the formation phase
+            if (colorShiftFrom && colorShiftTo) {
+                colorShiftTimer += dt;
+                const ct = Math.min(colorShiftTimer / TUNNEL_TRANSITION_DURATION, 1.0);
+                setTunnelColor(lerpTunnelColor(colorShiftFrom, colorShiftTo, ct));
+            }
+
+            // Wait for formation to pass. Reduced padding from 50 to 10 for less downtime.
+            const distanceToCover = DESPAWN_Z - (SPAWN_Z - transitionFormationDepth) + 10;
+            const timeToCover = (distanceToCover / speed) + EMPTY_SPACE_DELAY;
+            
+            // Return to PLAYING once formation has passed AND color shift is complete
+            const colorDone = colorShiftTimer >= TUNNEL_TRANSITION_DURATION;
+            if (transitionWaitTimer > timeToCover && colorDone) {
+                levelState = 'PLAYING';
+                levelTimer = 0;
             }
         }
     }
@@ -942,55 +1058,6 @@ function loop() {
     planetSpawnTimer += dt;
     if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
     updatePlanet(dt, speed);
-
-    /* ── Pickup timers ─────────────────────────────────────────
-       Timers count up. When one reaches its threshold it marks
-       itself "ready". At most ONE pickup spawns per obstacle tick,
-       chosen by priority: fuel > shield > big points > formation.
-       Each threshold is randomised ±20 % around its base value
-       so spawns don't drift into lockstep.                        */
-    formationTimer.value  += dt;
-    fuelPUTimer.value     += dt;
-    pointsTimer.value     += dt;
-    shieldPUTimer.value   += dt;
-
-    // Determine which timer (if any) has crossed its threshold.
-    // Priority: fuel → shield → points → formation.
-    // _jitter(base): returns base ±20 % (uniform)
-    const _jitter = base => base * (0.8 + Math.random() * 0.4);
-
-    if (fuelPUTimer.value >= fuelPUTimer._threshold) {
-        pendingPickups.push('fuel');
-        fuelPUTimer.value = 0; fuelPUTimer._threshold = _jitter(FUEL_PICKUP_BASE);
-    } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
-        pendingPickups.push('shield');
-        shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
-    } else if (pointsTimer.value >= pointsTimer._threshold) {
-        pendingPickups.push('points');
-        pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
-    } else if (formationTimer.value >= formationTimer._threshold) {
-        pendingPickups.push('formation');
-        formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
-    }
-
-    /* ── Enemies ──────────────────────────────────────── */
-    enemyTimer += dt;
-    const enemyInterval = Math.max(3, 9 - elapsed * 0.06);  // starts at 9s, floors at 3s
-    if (enemyTimer >= enemyInterval) {
-        enemyTimer -= enemyInterval;
-
-        // Probability ramp for extra enemies.
-        // Enemy 2: starts at 10 %, +5 % per spawn, caps at 50 %.
-        // Enemy 3: once cap is reached, a second ramp starts at 10 %, same rule.
-        const p2 = Math.min(0.50, 0.10 + enemySpawnCount * 0.05);
-        const p3Stages = enemySpawnCount - 8; // negative before 8 spawns (cap reached at spawn 8)
-        const p3 = p3Stages >= 0 ? Math.min(0.50, 0.10 + p3Stages * 0.05) : 0;
-
-        _doSpawnEnemy(0);
-        if (Math.random() < p2) _doSpawnEnemy(-18);  // slightly behind enemy 1
-        if (Math.random() < p3) _doSpawnEnemy(-36);  // further behind
-        enemySpawnCount++;
-    }
 
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position);

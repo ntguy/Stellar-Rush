@@ -122,7 +122,7 @@ export function spawnHighValuePickup(scene, pos) {
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
 const _lowMat = new THREE.MeshBasicMaterial({ color: 0x55ee99 });
 
-function _spawnLowPickupAt(scene, wx, wy, wz) {
+export function spawnLowValuePickup(scene, wx, wy, wz) {
     const m = new THREE.Mesh(_lowGeo, _lowMat);
     m.position.set(wx, wy, wz);
     scene.add(m);
@@ -136,7 +136,7 @@ export function spawnLowValueFormation(scene, slot) {
     const dy    = slot.dy   ?? 0;
     const Z_STEP = 8;
     for (let i = 0; i < count; i++) {
-        _spawnLowPickupAt(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP);
+        spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP);
     }
 }
 

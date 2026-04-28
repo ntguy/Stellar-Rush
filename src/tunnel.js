@@ -84,10 +84,19 @@ function buildTunnelEffect(scene) {
         // Rails are static segments; no per-frame update needed currently.
     }
 
+    // Level Scaling — set tunnel rail colour for level transitions
+    function setColor(color) {
+        railMat.uniforms.uColor.value.copy(color);
+    }
+
+    function getColor() {
+        return railMat.uniforms.uColor.value;
+    }
+
     function dispose() {
         scene.remove(railMesh);  railGeo.dispose();  railMat.dispose();
     }
-    return { update, dispose };
+    return { update, dispose, setColor, getColor };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -102,6 +111,16 @@ export function initTunnel(scene) {
 
 export function updateTunnel(dt, speed, elapsed) {
     _tunnel?.update(dt, speed, elapsed);
+}
+
+// Level Scaling — set tunnel colour (used during level transitions)
+export function setTunnelColor(color) {
+    _tunnel?.setColor(color);
+}
+
+// Level Scaling — get current tunnel colour
+export function getTunnelColor() {
+    return _tunnel?.getColor() ?? new THREE.Color(0x88bbff);
 }
 
 export function clearTunnel(scene) {

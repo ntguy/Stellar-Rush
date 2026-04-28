@@ -264,10 +264,9 @@ export function patternShiftingGates(params = {}) {
 export function patternScatter(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
-    // Double the density: each step spawns two blocks staggered in Z.
-    // We calculate the current world speed and interval to find the halfway point.
-    const interval = Math.max(0.7, 1.6 - (params.elapsed ?? 0) * 0.004);
-    const speed = 45 + (params.elapsed ?? 0) * 0.30; // OBS_BASE_SPEED + ramp
+    // Level Scaling — density is now fixed per level (no time-based ramp)
+    const interval = 1.3;
+    const speed = 50;
     const zOffset = (interval * speed) * 0.5;
 
 
@@ -299,12 +298,11 @@ export function patternScatter(params = {}) {
 }
 
 /* ── 6. Narrowing corridor ────────────────────────────────── */
-let narrowUsageCount = 0;
+// Level Scaling — narrowing difficulty is set per-level, no per-usage ramp
 export function patternNarrow(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
-    const multiplier = Math.max(1.0, 1.6 - (narrowUsageCount * 0.05));
-    narrowUsageCount++;
+    const multiplier = 1.0;
     for (let i = 0; i < p.count; i++) {
         steps.push((scene, obstacles) => {
             const parts = [];
@@ -457,25 +455,15 @@ export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR) {
 /* ═══════════════════════════════════════════════════════════
    seQUENCER
    ═══════════════════════════════════════════════════════════ */
-function enrichParams(params, elapsed) { return { ...params, elapsed }; }
 const ALL_PATTERN_MAP = { patternLeftRight, patternTopDown, patternCorners, patternShiftingGates, patternNarrow, patternSlalomGate, patternScatter };
 const ALL_TEMPLATES = Object.values(ALL_PATTERN_MAP);
 let currentSteps = []; let stepIdx = 0; let lastTemplateIdx = -1; let currentPatternName = '';
 
-function difficultyParams(elapsed) {
-    const t = Math.min(elapsed / 120, 1);
-    return {
-        count: Math.floor(THREE.MathUtils.lerp(2, 4, t)),
-        wallSize: THREE.MathUtils.lerp(0.78, 1.50, t),
-        gapSize: THREE.MathUtils.lerp(PLANE_RADIUS * 5.5, PLANE_RADIUS * 3.8, t),
-        gapOffset: THREE.MathUtils.lerp(3, 6, t),
-        gapSizeMax: THREE.MathUtils.lerp(BOUNDS_X, BOUNDS_X * 0.5, t),
-    };
-}
-
-export function nextObstacle(scene, obstacles, elapsed) {
+// Level Scaling — difficulty params are now supplied by the level system, not computed from elapsed time
+export function nextObstacle(scene, obstacles, levelParams) {
     if (stepIdx >= currentSteps.length || currentSteps.length === 0) {
-        const params = enrichParams(difficultyParams(elapsed), elapsed);
+        // levelParams comes directly from the current level definition
+        const params = { ...(levelParams || { count: 3, wallSize: 1.0, gapSize: PLANE_RADIUS * 4.5, gapOffset: 4 }) };
         if (FORCE_PATTERN) {
             const fn = ALL_PATTERN_MAP[FORCE_PATTERN];
             currentSteps = fn(params); currentPatternName = FORCE_PATTERN;
