@@ -43,7 +43,7 @@
             opacity: 0;
         }
 
-        #score {
+        #credits {
             font-size: 28px;
             letter-spacing: 2px;
             font-family: 'Orbitron', sans-serif;
@@ -125,6 +125,11 @@
         }
 
         #game-over button {
+            display: block;
+            width: 100%;
+            margin-top: 15px;
+        }
+        #game-over button:first-of-type {
             margin-top: 28px;
         }
 
@@ -463,14 +468,36 @@
             text-shadow: 0 0 14px #0af;
         }
 
-        .menu-btn-base {
+        #menu-actions {
             position: absolute;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
             opacity: 0;
-            z-index: 60;
+            transition: opacity 0.6s, transform 0.6s;
+            z-index: 100;
+            pointer-events: none;
         }
 
-        .menu-btn-base.visible {
+        #menu-actions.visible {
             opacity: 1;
+            pointer-events: auto;
+        }
+
+        .menu-btn-base {
+            width: 280px;
+            height: 60px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            letter-spacing: 4px;
+            cursor: pointer;
+            background: rgba(0, 170, 255, 0.1);
+            border: 1px solid #0af;
+            color: #0af;
+            transition: background 0.3s, box-shadow 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* Play button alignment variants */
@@ -526,8 +553,281 @@
             z-index: 100;
         }
 
+
+
         #skip-intro:hover {
             color: rgba(255, 255, 255, 1);
+        }
+
+        /* ── Upgrades Menu ────────────────────────────────── */
+        #upgrades-menu {
+            position: absolute;
+            inset: 0;
+            z-index: 150;
+            perspective: 1200px;
+            pointer-events: none; /* Let clicks pass to screens */
+        }
+        
+        #upgrades-menu > button, #upgrades-menu > div#upgrades-bank {
+            pointer-events: auto;
+        }
+
+        .cockpit-screens {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 2%;
+            pointer-events: none;
+        }
+
+        .top-screens {
+            display: flex;
+            width: 90%;
+            max-width: 1400px;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .joystick-space {
+            width: 20%; /* Space for the 3D joystick */
+        }
+
+        .bottom-screen {
+            width: 90%;
+            max-width: 1400px;
+        }
+
+        .cockpit-screen {
+            background: rgba(0, 20, 40, 0.7);
+            border: 2px solid #0af;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 170, 255, 0.2) inset, 0 0 20px rgba(0, 170, 255, 0.4);
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 3D tilts for screens to look like they surround the pilot */
+        #screen-active {
+            flex: 1;
+            aspect-ratio: 16/9;
+            transform: rotateY(-15deg) rotateX(10deg);
+            transform-origin: right bottom;
+        }
+
+        #screen-info {
+            flex: 1;
+            aspect-ratio: 16/9;
+            transform: rotateY(15deg) rotateX(10deg);
+            transform-origin: left bottom;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #screen-available {
+            width: 100%;
+            aspect-ratio: 32/9;
+            transform: rotateX(25deg);
+            transform-origin: bottom center;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .category-sidebar {
+            width: 100%;
+            background: rgba(0, 10, 25, 0.9);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            justify-content: center;
+        }
+
+
+
+        .cat-btn {
+            background: rgba(0, 170, 255, 0.1);
+            border: 1px solid rgba(0, 170, 255, 0.3);
+            color: #0af;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            padding: 15px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        .cat-btn:hover {
+            background: rgba(0, 170, 255, 0.3);
+            color: #fff;
+        }
+
+        .cat-btn.active {
+            background: rgba(0, 170, 255, 0.5);
+            border-color: #0ff;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+        }
+
+        .screen-title {
+            background: rgba(0, 170, 255, 0.2);
+            color: #0ff;
+            text-align: center;
+            padding: 8px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            letter-spacing: 4px;
+            border-bottom: 1px solid #0af;
+            font-size: 14px;
+        }
+
+        /* Grids */
+        .upgrade-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 4px;
+            padding: 10px;
+            height: calc(100% - 35px);
+            box-sizing: border-box;
+            position: relative;
+            justify-content: center;
+            align-content: center;
+        }
+
+        .grid-cell {
+            background: rgba(0, 170, 255, 0.05);
+            border: 1px dashed rgba(0, 170, 255, 0.3);
+            border-radius: 4px;
+            position: relative;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .grid-cell.drag-over {
+            background: rgba(0, 255, 100, 0.2);
+            border-color: #0f5;
+        }
+
+        .grid-cell.drag-invalid {
+            background: rgba(255, 50, 50, 0.2);
+            border-color: #f55;
+        }
+
+        #available-list {
+            display: flex;
+            gap: 15px;
+            padding: 20px;
+            overflow-x: auto;
+            height: calc(100% - 35px);
+            align-items: flex-start;
+        }
+
+        /* Upgrade Item */
+        .upgrade-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            width: fit-content;
+            margin-bottom: 25px;
+        }
+
+        .upgrade-item {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 1), rgba(0, 100, 255, 1));
+            border: 1px solid #0ff;
+            border-radius: 6px;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .upgrade-cost-tag {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 10px;
+            color: #0af;
+            text-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
+        }
+
+        .upgrade-item:hover {
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            transform: scale(1.02);
+        }
+
+        .upgrade-item:active {
+            cursor: grabbing;
+        }
+
+        .upgrade-item.owned {
+            background: linear-gradient(135deg, rgba(0, 255, 100, 1), rgba(0, 150, 50, 1));
+            border: 1px solid #0f5;
+            box-shadow: 0 0 10px rgba(0, 255, 100, 0.3);
+            color: #afa;
+        }
+
+        .upgrade-item.owned:hover {
+            box-shadow: 0 0 20px rgba(0, 255, 100, 0.6);
+            transform: scale(1.02);
+        }
+
+        /* Shape sizes (based on a base unit size, dynamically applied via JS depending on grid cell size) */
+        
+        #info-content {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Courier New', monospace;
+            color: #ddd;
+        }
+
+        #info-title {
+            color: #0ff;
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 10px;
+            font-size: 22px;
+        }
+
+        #info-cost {
+            color: #f43;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+
+        #info-desc {
+            flex: 1;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        #info-content .btn-premium {
+            padding: 15px 0;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #info-content .btn-premium:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
         }
     </style>
 </head>
@@ -535,7 +835,7 @@
 <body>
     <!-- HUD (during gameplay) -->
     <div id="hud" class="hidden">
-        <div id="score">0</div>
+        <div id="credits">0</div>
         <div id="fuel-wrap">
             <div id="fuel-bar"></div>
         </div>
@@ -560,7 +860,10 @@
                 <span id="title-rush">RUSH</span>
             </div>
         </div>
-        <button id="play-btn" class="btn-premium menu-btn-base">PLAY</button>
+        <div id="menu-actions" class="align-left">
+            <button id="play-btn" class="btn-premium menu-btn-base">PLAY</button>
+            <button id="upgrades-menu-btn" class="btn-premium menu-btn-base" style="margin-top: 20px;">UPGRADES</button>
+        </div>
 
         <div id="skip-intro">Click to Skip</div>
     </div>
@@ -604,8 +907,57 @@
     <div id="game-over">
         <div>
             <h1>GAME OVER</h1>
-            <div class="sub">SCORE <span id="final-score">0</span></div>
-            <button id="restart-btn" class="btn-premium">RETRY</button>
+            <div class="sub">CREDITS <span id="final-credits">0</span></div>
+            <button id="restart-btn" class="btn-premium" style="width: 100%;">RETRY</button>
+            <button id="upgrades-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">UPGRADES</button>
+            <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">MAIN MENU</button>
+        </div>
+    </div>
+
+    <!-- Upgrades Menu -->
+    <div id="upgrades-menu" style="display: none;">
+        <button id="upgrades-back-btn" class="btn-premium" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 100; padding: 20px 40px; font-size: 20px; min-width: 200px;">EXIT</button>
+        <div id="upgrades-bank" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; text-align: center; color: #0ff; font-family: 'Orbitron', sans-serif; font-size: 24px; text-shadow: 0 0 10px #0af;">
+            CREDITS<br/><span id="banked-credits-display">0</span>
+        </div>
+        
+        <div class="cockpit-screens">
+            <div class="top-screens">
+                <div id="screen-active" class="cockpit-screen">
+                    <div class="screen-title">ACTIVE UPGRADES</div>
+                    <div id="active-grid" class="upgrade-grid">
+                        <!-- 5x3 grid cells will be injected here -->
+                    </div>
+                </div>
+                <div class="joystick-space"></div>
+                <div id="screen-info" class="cockpit-screen">
+                    <div class="screen-title">UPGRADE TERMINAL</div>
+                    <div id="info-content">
+                        <h2 id="info-title">SELECT AN UPGRADE</h2>
+                        <div id="info-cost">Cost: ---</div>
+                        <p id="info-desc">---</p>
+                        <button id="buy-btn" class="btn-premium" disabled>BUY</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bottom-screen">
+                <div id="screen-available" class="cockpit-screen">
+                    <div style="display: flex; flex-direction: column; width: 200px; border-right: 2px solid #0af;">
+                        <div class="screen-title">CATEGORIES</div>
+                        <div class="category-sidebar">
+                            <button class="cat-btn active" data-cat="engine">ENGINE</button>
+                            <button class="cat-btn" data-cat="economy">ECONOMY</button>
+                            <button class="cat-btn" data-cat="defense">DEFENSE</button>
+                        </div>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column;">
+                        <div class="screen-title">AVAILABLE UPGRADES</div>
+                        <div id="available-list">
+                            <!-- Available upgrades injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

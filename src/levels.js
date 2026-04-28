@@ -15,7 +15,7 @@ export const LEVELS = [
     {
         /* Level 1 — Blue */
         level: 1,
-        duration: 40,                 // seconds
+        duration: 45,                 // seconds
         speedMultiplier: 1.0,         // base speed multiplier
         tunnelColor: new THREE.Color(0x4488ff),  // blue
         obstacleInterval: 1.6,        // seconds between obstacles
@@ -38,7 +38,7 @@ export const LEVELS = [
     {
         /* Level 2 — Magenta */
         level: 2,
-        duration: 50,                 // seconds
+        duration: 60,                 // seconds
         speedMultiplier: 1.10,        // +10% speed
         tunnelColor: new THREE.Color(0xff44ff),  // magenta
         obstacleInterval: 1.5,        // faster obstacle spawn
@@ -55,9 +55,9 @@ export const LEVELS = [
         /* Level 3 — Red (final, infinite) */
         level: 3,
         duration: Infinity,           // lasts forever
-        speedMultiplier: 1.2,        // +10% over level 2
+        speedMultiplier: 1.25,        // +25%
         tunnelColor: new THREE.Color(0xff3333),  // red
-        obstacleInterval: 1.3,        // tight obstacle spawn
+        obstacleInterval: 1.4,        // tight obstacle spawn
         enemyInterval: 5,             
         enemyMaxCount: 3,             // up to 3 enemies per wave
         difficultyParams: {           

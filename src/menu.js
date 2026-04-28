@@ -247,7 +247,7 @@ function applyTitleStyle(cfg) {
 const ANIM_DURATION = 7.5;
 const JET_START_DELAY = 3.5;
 
-export function createMenu(scene, camera, cfg) {
+export function createMenu(scene, camera, cfg, skipIntro = false) {
     const tracked = [];
     const track = obj => { tracked.push(obj); return obj; };
 
@@ -272,10 +272,12 @@ export function createMenu(scene, camera, cfg) {
     applyTitleStyle(cfg);
 
     const playBtn = document.getElementById('play-btn');
+    const upgradesMenuBtn = document.getElementById('upgrades-menu-btn');
     const menuEl  = document.getElementById('main-menu');
+    const menuActions = document.getElementById('menu-actions');
     const skipBtn = document.getElementById('skip-intro');
 
-    if (playBtn) { playBtn.className = 'btn-premium menu-btn-base align-' + cfg.playButtonAlign; }
+    if (menuActions) { menuActions.className = 'align-' + cfg.playButtonAlign; }
     if (skipBtn) { skipBtn.style.display = 'block'; skipBtn.style.pointerEvents = 'auto'; }
 
     const camStart  = new THREE.Vector3(...cfg.cameraStartPos);
@@ -301,6 +303,11 @@ export function createMenu(scene, camera, cfg) {
     if (skipBtn) skipBtn.addEventListener('click', _onSkipClick);
 
     loadJetBuffer();
+
+    if (skipIntro) {
+        elapsed = ANIM_DURATION;
+        jetStarted = true;
+    }
 
     function update(dt) {
         elapsed += dt;
@@ -348,7 +355,9 @@ export function createMenu(scene, camera, cfg) {
             if (skipBtn) skipBtn.style.display = 'none';
             const tc = document.getElementById('title-container');
             if (tc) { tc.classList.add('visible', 'anim-' + cfg.titleAnimation); }
-            setTimeout(() => { if (playBtn) playBtn.classList.add('visible'); }, 600);
+            setTimeout(() => { 
+                if (menuActions) menuActions.classList.add('visible'); 
+            }, 600);
         }
     }
 

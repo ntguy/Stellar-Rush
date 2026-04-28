@@ -168,7 +168,7 @@ export function playOutOfFuel() {
 }
 
 export function playFuelCollect()   {}
-export function playPointsCollect() {}
+export function playCreditsCollect() {}
 export function playShieldCollect() {}
 
 /* ── Looping sounds ───────────────────────────────────────── */

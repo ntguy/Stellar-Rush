@@ -2,17 +2,17 @@ import * as THREE from 'three';
 
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z, PLANE_RADIUS,
-    FUEL_MAX, FUEL_PICKUP_BASE, FORMATION_BASE, POINTS_PICKUP_BASE, SHIELD_PICKUP_BASE,
+    FUEL_MAX, FUEL_PICKUP_BASE, FORMATION_BASE, CREDITS_PICKUP_BASE, SHIELD_PICKUP_BASE,
     OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
-    BOOST_SPEED_MULT, BOOST_SCORE_MULT, SHIELD_DURATION,
-    matBody, matAccent, matGlow, matAsteroid, matLine,
+    BOOST_SPEED_MULT, BOOST_CREDITS_MULT, SHIELD_DURATION,
+    matBody, matAccent, matGlow, matAsteroid, matLine
 } from './config.js';
 
 import { nextObstacle, resetSequencer } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
 import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
 import {
-    playLaserFire, playCrash, playFuelCollect, playPointsCollect, playShieldCollect,
+    playLaserFire, playCrash, playFuelCollect, playCreditsCollect, playShieldCollect,
     startShieldHum, startBoostHum, startFuelLowBeep,
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel,
@@ -23,6 +23,7 @@ import { LEVELS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFor
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
+import { enterUpgradesMenu, exitUpgradesMenu } from './upgrades.js';
 import Stats from 'stats';
 import { settings, saveSettings } from './settings.js';
 
@@ -40,6 +41,9 @@ const DEVELOPMENT_MODE = true;
 let gameState = 'MENU';
 let paused = false;
 let menuController = null;
+let currentScore = 0;
+let distanceTraveled = 0;
+let hasPlayedBefore = false;
 
 // Initialize audio loading
 initAudio();
@@ -289,12 +293,12 @@ function updatePlanet(dt, speed) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   POINTS TEXT DISPLAY — pops out and fizzles
+   CREDITS TEXT DISPLAY — pops out and fizzles
    ═══════════════════════════════════════════════════════════ */
 
-const pointsTextMeshes = [];
+const creditsTextMeshes = [];
 
-function spawnPointsText(scene, pos, points) {
+function spawnCreditsText(scene, pos, points) {
     // Create canvas texture with point value
     const canvas = document.createElement('canvas');
     canvas.width = 256;
@@ -318,18 +322,18 @@ function spawnPointsText(scene, pos, points) {
     sprite.userData.life = 1.0;
     sprite.userData.velocity = new THREE.Vector3(0, 2, 0);  // drift upward
     scene.add(sprite);
-    pointsTextMeshes.push(sprite);
+    creditsTextMeshes.push(sprite);
 }
 
-function updatePointsText(scene, dt) {
-    for (let i = pointsTextMeshes.length - 1; i >= 0; i--) {
-        const s = pointsTextMeshes[i];
+function updateCreditsText(scene, dt) {
+    for (let i = creditsTextMeshes.length - 1; i >= 0; i--) {
+        const s = creditsTextMeshes[i];
         s.userData.life -= dt * 2.2;  // fade over ~0.45s
         if (s.userData.life <= 0) {
             scene.remove(s);
             s.material.map.dispose();
             s.material.dispose();
-            pointsTextMeshes.splice(i, 1);
+            creditsTextMeshes.splice(i, 1);
             continue;
         }
         s.position.addScaledVector(s.userData.velocity, dt);
@@ -338,22 +342,22 @@ function updatePointsText(scene, dt) {
     }
 }
 
-function clearPointsText(scene) {
-    for (const s of pointsTextMeshes) {
+function clearCreditsText(scene) {
+    for (const s of creditsTextMeshes) {
         scene.remove(s);
         s.material.map.dispose();
         s.material.dispose();
     }
-    pointsTextMeshes.length = 0;
+    creditsTextMeshes.length = 0;
 }
 
 /* ═══════════════════════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════════════════════ */
-let fuel, score, elapsed, gameOver, boosting;
+let fuel, credits, elapsed, gameOver, boosting;
 let fuelOut = false, fuelOutTimer = 0;
 
-let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, pointsTimer, shieldPUTimer, enemyTimer;
+let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, creditsTimer, shieldPUTimer, enemyTimer;
 let shieldTimer;
 // How many times enemies have been spawned — drives multi-enemy probability ramp
 let enemySpawnCount;
@@ -433,12 +437,12 @@ window.addEventListener('keydown', e => {
 /* ═══════════════════════════════════════════════════════════
    HUD ELEMENTS
    ═══════════════════════════════════════════════════════════ */
-const elScore   = document.getElementById('score');
+const elCredits   = document.getElementById('credits');
 const elFuel    = document.getElementById('fuel-bar');
 const elBoost   = document.getElementById('boost-indicator');
 const elShield  = document.getElementById('shield-indicator');
 const elOverlay = document.getElementById('game-over');
-const elFinal   = document.getElementById('final-score');
+const elFinalCredits   = document.getElementById('final-credits');
 const elHud     = document.getElementById('hud');
 const elMenuBtn = document.getElementById('menu-btn');
 const elPause   = document.getElementById('pause-menu');
@@ -476,9 +480,30 @@ if (elSettingFov) {
 }
 
 document.getElementById('restart-btn').addEventListener('click', restart);
+document.getElementById('game-over-back-btn').addEventListener('click', backToMainMenu);
 document.getElementById('pause-back-btn').addEventListener('click', backToMainMenu);
 elResume.addEventListener('click', togglePause);
 elMenuBtn.addEventListener('click', () => { if (gameState === 'PLAYING') togglePause(); });
+
+document.getElementById('upgrades-btn').addEventListener('click', () => {
+    enterUpgradesMenu(scene, camera, aircraft, () => {
+        // Returned from Game Over upgrades
+        document.getElementById('game-over').classList.add('show');
+    });
+});
+
+document.getElementById('upgrades-menu-btn').addEventListener('click', () => {
+    enterUpgradesMenu(scene, camera, aircraft, () => {
+        // Returned from Main Menu upgrades
+        document.getElementById('main-menu').style.display = 'flex'; // or whatever the default display is, though it uses CSS to show
+        // Wait, main-menu is handled by enterMenu(), let's just redraw the main menu
+        enterMenu();
+    });
+});
+
+document.getElementById('upgrades-back-btn').addEventListener('click', () => {
+    exitUpgradesMenu(scene, camera, aircraft);
+});
 
 /* ═══════════════════════════════════════════════════════════
    CLOCK  /  RAYCASTER
@@ -491,7 +516,7 @@ const zPlane    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
    INIT  /  RESTART
    ═══════════════════════════════════════════════════════════ */
 function init() {
-    fuel = FUEL_MAX; score = 0; elapsed = 0;
+    fuel = FUEL_MAX; credits = 0; elapsed = 0;
     gameOver = false; boosting = false;
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
@@ -512,7 +537,7 @@ function init() {
     const _jitter0 = base => base * (0.8 + Math.random() * 0.4);
     fuelPUTimer    = { value: 0, _threshold: _jitter0(FUEL_PICKUP_BASE) };
     formationTimer = { value: 0, _threshold: _jitter0(FORMATION_BASE) };
-    pointsTimer    = { value: 0, _threshold: _jitter0(POINTS_PICKUP_BASE) };
+    creditsTimer    = { value: 0, _threshold: _jitter0(CREDITS_PICKUP_BASE) };
     shieldPUTimer  = { value: 0, _threshold: _jitter0(SHIELD_PICKUP_BASE) };
     enemyTimer = 0;
     shieldTimer = 0;
@@ -545,7 +570,7 @@ function init() {
     asteroids.length = 0;
     clearPickups(scene);
     clearEnemies(scene);
-    clearPointsText(scene);
+    clearCreditsText(scene);
     for (const p of explosionParts) {
         scene.remove(p.mesh);
         p.mesh.geometry.dispose();
@@ -646,7 +671,7 @@ function enterMenu() {
     asteroids.length = 0;
     clearPickups(scene);
     clearEnemies(scene);
-    clearPointsText(scene);
+    clearCreditsText(scene);
     clearExhaust();
     for (const p of explosionParts) {
         scene.remove(p.mesh);
@@ -671,7 +696,8 @@ function enterMenu() {
 
     // Create menu
     if (menuController) menuController.dispose();
-    menuController = createMenu(scene, camera, getMenuConfig());
+    menuController = createMenu(scene, camera, getMenuConfig(), hasPlayedBefore);
+    hasPlayedBefore = true;
     menuController.onReady(startMenuMusic);
     menuController.onPlay(() => {
         menuController.dispose();
@@ -703,7 +729,11 @@ if (DEVELOPMENT_MODE) {
    ═══════════════════════════════════════════════════════════ */
 function endGame() {
     gameOver = true;
-    elFinal.textContent = Math.floor(score);
+    let bank = parseInt(localStorage.getItem('bankedCredits') || '0', 10);
+    bank += Math.floor(credits);
+    localStorage.setItem('bankedCredits', bank.toString());
+
+    elFinalCredits.textContent = Math.floor(credits);
     elOverlay.classList.add('show');
     stopAllAudio();
 }
@@ -817,8 +847,8 @@ function loop() {
         if (fuelOutTimer >= 5.0) { endGame(); return; }
     }
 
-    const scoreMult = boosting ? BOOST_SCORE_MULT : 1;
-    score += dt * (10 + elapsed * 0.5) * scoreMult;
+    const creditsMult = boosting ? BOOST_CREDITS_MULT : 1;
+    credits += dt * (10 + elapsed * 0.5) * creditsMult;
 
     /* ── Fuel ─────────────────────────────────────────── */
     if (!fuelOut) {
@@ -912,7 +942,7 @@ function loop() {
                 spawnTimer -= currentLevel.obstacleInterval;
                 const slots = nextObstacle(scene, obstacles, currentLevel.difficultyParams);
                 
-                const priority = { 'fuel': 0, 'shield': 1, 'points': 2, 'formation': 3 };
+                const priority = { 'fuel': 0, 'shield': 1, 'credits': 2, 'formation': 3 };
                 pendingPickups.sort((a, b) => priority[a] - priority[b]);
 
                 for (let i = 0; i < pendingPickups.length; i++) {
@@ -924,7 +954,7 @@ function loop() {
                         const slot = slots.splice(slotIdx, 1)[0];
                         if (type === 'fuel') spawnFuelPickup(scene, slot);
                         else if (type === 'shield') spawnShieldPickup(scene, slot);
-                        else if (type === 'points') spawnHighValuePickup(scene, slot);
+                        else if (type === 'credits') spawnHighValuePickup(scene, slot);
                         else if (type === 'formation') spawnLowValueFormation(scene, slot);
                         
                         pendingPickups.splice(i, 1);
@@ -936,7 +966,7 @@ function loop() {
             /* ── Pickup timers ───────────────────────────────────────── */
             formationTimer.value  += dt;
             fuelPUTimer.value     += dt;
-            pointsTimer.value     += dt;
+            creditsTimer.value     += dt;
             shieldPUTimer.value   += dt;
 
             const _jitter = base => base * (0.8 + Math.random() * 0.4);
@@ -947,9 +977,9 @@ function loop() {
             } else if (shieldPUTimer.value >= shieldPUTimer._threshold) {
                 pendingPickups.push('shield');
                 shieldPUTimer.value = 0; shieldPUTimer._threshold = _jitter(SHIELD_PICKUP_BASE);
-            } else if (pointsTimer.value >= pointsTimer._threshold) {
-                pendingPickups.push('points');
-                pointsTimer.value = 0; pointsTimer._threshold = _jitter(POINTS_PICKUP_BASE);
+            } else if (creditsTimer.value >= creditsTimer._threshold) {
+                pendingPickups.push('credits');
+                creditsTimer.value = 0; creditsTimer._threshold = _jitter(CREDITS_PICKUP_BASE);
             } else if (formationTimer.value >= formationTimer._threshold) {
                 pendingPickups.push('formation');
                 formationTimer.value = 0; formationTimer._threshold = _jitter(FORMATION_BASE);
@@ -1068,12 +1098,12 @@ function loop() {
     }
 
 
-    if (puResult.points > 0) {
-        score += puResult.points;
+    if (puResult.credits > 0) {
+        credits += puResult.credits;
         // Spawn collection burst at pickup world position
-        if (puResult.pointsPos) {
-            spawnCollectBurst(scene, puResult.pointsPos, 0x44ff88);
-            spawnPointsText(scene, puResult.pointsPos, puResult.points);
+        if (puResult.creditsPos) {
+            spawnCollectBurst(scene, puResult.creditsPos, 0x44ff88);
+            spawnCreditsText(scene, puResult.creditsPos, puResult.credits);
         }
     }
     if (puResult.shield > 0) {
@@ -1082,7 +1112,7 @@ function loop() {
     }
 
     updateBurstParticles(scene, dt);
-    updatePointsText(scene, dt);
+    updateCreditsText(scene, dt);
 
     /* ── Update enemies ───────────────────────────────── */
     const killedByEnemy = updateEnemies(scene, dt, speed, aircraft.position, shielded, camera);
@@ -1131,7 +1161,7 @@ function loop() {
     }
 
     /* ── HUD ──────────────────────────────────────────── */
-    elScore.textContent = Math.floor(score);
+    elCredits.textContent = Math.floor(credits);
     const fuelPct = (fuel / FUEL_MAX) * 100;
     elFuel.style.width = fuelPct + '%';
     {

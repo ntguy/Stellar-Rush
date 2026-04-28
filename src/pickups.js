@@ -116,7 +116,7 @@ export function spawnHighValuePickup(scene, pos) {
         m.position.set((Math.random() - 0.5) * BOUNDS_X * 0.8, (Math.random() - 0.5) * BOUNDS_Y * 0.6, SPAWN_Z);
     }
     scene.add(m);
-    pickups.push({ mesh: m, type: 'points_high' });
+    pickups.push({ mesh: m, type: 'credits_high' });
 }
 
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
@@ -126,7 +126,7 @@ export function spawnLowValuePickup(scene, wx, wy, wz) {
     const m = new THREE.Mesh(_lowGeo, _lowMat);
     m.position.set(wx, wy, wz);
     scene.add(m);
-    pickups.push({ mesh: m, type: 'points_low' });
+    pickups.push({ mesh: m, type: 'credits_low' });
 }
 
 export function spawnLowValueFormation(scene, slot) {
@@ -157,7 +157,7 @@ export function spawnShieldPickup(scene, pos) {
    ═══════════════════════════════════════════════════════════ */
 
 export function updatePickups(scene, dt, speed, aircraftPos) {
-    const result = { fuel: 0, points: 0, pointsPos: null, shield: 0 };
+    const result = { fuel: 0, credits: 0, creditsPos: null, shield: 0 };
     for (let i = pickups.length - 1; i >= 0; i--) {
         const p = pickups[i];
         p.mesh.position.z += speed * dt;
@@ -171,14 +171,14 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
                     playCollect1();
                     break;
 
-                case 'points_high':
-                    result.points += 200;
-                    result.pointsPos = p.mesh.position.clone();
+                case 'credits_high':
+                    result.credits += 200;
+                    result.creditsPos = p.mesh.position.clone();
                     playCollect1();
                     break;
-                case 'points_low':
-                    result.points += 40;
-                    result.pointsPos = p.mesh.position.clone();
+                case 'credits_low':
+                    result.credits += 40;
+                    result.creditsPos = p.mesh.position.clone();
                     playCollect2();
                     break;
                 case 'shield':
