@@ -58,6 +58,7 @@ initAudio();
 // Resume audio context on first interaction
 window.addEventListener('mousedown', resumeAudioContext, { once: true });
 window.addEventListener('keydown', resumeAudioContext, { once: true });
+window.addEventListener('touchstart', resumeAudioContext, { once: true });
 
 /* ═══════════════════════════════════════════════════════════
    RENDERER  /  SCENE  /  CAMERA
@@ -490,12 +491,83 @@ let prevFuelLow  = false;
 /* ═══════════════════════════════════════════════════════════
    INPUT
    ═══════════════════════════════════════════════════════════ */
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0);
+if (isMobile) document.body.classList.add('is-mobile');
+
+const elMobileBoost = document.getElementById('mobile-boost-btn');
+let steeringTouchId = null;
+
+function updateTouchNDC(touch) {
+    mouseNDC.x = (touch.clientX / innerWidth) * 2 - 1;
+    mouseNDC.y = -(touch.clientY / innerHeight) * 2 + 1;
+}
+
 window.addEventListener('mousemove', e => {
+    if (isMobile) return;
     mouseNDC.x =  (e.clientX / innerWidth)  * 2 - 1;
     mouseNDC.y = -(e.clientY / innerHeight) * 2 + 1;
 });
-window.addEventListener('mousedown', e => { if (e.button === 0 && gameState === 'PLAYING') boosting = true; });
-window.addEventListener('mouseup',   e => { if (e.button === 0) boosting = false; });
+window.addEventListener('mousedown', e => { 
+    if (isMobile) return;
+    if (e.button === 0 && gameState === 'PLAYING') boosting = true; 
+});
+window.addEventListener('mouseup',   e => { 
+    if (isMobile) return;
+    if (e.button === 0) boosting = false; 
+});
+
+// Touch controls
+window.addEventListener('touchstart', e => {
+    if (!isMobile || gameState !== 'PLAYING') return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.target === elMobileBoost) {
+            boosting = true;
+            elMobileBoost.classList.add('active');
+        } else if (steeringTouchId === null) {
+            steeringTouchId = t.identifier;
+            updateTouchNDC(t);
+        }
+    }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+    if (!isMobile || gameState !== 'PLAYING') return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === steeringTouchId) {
+            updateTouchNDC(t);
+        }
+    }
+    // Prevent accidental zoom/scroll during gameplay
+    if (e.cancelable) e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchend', e => {
+    if (!isMobile) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.target === elMobileBoost) {
+            boosting = false;
+            elMobileBoost.classList.remove('active');
+        } else if (t.identifier === steeringTouchId) {
+            steeringTouchId = null;
+        }
+    }
+});
+
+window.addEventListener('touchcancel', e => {
+    if (!isMobile) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.target === elMobileBoost) {
+            boosting = false;
+            elMobileBoost.classList.remove('active');
+        } else if (t.identifier === steeringTouchId) {
+            steeringTouchId = null;
+        }
+    }
+});
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
@@ -700,6 +772,7 @@ function init() {
     // Show gameplay UI
     elHud.classList.remove('hidden');
     elMenuBtn.classList.add('visible');
+    if (isMobile) document.getElementById('mobile-controls').classList.add('visible');
 
     // Reset camera
     camera.position.set(0, 10, 20);
@@ -742,10 +815,17 @@ function backToMainMenu() {
     enterMenu();
 }
 
+
 function enterMenu() {
     gameState = 'MENU';
     elHud.classList.add('hidden');
     elMenuBtn.classList.remove('visible');
+    document.getElementById('mobile-controls').classList.remove('visible');
+    if (isMobile) {
+        boosting = false;
+        steeringTouchId = null;
+        elMobileBoost.classList.remove('active');
+    }
 
     // Clean up gameplay objects from scene
     for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
@@ -824,7 +904,9 @@ function endGame() {
 
     elFinalCredits.textContent = Math.floor(credits);
     elOverlay.classList.add('show');
+    document.body.style.cursor = 'default';
     stopAllAudio();
+    document.getElementById('mobile-controls').classList.remove('visible');
 }
 
 

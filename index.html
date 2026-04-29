@@ -128,6 +128,57 @@
             transition: opacity 0.15s;
         }
 
+        /* ── Mobile Controls ─────────────────────────────── */
+        #mobile-controls {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease;
+        }
+
+        #mobile-controls.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #mobile-boost-btn {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(0, 170, 255, 0.05);
+            border: 2px solid rgba(0, 170, 255, 0.3);
+            color: #0af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 3px;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.15), inset 0 0 15px rgba(0, 170, 255, 0.1);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(8px);
+            text-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
+        }
+
+        #mobile-boost-btn.active {
+            background: rgba(255, 100, 0, 0.2);
+            border-color: #f60;
+            color: #fff;
+            transform: scale(0.9);
+            box-shadow: 0 0 40px rgba(255, 100, 0, 0.5), inset 0 0 20px rgba(255, 100, 0, 0.2);
+            text-shadow: 0 0 15px #f60;
+        }
+
         /* ── Game Over overlay ────────────────────────────── */
         #game-over {
             position: absolute;
@@ -925,13 +976,17 @@
 <body>
     <!-- HUD (during gameplay) -->
     <div id="hud" class="hidden">
-        <div id="credits">0</div>
+        <div id="credits">000000</div>
         <div id="fuel-wrap">
             <div id="fuel-bar-boost"></div>
             <div id="fuel-bar"></div>
         </div>
-        <div id="boost-indicator">▸ BOOST</div>
-        <div id="shield-indicator">◆ SHIELD</div>
+        <div id="boost-indicator">BOOST ACTIVE</div>
+        <div id="shield-indicator">SHIELD ACTIVE</div>
+    </div>
+
+    <div id="mobile-controls">
+        <div id="mobile-boost-btn">BOOST</div>
     </div>
 
     <!-- Menu button (top-right during gameplay) -->

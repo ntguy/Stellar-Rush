@@ -198,6 +198,7 @@ async function loadJetBuffer() {
         const resume = () => { if (_menuAudioCtx.state === 'suspended') _menuAudioCtx.resume(); };
         window.addEventListener('mousedown', resume, { once: true });
         window.addEventListener('keydown', resume, { once: true });
+        window.addEventListener('touchstart', resume, { once: true });
     }
     const res = await fetch('src/audio/fighter-jet-taking-off-trimmed.mp3');
     const raw = await res.arrayBuffer();
