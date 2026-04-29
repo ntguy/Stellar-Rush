@@ -7,6 +7,15 @@
     */
 import * as THREE from 'three';
 export const DEVELOPMENT_MODE = false;
+export const FORCE_MOBILE = false;
+
+/* ── Testing control ────────────────────────────────────────
+   Set to a pattern name to lock the game to only that pattern.
+   null = normal random rotation.
+   Valid: 'patternLeftRight' | 'patternTopDown' | 'patternCorners'
+          'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
+          'patternScatter'                                     */
+export const FORCE_PATTERN = null; // e.g. 'patternNarrow' | null for random --- IGNORE ---
 
 /*  World bounds & spawn lanes  */
 export const BOUNDS_X = 24;       // X limit for player & obstacles

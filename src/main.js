@@ -3,9 +3,9 @@ import * as THREE from 'three';
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, DESPAWN_Z, PLANE_RADIUS,
     FUEL_MAX, FUEL_PICKUP_BASE, FORMATION_BASE, CREDITS_PICKUP_BASE, SHIELD_PICKUP_BASE,
-    OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
+    OBS_BASE_SPEED, OBS_TARGET_OPACITY, OBS_FADE_TIME,
     BOOST_SPEED_MULT, BOOST_CREDITS_MULT, SHIELD_DURATION,
-    matBody, matAccent, matGlow, matAsteroid, matLine, DEVELOPMENT_MODE
+    matGlow, matAsteroid, matLine, DEVELOPMENT_MODE, FORCE_MOBILE
 } from './config.js';
 
 import { nextObstacle, resetSequencer } from './patterns.js';
@@ -491,15 +491,70 @@ let prevFuelLow  = false;
 /* ═══════════════════════════════════════════════════════════
    INPUT
    ═══════════════════════════════════════════════════════════ */
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0);
+const isMobile = /Android|webOS|iPhone|iPad|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0) || FORCE_MOBILE;
 if (isMobile) document.body.classList.add('is-mobile');
 
 const elMobileBoost = document.getElementById('mobile-boost-btn');
-let steeringTouchId = null;
+const elJoystickZone = document.getElementById('mobile-joystick-zone');
+const elJoystickStick = document.getElementById('mobile-joystick-stick');
+const elJoystickBase = document.getElementById('mobile-joystick-base');
 
-function updateTouchNDC(touch) {
-    mouseNDC.x = (touch.clientX / innerWidth) * 2 - 1;
-    mouseNDC.y = -(touch.clientY / innerHeight) * 2 + 1;
+let joystickPointerId = null;
+const joystickVec = new THREE.Vector2(0, 0);
+let controlMode = 'MOUSE'; // 'MOUSE' or 'KEYBOARD'
+
+// Keyboard state
+const keys = {
+    w: false, a: false, s: false, d: false,
+    ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false,
+    " ": false
+};
+
+window.addEventListener('keydown', e => {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (keys.hasOwnProperty(key)) {
+        keys[key] = true;
+        if (gameState === 'PLAYING') {
+            controlMode = 'KEYBOARD';
+            document.body.style.cursor = 'none';
+        }
+    }
+    if (key === ' ' && gameState === 'PLAYING') boosting = true;
+});
+
+window.addEventListener('keyup', e => {
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (keys.hasOwnProperty(key)) keys[key] = false;
+    if (key === ' ') boosting = false;
+});
+
+function updateJoystick(touch) {
+    if (!elJoystickBase) return;
+    const rect = elJoystickBase.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    
+    const maxRadius = rect.width / 2;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist > maxRadius) {
+        dx = (dx / dist) * maxRadius;
+        dy = (dy / dist) * maxRadius;
+    }
+    
+    if (elJoystickStick) elJoystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+    joystickVec.x = dx / maxRadius;
+    joystickVec.y = -dy / maxRadius; // Invert Y so up is positive
+}
+
+function resetJoystick() {
+    joystickVec.set(0, 0);
+    if (elJoystickStick) elJoystickStick.style.transform = `translate(0px, 0px)`;
+    if (elJoystickZone) elJoystickZone.classList.remove('active');
+    joystickPointerId = null;
 }
 
 window.addEventListener('mousemove', e => {
@@ -509,6 +564,10 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mousedown', e => { 
     if (isMobile) return;
+    if (gameState === 'PLAYING') {
+        controlMode = 'MOUSE';
+        document.body.style.cursor = 'crosshair';
+    }
     if (e.button === 0 && gameState === 'PLAYING') boosting = true; 
 });
 window.addEventListener('mouseup',   e => { 
@@ -516,56 +575,46 @@ window.addEventListener('mouseup',   e => {
     if (e.button === 0) boosting = false; 
 });
 
-// Touch controls
-window.addEventListener('touchstart', e => {
+// Pointer/Touch controls
+window.addEventListener('pointerdown', e => {
     if (!isMobile || gameState !== 'PLAYING') return;
-    for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.target === elMobileBoost) {
-            boosting = true;
-            elMobileBoost.classList.add('active');
-        } else if (steeringTouchId === null) {
-            steeringTouchId = t.identifier;
-            updateTouchNDC(t);
-        }
-    }
-}, { passive: false });
-
-window.addEventListener('touchmove', e => {
-    if (!isMobile || gameState !== 'PLAYING') return;
-    for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.identifier === steeringTouchId) {
-            updateTouchNDC(t);
-        }
-    }
-    // Prevent accidental zoom/scroll during gameplay
-    if (e.cancelable) e.preventDefault();
-}, { passive: false });
-
-window.addEventListener('touchend', e => {
-    if (!isMobile) return;
-    for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.target === elMobileBoost) {
-            boosting = false;
-            elMobileBoost.classList.remove('active');
-        } else if (t.identifier === steeringTouchId) {
-            steeringTouchId = null;
-        }
+    
+    if (e.target === elMobileBoost) {
+        boosting = true;
+        elMobileBoost.classList.add('active');
+    } else if (joystickPointerId === null && elJoystickZone && (elJoystickZone.contains(e.target) || e.target === elJoystickZone)) {
+        joystickPointerId = e.pointerId;
+        elJoystickZone.classList.add('active');
+        updateJoystick(e);
     }
 });
 
-window.addEventListener('touchcancel', e => {
+window.addEventListener('pointermove', e => {
+    if (!isMobile || gameState !== 'PLAYING') return;
+    if (e.pointerId === joystickPointerId) {
+        updateJoystick(e);
+    }
+});
+
+window.addEventListener('pointerup', e => {
     if (!isMobile) return;
-    for (let i = 0; i < e.changedTouches.length; i++) {
-        const t = e.changedTouches[i];
-        if (t.target === elMobileBoost) {
-            boosting = false;
-            elMobileBoost.classList.remove('active');
-        } else if (t.identifier === steeringTouchId) {
-            steeringTouchId = null;
-        }
+    if (e.target === elMobileBoost) {
+        boosting = false;
+        elMobileBoost.classList.remove('active');
+    } 
+    if (e.pointerId === joystickPointerId) {
+        resetJoystick();
+    }
+});
+
+window.addEventListener('pointercancel', e => {
+    if (!isMobile) return;
+    if (e.target === elMobileBoost) {
+        boosting = false;
+        elMobileBoost.classList.remove('active');
+    }
+    if (e.pointerId === joystickPointerId) {
+        resetJoystick();
     }
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
@@ -708,6 +757,8 @@ function init() {
     aircraft.rotation.set(0, 0, 0);
     aircraft.scale.setScalar(1);
     vel.set(0, 0, 0);
+    mouseNDC.set(0, 0); // Reset virtual cursor
+    resetJoystick();
     matGlow.color.set(0x00fff7);
 
     // Reset visibility of guide line and nav laser
@@ -821,10 +872,13 @@ function enterMenu() {
     elHud.classList.add('hidden');
     elMenuBtn.classList.remove('visible');
     document.getElementById('mobile-controls').classList.remove('visible');
+    boosting = false;
+    controlMode = 'MOUSE';
+    document.body.style.cursor = 'default';
+    resetJoystick();
+    for (let key in keys) keys[key] = false;
     if (isMobile) {
-        boosting = false;
-        steeringTouchId = null;
-        elMobileBoost.classList.remove('active');
+        if (elMobileBoost) elMobileBoost.classList.remove('active');
     }
 
     // Clean up gameplay objects from scene
@@ -1056,32 +1110,59 @@ function loop() {
     }
 
 
-    /* ── Mouse → world target ─────────────────────────── */
-    raycaster.setFromCamera(mouseNDC, camera);
-    raycaster.ray.intersectPlane(zPlane, target);
-    target.x = THREE.MathUtils.clamp(target.x, -BOUNDS_X, BOUNDS_X);
-    target.y = THREE.MathUtils.clamp(target.y, -BOUNDS_Y, BOUNDS_Y);
-    target.z = 0;
+    /* ── Input Processing ─────────────────────────────── */
+    let inputX = 0;
+    let inputY = 0;
 
-    /* ── Plane steering ───────────────────────────────── */
-    // Upgrade Logic: Steering top speed and acceleration
-    // Base: 20 top speed, 40 acceleration.
-    // Boost increase: 40 top speed, 60 acceleration.
+    if (keys.w || keys.ArrowUp) inputY += 1;
+    if (keys.s || keys.ArrowDown) inputY -= 1;
+    if (keys.d || keys.ArrowRight) inputX += 1;
+    if (keys.a || keys.ArrowLeft) inputX -= 1;
+
+    inputX += joystickVec.x;
+    inputY += joystickVec.y;
+
+    const inputMag = Math.sqrt(inputX * inputX + inputY * inputY);
+    if (inputMag > 1) {
+        inputX /= inputMag;
+        inputY /= inputMag;
+    }
+
     const topSpeedBoost = 40 * upgBoostPowerMult;
     const accelBoost    = 60 * upgBoostPowerMult;
     
-    const maxSpd = (boosting ? 20 + topSpeedBoost : 20) * upgTopSpeedMult;
-    const accel  = (boosting ? 40 + accelBoost    : 40) * upgBaseAccelMult;
+    const kbMult = (controlMode === 'KEYBOARD') ? 0.8 : 1.0;
+    const maxSpd = (boosting ? 20 + topSpeedBoost : 20) * upgTopSpeedMult * kbMult;
+    const accel  = (boosting ? 40 + accelBoost    : 40) * upgBaseAccelMult * kbMult;
 
-    tmpV.subVectors(target, aircraft.position);
-    const dist = tmpV.length();
+    if (controlMode === 'KEYBOARD' || (isMobile && inputMag > 0)) {
+        // ── Direct Steering (Keys / Joystick) ──
+        const targetVel = new THREE.Vector3(inputX * maxSpd, inputY * maxSpd, 0);
+        vel.lerp(targetVel, 8 * dt);
+        guideLine.visible = false;
+    } else if (controlMode === 'MOUSE' && !isMobile) {
+        // ── Seek Mode (Mouse) ──
+        guideLine.visible = true;
+        raycaster.setFromCamera(mouseNDC, camera);
+        raycaster.ray.intersectPlane(zPlane, target);
+        target.x = THREE.MathUtils.clamp(target.x, -BOUNDS_X, BOUNDS_X);
+        target.y = THREE.MathUtils.clamp(target.y, -BOUNDS_Y, BOUNDS_Y);
+        target.z = 0;
 
-    if (dist > 0.05) {
-        const desiredSpd = Math.min(dist * 4, maxSpd); // TODO: figure out an acceleration system without need for overshoot
-        tmpV.normalize().multiplyScalar(desiredSpd).sub(vel);
-        if (tmpV.length() > accel * dt) tmpV.setLength(accel * dt);
-        vel.add(tmpV);
+        tmpV.subVectors(target, aircraft.position);
+        const dist = tmpV.length();
+
+        if (dist > 0.05) {
+            const desiredSpd = Math.min(dist * 4, maxSpd);
+            tmpV.normalize().multiplyScalar(desiredSpd).sub(vel);
+            if (tmpV.length() > accel * dt) tmpV.setLength(accel * dt);
+            vel.add(tmpV);
+        } else {
+            vel.multiplyScalar(1 - 5 * dt);
+        }
     } else {
+        // ── Damping (Mobile idle) ──
+        guideLine.visible = false;
         vel.multiplyScalar(1 - 5 * dt);
     }
 
@@ -1109,11 +1190,14 @@ function loop() {
     aircraft.userData.eLight.color.copy(matGlow.color);
 
     /* ── Guide line ───────────────────────────────────── */
-    const lp = guideLine.geometry.attributes.position.array;
-    lp[0] = aircraft.position.x; lp[1] = aircraft.position.y; lp[2] = aircraft.position.z;
-    lp[3] = target.x;            lp[4] = target.y;            lp[5] = target.z;
-    guideLine.geometry.attributes.position.needsUpdate = true;
-    matLine.opacity = THREE.MathUtils.clamp(dist * 0.06, 0, 0.4);
+    if (guideLine.visible) {
+        const dist = aircraft.position.distanceTo(target);
+        const lp = guideLine.geometry.attributes.position.array;
+        lp[0] = aircraft.position.x; lp[1] = aircraft.position.y; lp[2] = aircraft.position.z;
+        lp[3] = target.x;            lp[4] = target.y;            lp[5] = target.z;
+        guideLine.geometry.attributes.position.needsUpdate = true;
+        matLine.opacity = THREE.MathUtils.clamp(dist * 0.06, 0, 0.4);
+    }
 
     if (navBeam) {
         // Upgrade Logic: Navigation Laser Raycasting

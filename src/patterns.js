@@ -1,15 +1,9 @@
 import * as THREE from 'three';
 import {
     BOUNDS_X, BOUNDS_Y, SPAWN_Z, PLANE_RADIUS,
-    OBS_TARGET_OPACITY, matObs, matFrame,
+    matObs, FORCE_PATTERN
 } from './config.js';
-/* ── Testing control ────────────────────────────────────────
-   Set to a pattern name to lock the game to only that pattern.
-   null = normal random rotation.
-   Valid: 'patternLeftRight' | 'patternTopDown' | 'patternCorners'
-          'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
-          'patternScatter'                                     */
-const FORCE_PATTERN = null; // e.g. 'patternNarrow' | null for random --- IGNORE ---
+
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -302,12 +296,10 @@ export function patternScatter(params = {}) {
 export function patternNarrow(params = {}) {
     const p = defaults(params, { count: 3 });
     const steps = [];
-    const multiplier = 1.0;
     for (let i = 0; i < p.count; i++) {
         steps.push((scene, obstacles) => {
             const parts = [];
-            const baseWidth = THREE.MathUtils.lerp(PLANE_RADIUS * 3, PLANE_RADIUS * 10, Math.random());
-            const gapWidth = baseWidth * multiplier;
+            const gapWidth = THREE.MathUtils.lerp(PLANE_RADIUS * 5, PLANE_RADIUS * 10, Math.random());
             const playAreaLimit = BOUNDS_X * 0.5;
             const gapCenterX = THREE.MathUtils.lerp(-playAreaLimit, playAreaLimit, Math.random());
             const halfGap = gapWidth / 2;

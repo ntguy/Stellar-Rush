@@ -179,6 +179,51 @@
             text-shadow: 0 0 15px #f60;
         }
 
+        #mobile-joystick-zone {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 220px;
+            height: 220px;
+            pointer-events: auto;
+            touch-action: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mobile-joystick-base {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            background: rgba(0, 170, 255, 0.05);
+            border: 2px solid rgba(0, 170, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 170, 255, 0.15), inset 0 0 15px rgba(0, 170, 255, 0.1);
+            backdrop-filter: blur(8px);
+            position: relative;
+        }
+
+        #mobile-joystick-stick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80px;
+            height: 80px;
+            margin-top: -40px;
+            margin-left: -40px;
+            border-radius: 50%;
+            background: rgba(0, 170, 255, 0.4);
+            border: 2px solid rgba(0, 170, 255, 0.8);
+            box-shadow: 0 0 15px rgba(0, 170, 255, 0.5);
+            pointer-events: none;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+
+        #mobile-joystick-zone.active #mobile-joystick-stick {
+            background: rgba(0, 170, 255, 0.7);
+            box-shadow: 0 0 25px rgba(0, 170, 255, 0.8);
+        }
+
         /* ── Game Over overlay ────────────────────────────── */
         #game-over {
             position: absolute;
@@ -212,6 +257,7 @@
             width: 100%;
             margin-top: 15px;
         }
+
         #game-over button:first-of-type {
             margin-top: 28px;
         }
@@ -648,10 +694,12 @@
             inset: 0;
             z-index: 150;
             perspective: 1200px;
-            pointer-events: none; /* Let clicks pass to screens */
+            pointer-events: none;
+            /* Let clicks pass to screens */
         }
-        
-        #upgrades-menu > button, #upgrades-menu > div#upgrades-bank {
+
+        #upgrades-menu>button,
+        #upgrades-menu>div#upgrades-bank {
             pointer-events: auto;
         }
 
@@ -675,7 +723,8 @@
         }
 
         .joystick-space {
-            width: 20%; /* Space for the 3D joystick */
+            width: 20%;
+            /* Space for the 3D joystick */
         }
 
         .bottom-screen {
@@ -846,7 +895,7 @@
             z-index: 0;
         }
 
-        .upgrade-item > * {
+        .upgrade-item>* {
             position: relative;
             z-index: 1;
         }
@@ -854,7 +903,7 @@
         .upgrade-name {
             padding: 5px;
             font-weight: 700;
-            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
         }
 
         .upgrade-item-cost {
@@ -887,6 +936,7 @@
             border: 1px solid #fc0;
             box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
         }
+
         .upgrade-item.engine:hover {
             box-shadow: 0 0 20px rgba(255, 204, 0, 0.6);
             transform: scale(1.02);
@@ -898,6 +948,7 @@
             border: 1px solid #2f6;
             box-shadow: 0 0 10px rgba(34, 255, 102, 0.3);
         }
+
         .upgrade-item.economy:hover {
             box-shadow: 0 0 20px rgba(34, 255, 102, 0.6);
             transform: scale(1.02);
@@ -909,6 +960,7 @@
             border: 1px solid #3af;
             box-shadow: 0 0 10px rgba(51, 170, 255, 0.3);
         }
+
         .upgrade-item.defense:hover {
             box-shadow: 0 0 20px rgba(51, 170, 255, 0.6);
             transform: scale(1.02);
@@ -929,7 +981,7 @@
         }
 
         /* Shape sizes (based on a base unit size, dynamically applied via JS depending on grid cell size) */
-        
+
         #info-content {
             padding: 20px;
             flex: 1;
@@ -987,6 +1039,11 @@
 
     <div id="mobile-controls">
         <div id="mobile-boost-btn">BOOST</div>
+        <div id="mobile-joystick-zone">
+            <div id="mobile-joystick-base">
+                <div id="mobile-joystick-stick"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Menu button (top-right during gameplay) -->
@@ -1022,7 +1079,7 @@
                 <button id="pause-resume-btn" class="btn-premium">RESUME</button>
                 <button id="pause-back-btn" class="btn-premium">BACK TO MAIN MENU</button>
             </div>
-            
+
             <div id="graphics-settings">
                 <h3>SETTINGS</h3>
                 <div class="setting-row">
@@ -1056,17 +1113,20 @@
             <div class="sub">CREDITS <span id="final-credits">0</span></div>
             <button id="restart-btn" class="btn-premium" style="width: 100%;">RETRY</button>
             <button id="upgrades-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">UPGRADES</button>
-            <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">MAIN MENU</button>
+            <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">MAIN
+                MENU</button>
         </div>
     </div>
 
     <!-- Upgrades Menu -->
     <div id="upgrades-menu" style="display: none;">
-        <button id="upgrades-back-btn" class="btn-premium" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 100; padding: 20px 40px; font-size: 20px; min-width: 200px;">EXIT</button>
-        <div id="upgrades-bank" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; text-align: center; color: #0ff; font-family: 'Orbitron', sans-serif; font-size: 24px; text-shadow: 0 0 10px #0af;">
-            CREDITS<br/><span id="banked-credits-display">0</span>
+        <button id="upgrades-back-btn" class="btn-premium"
+            style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 100; padding: 20px 40px; font-size: 20px; min-width: 200px;">EXIT</button>
+        <div id="upgrades-bank"
+            style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; text-align: center; color: #0ff; font-family: 'Orbitron', sans-serif; font-size: 24px; text-shadow: 0 0 10px #0af;">
+            CREDITS<br /><span id="banked-credits-display">0</span>
         </div>
-        
+
         <div class="cockpit-screens">
             <div class="top-screens">
                 <div id="screen-active" class="cockpit-screen">
@@ -1089,11 +1149,13 @@
             </div>
             <div class="bottom-screen">
                 <div id="screen-available" class="cockpit-screen" style="flex-direction: row; align-items: stretch;">
-                    <div style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                    <div
+                        style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
                         <div class="screen-title">ENGINE</div>
                         <div id="available-list-engine" class="available-list-col"></div>
                     </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                    <div
+                        style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
                         <div class="screen-title">ECONOMY</div>
                         <div id="available-list-economy" class="available-list-col"></div>
                     </div>
