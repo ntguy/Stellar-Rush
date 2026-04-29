@@ -10,10 +10,10 @@ let wasHudVisible = false;
 const UPGRADES_DB = [
     // Engine
     { id: 'eng1', category: 'engine', name: '+15% Fuel', w: 1, h: 1, cost: 500, desc: 'Increases fuel tank capacity by 15%.' },
-    { id: 'eng2', category: 'engine', name: '+10% Accel', w: 1, h: 1, cost: 600, desc: 'Increases base acceleration by 10%.' },
+    { id: 'eng2', category: 'engine', name: '+10% Accel', w: 1, h: 1, cost: 600, desc: 'Increases base handling by 10%. ' },
     { id: 'eng3', category: 'engine', name: '+30% Fuel', w: 1, h: 3, cost: 1200, desc: 'Increases fuel tank capacity by 30%.' },
     { id: 'eng4', category: 'engine', name: 'Eff. Boost', w: 3, h: 1, cost: 1500, desc: 'Boosting uses half the extra fuel.' },
-    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', w: 2, h: 2, cost: 2500, desc: 'Increases base acceleration and top speed by 25%.' },
+    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', w: 2, h: 2, cost: 2500, desc: 'Increases base handling and top speed by 25%.' },
     
     // Economy
     { id: 'eco1', category: 'economy', name: '+10% Pass. Cr.', w: 1, h: 1, cost: 400, desc: 'Increases time-based credits by 10%.' },
@@ -24,7 +24,7 @@ const UPGRADES_DB = [
     // Defense
     { id: 'def1', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
     { id: 'def2', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
-    { id: 'def3', category: 'defense', name: 'Inv. Shield', w: 1, h: 3, cost: 1500, desc: 'Shield cannot be destroyed by impact.' },
+    // { id: 'def3', category: 'defense', name: 'Inv. Shield', w: 1, h: 3, cost: 1500, desc: 'Shield cannot be destroyed by impact.' },
     { id: 'def4', category: 'defense', name: 'Nav System', w: 3, h: 1, cost: 1800, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
     { id: 'def5', category: 'defense', name: 'Perm. Shield', w: 2, h: 2, cost: 3000, desc: 'Shield never expires.' },
 ];

@@ -9,6 +9,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&family=Audiowide&display=swap"
         rel="stylesheet">
+    <link rel="icon" type="image/png" href="src/images/icon360.png">
     <style>
         * {
             margin: 0;
@@ -26,6 +27,15 @@
 
         canvas {
             display: block;
+        }
+
+        #startup-fade {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 1000;
+            pointer-events: none;
+            transition: opacity 0.5s ease-out;
         }
 
         /* ── HUD ─────────────────────────────────────────── */
@@ -989,7 +999,10 @@
         "stats": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/stats.module.js"
     } }
     </script>
-    <script type="module" src="src/main.js"></script>
+    <div id="startup-fade"></div>
+
+    <!-- Main script -->
+    <script type="module" src="/src/main.js"></script>
 </body>
 
 </html>

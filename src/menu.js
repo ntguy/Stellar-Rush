@@ -264,6 +264,20 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
     const plane = makeAircraft();
     scene.add(track(plane));
 
+    // Splash Logo setup
+    const loader = new THREE.TextureLoader();
+    const splashTex = loader.load('src/images/splashLogo.png', (tex) => {
+        const aspect = tex.image.width / tex.image.height;
+        // Fix stretching by adjusting width based on aspect ratio
+        splashSprite.scale.set(cfg.sunRadius * aspect * 1.2, cfg.sunRadius * 1.2, 1);
+    });
+    const splashMat = new THREE.SpriteMaterial({ map: splashTex, transparent: true, opacity: 0, depthWrite: false });
+    const splashSprite = new THREE.Sprite(splashMat);
+    // Position it in front of the sun
+    splashSprite.position.set(cfg.sunPosition[0] - 5, cfg.sunPosition[1], cfg.sunPosition[2] + cfg.sunRadius + 5);
+    splashSprite.scale.set(cfg.sunRadius * 2.0, cfg.sunRadius * 2.0, 1); // Initial square scale
+    scene.add(track(splashSprite));
+
     const pathPts = cfg.planePathPoints.map(p => new THREE.Vector3(...p));
     const path = new THREE.CatmullRomCurve3(pathPts, false, 'catmullrom', 0.5);
     const trail = createTrail(path, cfg);
@@ -347,6 +361,26 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
         if (sun.flareMat) sun.flareMat.uniforms.uTime.value = elapsed;
         starMat.uniforms.uTime.value = elapsed;
         syncToCamera(camera);
+
+        // Splash Logo Animation
+        // Delay: 1s, Fade In: 1s, Hold: 2s, Fade Out: 1s
+        const splashDelay = 1.5;
+        const splashFadeIn = 1.5;
+        const splashHold = 1.5;
+        const splashFadeOut = 1.5;
+
+        if (elapsed < splashDelay) {
+            splashMat.opacity = 0;
+        } else if (elapsed < splashDelay + splashFadeIn) {
+            splashMat.opacity = (elapsed - splashDelay) / splashFadeIn;
+        } else if (elapsed < splashDelay + splashFadeIn + splashHold) {
+            splashMat.opacity = 1.0;
+        } else if (elapsed < splashDelay + splashFadeIn + splashHold + splashFadeOut) {
+            splashMat.opacity = 1.0 - (elapsed - (splashDelay + splashFadeIn + splashHold)) / splashFadeOut;
+        } else {
+            splashMat.opacity = 0;
+            if (splashSprite.parent) scene.remove(splashSprite);
+        }
 
         if (rawT >= 1.0 && !animDone) {
             animDone = true;

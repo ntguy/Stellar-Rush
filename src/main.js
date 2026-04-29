@@ -40,6 +40,18 @@ let currentScore = 0;
 let distanceTraveled = 0;
 let hasPlayedBefore = false;
 
+// Remove startup fade
+window.addEventListener('DOMContentLoaded', () => {
+    const fade = document.getElementById('startup-fade');
+    if (fade) {
+        // Short delay to ensure first frame is ready
+        setTimeout(() => {
+            fade.style.opacity = '0';
+            setTimeout(() => fade.remove(), 500);
+        }, 100);
+    }
+});
+
 // Initialize audio loading
 initAudio();
 
@@ -60,10 +72,10 @@ const stats = new Stats();
 stats.showPanel(0);
 stats.dom.style.display = settings.fpsEnabled ? 'block' : 'none';
 stats.dom.style.position = 'absolute';
-stats.dom.style.right = '0px';
+stats.dom.style.right = '70px';
 stats.dom.style.left = '';
-stats.dom.style.top = '';
-stats.dom.style.bottom = '0px';
+stats.dom.style.top = '16px';
+stats.dom.style.bottom = '';
 document.body.appendChild(stats.dom);
 
 const isLow = settings.preset === 'Low';
@@ -364,7 +376,10 @@ let upgShieldDurationBonus = 0;
 let upgInvincibleShield = false;
 let upgPermanentShield = false;
 let upgNavSystem = false;
-let navSystemLight = null;
+let navBeam = null;
+let navDot = null;
+let navPointLight = null;
+const navRaycaster = new THREE.Raycaster();
 
 function applyUpgrades() {
     // Upgrade Logic: compute multipliers based on equipped upgrades
@@ -384,15 +399,32 @@ function applyUpgrades() {
     upgNavSystem = eq.includes('def4');
     upgPermanentShield = eq.includes('def5');
 
-    if (upgNavSystem && !navSystemLight) {
-        navSystemLight = new THREE.SpotLight(0xff0000, 50.0, 150, 0.04, 0.5, 0.8);
-        scene.add(navSystemLight);
-        scene.add(navSystemLight.target);
-    } else if (!upgNavSystem && navSystemLight) {
-        scene.remove(navSystemLight);
-        scene.remove(navSystemLight.target);
-        navSystemLight.dispose();
-        navSystemLight = null;
+    if (upgNavSystem && !navBeam) {
+        // Upgrade Logic: Laser Navigation System Initialization
+        const beamGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
+        const beamMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+        navBeam = new THREE.Line(beamGeo, beamMat);
+        scene.add(navBeam);
+
+        const dotGeo = new THREE.SphereGeometry(0.15, 8, 8);
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        navDot = new THREE.Mesh(dotGeo, dotMat);
+        scene.add(navDot);
+
+        navPointLight = new THREE.PointLight(0xff0000, 5.0, 12);
+        scene.add(navPointLight);
+    } else if (!upgNavSystem && navBeam) {
+        scene.remove(navBeam);
+        scene.remove(navDot);
+        scene.remove(navPointLight);
+        navBeam.geometry.dispose();
+        navBeam.material.dispose();
+        navDot.geometry.dispose();
+        navDot.material.dispose();
+        navPointLight.dispose();
+        navBeam = null;
+        navDot = null;
+        navPointLight = null;
     }
 }
 
@@ -430,6 +462,7 @@ const pSphere  = new THREE.Sphere(new THREE.Vector3(), PLANE_RADIUS);
 /* ── Shield visual ────────────────────────────────────────── */
 let shieldMesh = null;  // IcosahedronGeometry bubble around plane
 let shieldMat  = null;  // direct ref so we can animate opacity
+let shieldIsBreaking = false;
 
 function createShieldMesh() {
     shieldMat = new THREE.MeshBasicMaterial({
@@ -580,8 +613,8 @@ function init() {
     formationTimer = { value: 0, _threshold: _jitter0(FORMATION_BASE) };
     creditsTimer    = { value: 0, _threshold: _jitter0(CREDITS_PICKUP_BASE) };
     shieldPUTimer  = { value: 0, _threshold: _jitter0(SHIELD_PICKUP_BASE) };
-    enemyTimer = 0;
     shieldTimer = 0;
+    shieldIsBreaking = false;
     enemySpawnCount = 0;
     prevBoosting = false;
     prevFuelLow  = false;
@@ -734,7 +767,9 @@ function enterMenu() {
     scene.children
         .filter(c => c.isLight || c === guideLine)
         .forEach(c => scene.remove(c));
-    navSystemLight = null; // Removed above
+    navBeam = null; 
+    navDot = null;
+    navPointLight = null;
 
     // Create menu
     if (menuController) menuController.dispose();
@@ -870,7 +905,15 @@ function loop() {
     elapsed += dt;
     const shielded = shieldTimer > 0;
     // Upgrade Logic: Permanent Shield
-    if (shielded && !upgPermanentShield) shieldTimer -= dt;
+    if (shieldIsBreaking) {
+        shieldTimer -= dt;
+        if (shieldTimer <= 0) {
+            shieldTimer = 0;
+            shieldIsBreaking = false;
+        }
+    } else if (shielded && !upgPermanentShield) {
+        shieldTimer -= dt;
+    }
 
     // Level Scaling — speed is set per level, with optional ramp only on final level
     const currentLevel = LEVELS[currentLevelIdx];
@@ -965,10 +1008,32 @@ function loop() {
     guideLine.geometry.attributes.position.needsUpdate = true;
     matLine.opacity = THREE.MathUtils.clamp(dist * 0.06, 0, 0.4);
 
-    if (navSystemLight) {
-        // Upgrade Logic: Navigation System
-        navSystemLight.position.copy(aircraft.position);
-        navSystemLight.target.position.set(aircraft.position.x, aircraft.position.y, aircraft.position.z - 100);
+    if (navBeam) {
+        // Upgrade Logic: Navigation Laser Raycasting
+        const beamOrigin = aircraft.position.clone();
+        const beamDir = new THREE.Vector3(0, 0, -1); 
+        navRaycaster.set(beamOrigin, beamDir);
+        
+        const targetMeshes = [];
+        obstacles.forEach(obs => obs.parts.forEach(m => targetMeshes.push(m)));
+        const intersects = navRaycaster.intersectObjects(targetMeshes);
+        
+        let laserDist = 200; 
+        if (intersects.length > 0) {
+            laserDist = intersects[0].distance;
+            navDot.visible = true;
+            navPointLight.visible = true;
+            navDot.position.copy(intersects[0].point);
+            navPointLight.position.copy(intersects[0].point);
+        } else {
+            navDot.visible = false;
+            navPointLight.visible = false;
+        }
+
+        const positions = navBeam.geometry.attributes.position.array;
+        positions[0] = beamOrigin.x; positions[1] = beamOrigin.y; positions[2] = beamOrigin.z;
+        positions[3] = beamOrigin.x; positions[4] = beamOrigin.y; positions[5] = beamOrigin.z - laserDist;
+        navBeam.geometry.attributes.position.needsUpdate = true;
     }
 
     /* ── Camera follow ────────────────────────────────── */
@@ -1171,6 +1236,7 @@ function loop() {
     
     if (puResult.shield > 0) {
         shieldTimer = SHIELD_DURATION + upgShieldDurationBonus; // Upgrade Logic: Shield Duration
+        shieldIsBreaking = false;
         if (!stopShieldHum) stopShieldHum = startShieldHum();
     }
 
@@ -1220,9 +1286,9 @@ function loop() {
     if (hitWhileShielded) {
         // Upgrade Logic: Invincible Shield
         if (!upgInvincibleShield) {
-            // Trigger the 1.5 s flash-out countdown instead of instant removal
-            const FLASH_WINDOW = 1.5;
-            shieldTimer = Math.min(shieldTimer, FLASH_WINDOW);
+            // Upgrade Logic: Shield Breaking sequence (ignores permanent shield)
+            shieldIsBreaking = true;
+            shieldTimer = 0.5; // Fast flash before removal
         }
     }
 
@@ -1249,10 +1315,15 @@ function loop() {
         shieldMesh.position.copy(aircraft.position);
         shieldMesh.rotation.y = elapsed * 1.5;
         shieldMesh.rotation.x = elapsed * 0.7;
-        // Flash 3 times over the last 1.5 s before expiry
-        const FLASH_WINDOW = 1.5;
-        if (shieldTimer < FLASH_WINDOW) {
-            const t = 1 - shieldTimer / FLASH_WINDOW;
+        
+        // Upgrade Logic: Shield Flash Visualization
+        if (shieldIsBreaking) {
+            // Rapid single flash for impact breaking
+            const t = 1 - shieldTimer / 0.5;
+            shieldMat.opacity = (0.5 + 0.5 * Math.sin(t * Math.PI)) * 0.45;
+        } else if (shieldTimer < 1.5) {
+            // Standard flicker for time-based expiry
+            const t = 1 - shieldTimer / 1.5;
             shieldMat.opacity = (0.5 + 0.5 * Math.sin(t * 6 * Math.PI)) * 0.12;
         } else {
             shieldMat.opacity = 0.10;
