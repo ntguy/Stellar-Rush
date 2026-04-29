@@ -638,6 +638,10 @@ function init() {
     vel.set(0, 0, 0);
     matGlow.color.set(0x00fff7);
 
+    // Reset visibility of guide line and nav laser
+    guideLine.visible = true;
+    if (navBeam) navBeam.visible = true;
+
     clearExhaust();
     // Remove shield mesh if still alive from previous run
     if (shieldMesh) { scene.remove(shieldMesh); shieldMesh = null; shieldMat = null; }
@@ -830,6 +834,12 @@ function endGame() {
 function spawnExplosion(pos) {
     exploding = true; explodeTimer = 0;
     aircraft.visible = false;
+    guideLine.visible = false;
+    if (navBeam) {
+        navBeam.visible = false;
+        navDot.visible = false;
+        navPointLight.visible = false;
+    }
     clearExhaust();
     playCrash();
     const cols = [0xff6600, 0xff3300, 0xffaa00, 0xffffff, 0xff8800];
@@ -985,7 +995,7 @@ function loop() {
     const dist = tmpV.length();
 
     if (dist > 0.05) {
-        const desiredSpd = Math.min(dist * 4, maxSpd);
+        const desiredSpd = Math.min(dist * 4, maxSpd); // TODO: figure out an acceleration system without need for overshoot
         tmpV.normalize().multiplyScalar(desiredSpd).sub(vel);
         if (tmpV.length() > accel * dt) tmpV.setLength(accel * dt);
         vel.add(tmpV);
@@ -1241,14 +1251,21 @@ function loop() {
             spawnCreditsText(scene, puResult.creditsPos, puResult.credits);
         }
     }
-    
     if (puResult.formationCompleted && upgFormationBonus > 0) {
         // Upgrade Logic: Formation Bonus
         credits += upgFormationBonus;
-        spawnCollectBurst(scene, puResult.creditsPos || aircraft.position, 0x44ff88);
-        spawnCreditsText(scene, puResult.creditsPos || aircraft.position, upgFormationBonus);
+        // Delay the formation bonus text so it doesn't overlap with the last gem pickup
+        const bonusPos = (puResult.creditsPos ? puResult.creditsPos.clone() : aircraft.position.clone());
+        // Push it slightly further into the distance (-Z) so it's "ahead"
+        bonusPos.z -= 8; 
+        
+        setTimeout(() => {
+            if (gameState === 'PLAYING' && !paused) {
+                spawnCollectBurst(scene, bonusPos, 0x44ff88);
+                spawnCreditsText(scene, bonusPos, upgFormationBonus);
+            }
+        }, 150);
     }
-    
     if (puResult.shield > 0) {
         shieldTimer = SHIELD_DURATION + upgShieldDurationBonus; // Upgrade Logic: Shield Duration
         shieldIsBreaking = false;

@@ -6,7 +6,7 @@
    adjusted without touching logic files.
     */
 import * as THREE from 'three';
-export const DEVELOPMENT_MODE = true;
+export const DEVELOPMENT_MODE = false;
 
 /*  World bounds & spawn lanes  */
 export const BOUNDS_X = 24;       // X limit for player & obstacles

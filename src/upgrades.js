@@ -9,24 +9,24 @@ let wasHudVisible = false;
 // Base data
 const UPGRADES_DB = [
     // Engine
-    { id: 'eng1', category: 'engine', name: '+15% Fuel', emoji: '⛽', w: 1, h: 1, cost: 500, desc: 'Increases fuel tank capacity by 15%.' },
-    { id: 'eng2', category: 'engine', name: '+10% Accel', emoji: '⚡', w: 1, h: 1, cost: 600, desc: 'Increases base handling by 10%. ' },
-    { id: 'eng3', category: 'engine', name: '+30% Fuel', emoji: '⛽', w: 1, h: 3, cost: 1200, desc: 'Increases fuel tank capacity by 30%.' },
-    { id: 'eng4', category: 'engine', name: 'Eff. Boost', emoji: '🍃', w: 3, h: 1, cost: 1500, desc: 'Boosting uses half the extra fuel.' },
-    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', emoji: '🚀', w: 2, h: 2, cost: 2500, desc: 'Increases base handling and top speed by 25%.' },
-    { id: 'eng6', category: 'engine', name: 'Boost Power', emoji: '🔥', w: 1, h: 3, cost: 1800, desc: 'Increases boost acceleration and speed by 50%.' },
+    { id: 'eng1', category: 'engine', name: '+15% Fuel', emoji: '⛽', w: 1, h: 1, cost: 5000, desc: 'Increases fuel tank capacity by 15%.' },
+    { id: 'eng2', category: 'engine', name: '+10% Accel', emoji: '⚡', w: 1, h: 1, cost: 5000, desc: 'Increases base handling by 10%. ' },
+    { id: 'eng3', category: 'engine', name: '+30% Fuel', emoji: '⛽', w: 1, h: 3, cost: 15000, desc: 'Increases fuel tank capacity by 30%.' },
+    { id: 'eng4', category: 'engine', name: 'Eff. Boost', emoji: '🍃', w: 3, h: 1, cost: 15000, desc: 'Boosting uses half the extra fuel.' },
+    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', emoji: '🚀', w: 2, h: 2, cost: 25000, desc: 'Increases base handling and top speed by 25%.' },
+    { id: 'eng6', category: 'engine', name: 'Boost Power', emoji: '🔥', w: 1, h: 3, cost: 18000, desc: 'Increases boost acceleration and speed by 50%.' },
     
     // Economy
-    { id: 'eco1', category: 'economy', name: '+10% Pass. Cr.', emoji: '📈', w: 1, h: 1, cost: 400, desc: 'Increases time-based credits by 10%.' },
-    { id: 'eco2', category: 'economy', name: 'Magnet', emoji: '🧲', w: 3, h: 1, cost: 1000, desc: 'Magnet (10 strength) attracts nearby pickups.' },
-    { id: 'eco3', category: 'economy', name: 'Form. Bonus', emoji: '💎', w: 1, h: 3, cost: 1500, desc: '+50 credits for collecting every pickup in a formation.' },
-    { id: 'eco4', category: 'economy', name: 'Mega Magnet', emoji: '🧲', w: 2, h: 2, cost: 2000, desc: 'Mega Magnet (15 strength) attracts nearby pickups.' },
+    { id: 'eco1', category: 'economy', name: '+20% Passive Credits', emoji: '📈', w: 1, h: 1, cost: 3000, desc: '+20% credits auto earned per second.' },
+    { id: 'eco2', category: 'economy', name: 'Magnet', emoji: '🧲', w: 3, h: 1, cost: 12000, desc: 'Magnet (10 strength) attracts nearby pickups.' },
+    { id: 'eco3', category: 'economy', name: 'Formation Bonus', emoji: '💎', w: 1, h: 3, cost: 15000, desc: '+50 credits for collecting every pickup in a formation.' },
+    { id: 'eco4', category: 'economy', name: 'Mega Magnet', emoji: '🧲', w: 2, h: 2, cost: 20000, desc: 'Mega Magnet (15 strength) attracts nearby pickups.' },
     
     // Defense
-    { id: 'def1', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
-    { id: 'def2', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
-    { id: 'def4', category: 'defense', name: 'Nav System', emoji: '📡', w: 3, h: 1, cost: 1800, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
-    { id: 'def5', category: 'defense', name: 'Perm. Shield', emoji: '💠', w: 2, h: 2, cost: 3000, desc: 'Shield never expires.' },
+    { id: 'def1', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 6000, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def2', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 6000, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def4', category: 'defense', name: 'Nav System', emoji: '📡', w: 3, h: 1, cost: 12000, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
+    { id: 'def5', category: 'defense', name: 'Perm. Shield', emoji: '💠', w: 2, h: 2, cost: 30000, desc: 'Infinite shield duration (still breaks on impact).' },
 ];
 
 let selectedUpgrade = null;
@@ -87,7 +87,7 @@ function getCategoryLayout(cat) {
 }
 
 export function getBankedCredits() {
-    if (DEVELOPMENT_MODE) return 99999;
+    if (DEVELOPMENT_MODE) return 999999;
     return parseInt(localStorage.getItem('bankedCredits') || '0', 10);
 }
 
