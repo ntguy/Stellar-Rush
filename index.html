@@ -413,6 +413,26 @@
             cursor: pointer;
         }
 
+        #notification-overlay {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            text-shadow: 0 0 10px #0af;
+            z-index: 1000;
+        }
+        #notification-overlay.show {
+            opacity: 1;
+        }
+
         /* ── Main Menu overlay ────────────────────────────── */
         #main-menu {
             position: absolute;
@@ -590,11 +610,24 @@
                 background 0.25s, border-color 0.25s, color 0.25s;
         }
 
-        .btn-premium:hover {
-            background: rgba(0, 170, 255, 0.18);
-            border-color: rgba(0, 170, 255, 0.7);
+        .btn-premium:hover,
+        .btn-premium.focused {
+            background: rgba(0, 170, 255, 0.25);
+            border-color: #0af;
             color: #fff;
             text-shadow: 0 0 14px #0af;
+            box-shadow: 0 0 25px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.3);
+            outline: none;
+        }
+
+        @keyframes focusPulse {
+            from { box-shadow: 0 0 20px rgba(0, 170, 255, 0.45), inset 0 0 5px rgba(0, 170, 255, 0.2); }
+            to { box-shadow: 0 0 32px rgba(0, 170, 255, 0.75), inset 0 0 12px rgba(0, 170, 255, 0.4); }
+        }
+
+        .btn-premium.focused {
+            animation: focusPulse 2.5s infinite alternate ease-in-out;
+            border-color: #0ff;
         }
 
         #menu-actions {
@@ -1176,7 +1209,9 @@
     </script>
     <div id="startup-fade"></div>
 
-    <!-- Main script -->
+    <div id="notification-overlay"></div>
+
+    <!-- Main Game UI -->
     <script type="module" src="src/main.js"></script>
 </body>
 

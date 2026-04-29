@@ -20,10 +20,11 @@ import {
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor } from './tunnel.js';
 import { LEVELS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
+import { setupMenuNavigation, handleMenuInput, clearMenuFocus } from './keyboardMenus.js';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
-import { enterUpgradesMenu, exitUpgradesMenu, getEquippedUpgrades } from './upgrades.js';
+import { enterUpgradesMenu, exitUpgradesMenu, getEquippedUpgrades, isUpgradesOpen } from './upgrades.js';
 import Stats from 'stats';
 import { settings, saveSettings } from './settings.js';
 
@@ -419,18 +420,39 @@ function applyUpgrades() {
         navPointLight = new THREE.PointLight(0xff0000, 5.0, 12);
         scene.add(navPointLight);
     } else if (!upgNavSystem && navBeam) {
+        cleanupNavBeam();
+    }
+}
+
+function cleanupNavBeam() {
+    if (navBeam) {
         scene.remove(navBeam);
-        scene.remove(navDot);
-        scene.remove(navPointLight);
         navBeam.geometry.dispose();
         navBeam.material.dispose();
+        navBeam = null;
+    }
+    if (navDot) {
+        scene.remove(navDot);
         navDot.geometry.dispose();
         navDot.material.dispose();
-        navPointLight.dispose();
-        navBeam = null;
         navDot = null;
+    }
+    if (navPointLight) {
+        scene.remove(navPointLight);
+        navPointLight.dispose();
         navPointLight = null;
     }
+}
+
+function showNotification(text) {
+    const el = document.getElementById('notification-overlay');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('show');
+    if (el._timer) clearTimeout(el._timer);
+    el._timer = setTimeout(() => {
+        el.classList.remove('show');
+    }, 2000);
 }
 
 let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, creditsTimer, shieldPUTimer, enemyTimer;
@@ -443,6 +465,7 @@ const obstacles = [];
 
 /* ── Level Scaling — level system state ──────────────────── */
 let currentLevelIdx = 0;        // index into LEVELS[]
+let targetLevelIdx = 0;         // next level to transition to
 let levelTimer = 0;             // seconds elapsed within current level
 // 'PLAYING' = normal gameplay, 'TRANSITION' = inter-level pickup formation & color shift
 let levelState = 'PLAYING';
@@ -463,6 +486,24 @@ const vel      = new THREE.Vector3();
 const tmpV     = new THREE.Vector3();
 const tmpBox   = new THREE.Box3();
 const pSphere  = new THREE.Sphere(new THREE.Vector3(), PLANE_RADIUS);
+
+/** 
+ * Signed Distance Function for an Equilateral Triangle 
+ * (Returns < 0 if inside, > 0 if outside)
+ */
+function sdEquilateralTriangle(px, py, r) {
+    const k = 1.73205081; // sqrt(3)
+    px = Math.abs(px) - r;
+    py = py + r/k;
+    if (px + k*py > 0.0) {
+        const tx = px - k*py;
+        const ty = -k*px - py;
+        px = tx / 2.0;
+        py = ty / 2.0;
+    }
+    px -= Math.max(-2.0*r, Math.min(px, 0.0));
+    return -Math.sqrt(px*px + py*py) * Math.sign(py);
+}
 
 /* ── Shield visual ────────────────────────────────────────── */
 let shieldMesh = null;  // IcosahedronGeometry bubble around plane
@@ -512,10 +553,19 @@ const keys = {
 
 window.addEventListener('keydown', e => {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+    // Handle menu navigation if not in active gameplay
+    if ((gameState !== 'PLAYING' || paused || gameOver) && !isUpgradesOpen()) {
+        if (handleMenuInput(e.key)) return;
+    }
+
     if (keys.hasOwnProperty(key)) {
         keys[key] = true;
         if (gameState === 'PLAYING') {
-            controlMode = 'KEYBOARD';
+            if (controlMode !== 'KEYBOARD') {
+                controlMode = 'KEYBOARD';
+                showNotification('Keyboard Input');
+            }
             document.body.style.cursor = 'none';
         }
     }
@@ -564,8 +614,21 @@ window.addEventListener('mousemove', e => {
 });
 window.addEventListener('mousedown', e => { 
     if (isMobile) return;
+    
+    // Clear menu focus and switch mode on click
+    if (gameState !== 'PLAYING' || paused || gameOver) {
+        clearMenuFocus();
+        if (controlMode !== 'MOUSE') {
+            controlMode = 'MOUSE';
+            showNotification('Mouse Input');
+        }
+    }
+
     if (gameState === 'PLAYING') {
-        controlMode = 'MOUSE';
+        if (controlMode !== 'MOUSE') {
+            controlMode = 'MOUSE';
+            showNotification('Mouse Input');
+        }
         document.body.style.cursor = 'crosshair';
     }
     if (e.button === 0 && gameState === 'PLAYING') boosting = true; 
@@ -685,17 +748,23 @@ elResume.addEventListener('click', togglePause);
 elMenuBtn.addEventListener('click', () => { if (gameState === 'PLAYING') togglePause(); });
 
 document.getElementById('upgrades-btn').addEventListener('click', () => {
+    clearMenuFocus();
+    controlMode = 'MOUSE';
+    document.body.style.cursor = 'default';
     enterUpgradesMenu(scene, camera, aircraft, () => {
         // Returned from Game Over upgrades
         document.getElementById('game-over').classList.add('show');
+        setupMenuNavigation('game-over', controlMode === 'KEYBOARD' ? 1 : -1);
     });
 });
 
 document.getElementById('upgrades-menu-btn').addEventListener('click', () => {
+    clearMenuFocus();
+    controlMode = 'MOUSE';
+    document.body.style.cursor = 'default';
     enterUpgradesMenu(scene, camera, aircraft, () => {
         // Returned from Main Menu upgrades
-        document.getElementById('main-menu').style.display = 'flex'; // or whatever the default display is, though it uses CSS to show
-        // Wait, main-menu is handled by enterMenu(), let's just redraw the main menu
+        document.getElementById('main-menu').style.display = 'flex';
         enterMenu();
     });
 });
@@ -724,6 +793,7 @@ function init() {
 
     // Level Scaling — reset level state
     currentLevelIdx = 0;
+    targetLevelIdx = 0;
     levelTimer = 0;
     levelState = 'PLAYING';
     transitionFormationDepth = 0;
@@ -819,6 +889,7 @@ function init() {
     scene.userData.starField.material.uniforms.uTime.value = 0;
     elOverlay.classList.remove('show');
     elPause.classList.remove('show');
+    clearMenuFocus();
 
     // Show gameplay UI
     elHud.classList.remove('hidden');
@@ -843,6 +914,7 @@ function togglePause() {
     if (paused) {
         elPause.classList.add('show');
         document.body.style.cursor = 'default';
+        setupMenuNavigation('pause-menu', controlMode === 'KEYBOARD' ? 0 : -1);
         
         // Stop looping sounds so they don't get stuck while paused
         stopBoostHum?.();
@@ -877,6 +949,7 @@ function enterMenu() {
     document.body.style.cursor = 'default';
     resetJoystick();
     for (let key in keys) keys[key] = false;
+    setupMenuNavigation('main-menu', controlMode === 'KEYBOARD' ? 0 : -1);
     if (isMobile) {
         if (elMobileBoost) elMobileBoost.classList.remove('active');
     }
@@ -909,14 +982,12 @@ function enterMenu() {
     aircraft.visible = false;
     if (scene.userData.starField) scene.remove(scene.userData.starField);
     clearTunnel(scene);
+    cleanupNavBeam();
     // Remove gameplay lights (menu adds its own)
     scene.children
         .filter(c => c.isLight || c === guideLine)
         .forEach(c => scene.remove(c));
-    navBeam = null; 
-    navDot = null;
-    navPointLight = null;
-
+    
     // Create menu
     if (menuController) menuController.dispose();
     menuController = createMenu(scene, camera, getMenuConfig(), hasPlayedBefore);
@@ -958,6 +1029,7 @@ function endGame() {
 
     elFinalCredits.textContent = Math.floor(credits);
     elOverlay.classList.add('show');
+    setupMenuNavigation('game-over', controlMode === 'KEYBOARD' ? 0 : -1);
     document.body.style.cursor = 'default';
     stopAllAudio();
     document.getElementById('mobile-controls').classList.remove('visible');
@@ -1210,13 +1282,40 @@ function loop() {
         const intersects = navRaycaster.intersectObjects(targetMeshes);
         
         let laserDist = 200; 
+        let hitFound = false;
+
         if (intersects.length > 0) {
-            laserDist = intersects[0].distance;
-            navDot.visible = true;
-            navPointLight.visible = true;
-            navDot.position.copy(intersects[0].point);
-            navPointLight.position.copy(intersects[0].point);
-        } else {
+            for (const hit of intersects) {
+                const obs = obstacles.find(o => o.parts.includes(hit.object));
+                if (obs) {
+                    if (obs.circleHole) {
+                        const dx = hit.point.x - obs.circleHole.x;
+                        const dy = hit.point.y - obs.circleHole.y;
+                        if (Math.sqrt(dx * dx + dy * dy) < obs.circleHole.r) continue;
+                    }
+                    if (obs.squareHole) {
+                        const dx = Math.abs(hit.point.x - obs.squareHole.x);
+                        const dy = Math.abs(hit.point.y - obs.squareHole.y);
+                        if (dx < obs.squareHole.w / 2 && dy < obs.squareHole.h / 2) continue;
+                    }
+                    if (obs.triforceHoles) {
+                        const p = new THREE.Vector2(hit.point.x, hit.point.y);
+                        const th = obs.triforceHoles;
+                        if (p.distanceTo(th.p1) < th.r || p.distanceTo(th.p2) < th.r || p.distanceTo(th.p3) < th.r) continue;
+                    }
+                }
+                
+                laserDist = hit.distance;
+                navDot.visible = true;
+                navPointLight.visible = true;
+                navDot.position.copy(hit.point);
+                navPointLight.position.copy(hit.point);
+                hitFound = true;
+                break;
+            }
+        }
+
+        if (!hitFound) {
             navDot.visible = false;
             navPointLight.visible = false;
         }
@@ -1238,7 +1337,7 @@ function loop() {
 
         if (levelTimer >= currentLevel.duration) {
             if (currentLevelIdx < LEVELS.length - 1) {
-                currentLevelIdx++;
+                targetLevelIdx = currentLevelIdx + 1;
                 levelState = 'TRANSITION';
             } else {
                 levelTimer = 0;
@@ -1253,6 +1352,17 @@ function loop() {
                 spawnTimer -= currentLevel.obstacleInterval;
                 const slots = nextObstacle(scene, obstacles, currentLevel.difficultyParams);
                 
+                // First, handle slots that have a MANDATORY pickup type (like patternChoice)
+                for (let i = slots.length - 1; i >= 0; i--) {
+                    const slot = slots[i];
+                    if (slot.pickupType) {
+                        if (slot.pickupType === 'fuel') spawnFuelPickup(scene, slot);
+                        else if (slot.pickupType === 'credits') spawnHighValuePickup(scene, slot);
+                        else if (slot.pickupType === 'shield') spawnShieldPickup(scene, slot);
+                        slots.splice(i, 1);
+                    }
+                }
+
                 const priority = { 'fuel': 0, 'shield': 1, 'credits': 2, 'formation': 3 };
                 pendingPickups.sort((a, b) => priority[a] - priority[b]);
 
@@ -1322,7 +1432,7 @@ function loop() {
 
             // Level Scaling — capture color shift start state now that obstacles have cleared
             colorShiftFrom = getTunnelColor().clone();
-            colorShiftTo = LEVELS[currentLevelIdx].tunnelColor;
+            colorShiftTo = LEVELS[targetLevelIdx].tunnelColor;
             colorShiftTimer = 0;
         }
         
@@ -1341,6 +1451,7 @@ function loop() {
             // Return to PLAYING once formation has passed AND color shift is complete
             const colorDone = colorShiftTimer >= TUNNEL_TRANSITION_DURATION;
             if (transitionWaitTimer > timeToCover && colorDone) {
+                currentLevelIdx = targetLevelIdx;
                 levelState = 'PLAYING';
                 levelTimer = 0;
             }
@@ -1458,6 +1569,33 @@ function loop() {
             const dx = aircraft.position.x - ch.x;
             const dy = aircraft.position.y - ch.y;
             return Math.sqrt(dx * dx + dy * dy) > ch.r - PLANE_RADIUS;
+        }
+        if (obs.squareHole) {
+            // Square-hole wall
+            const wallZ = obs.parts[0].position.z;
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            const sh = obs.squareHole;
+            const dx = Math.abs(aircraft.position.x - sh.x);
+            const dy = Math.abs(aircraft.position.y - sh.y);
+            return dx > (sh.w / 2 - PLANE_RADIUS) || dy > (sh.h / 2 - PLANE_RADIUS);
+        }
+        if (obs.triforceHoles) {
+            // Triforce wall (3 triangular holes)
+            const wallZ = obs.parts[0].position.z;
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            const th = obs.triforceHoles;
+            
+            const px = aircraft.position.x;
+            const py = aircraft.position.y;
+
+            const d1 = sdEquilateralTriangle(px - th.p1.x, py - th.p1.y, th.r);
+            const d2 = sdEquilateralTriangle(px - th.p2.x, py - th.p2.y, th.r);
+            const d3 = sdEquilateralTriangle(px - th.p3.x, py - th.p3.y, th.r);
+            
+            // To be safely "inside" the hole, the aircraft's center must be 
+            // further than PLANE_RADIUS from any edge (i.e. d <= -PLANE_RADIUS)
+            if (d1 < -PLANE_RADIUS || d2 < -PLANE_RADIUS || d3 < -PLANE_RADIUS) return false;
+            return true;
         }
         // Normal AABB check
         for (const m of obs.parts) {

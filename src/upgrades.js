@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DEVELOPMENT_MODE } from './config.js';
 
 let isUpgradesActive = false;
+export function isUpgradesOpen() { return isUpgradesActive; }
 let returnCallback = null;
 let hiddenSceneObjects = [];
 let wasHudVisible = false;

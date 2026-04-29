@@ -14,7 +14,8 @@ export const FORCE_MOBILE = false;
    null = normal random rotation.
    Valid: 'patternLeftRight' | 'patternTopDown' | 'patternCorners'
           'patternShiftingGates' | 'patternNarrow' | 'patternSlalomGate'
-          'patternScatter'                                     */
+          'patternScatter' | 'patternFourCorners' | 'patternChoice'
+          'patternSuperScatter'                                */
 export const FORCE_PATTERN = null; // e.g. 'patternNarrow' | null for random --- IGNORE ---
 
 /*  World bounds & spawn lanes  */
@@ -31,7 +32,7 @@ export const FUEL_PICKUP_BASE     = 14;  // baseline seconds between fuel drops
 export const FORMATION_BASE       = 5;   // baseline seconds between gem formations
 export const CREDITS_PICKUP_BASE  = 10;  // baseline seconds between high-value credit gems
 export const SHIELD_PICKUP_BASE   = 30;  // baseline seconds between shield drops
-export const PLANE_RADIUS    = 1.4;   // hatbox radius  matches fuselage body width
+export const PLANE_RADIUS    = 1.4;   // hitbox radius matches fuselage body width
 export const OBS_BASE_SPEED  = 45;
 export const OBS_SPEED_RAMP  = 0.30;   // units/s  reduced from 0.55 for gentler acceleration
 export const OBS_TARGET_OPACITY = 0.78;

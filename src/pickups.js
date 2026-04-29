@@ -34,7 +34,7 @@ function getCollectRadius(aircraftPos) {
     const dx = Math.abs(aircraftPos.x) / (BOUNDS_X * 0.5);
     const dy = Math.abs(aircraftPos.y) / (BOUNDS_Y * 0.5);
     const edgeProximity = Math.max(dx, dy);
-    const base = PLANE_RADIUS * 2.2;
+    const base = PLANE_RADIUS * 2;
     const maxScale = 1.4; 
     const scale = 1 + (maxScale - 1) * Math.min(edgeProximity, 1);
     return base * scale;

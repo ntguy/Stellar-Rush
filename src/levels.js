@@ -15,7 +15,7 @@ export const LEVELS = [
     {
         /* Level 1 — Blue */
         level: 1,
-        duration: 45,                 // seconds
+        duration: 5,                 // seconds
         speedMultiplier: 1.0,         // base speed multiplier
         tunnelColor: new THREE.Color(0x4488ff),  // blue
         obstacleInterval: 1.6,        // seconds between obstacles
@@ -29,6 +29,7 @@ export const LEVELS = [
            - gapOffset: how far from the center gaps can be shifted
         */
         difficultyParams: {           
+            level: 1,
             count: 2,
             wallSize: 0.8,
             gapSize: PLANE_RADIUS * 5.5,
@@ -38,13 +39,14 @@ export const LEVELS = [
     {
         /* Level 2 — Magenta */
         level: 2,
-        duration: 60,                 // seconds
+        duration: 5,                 // seconds
         speedMultiplier: 1.10,        // +10% speed
         tunnelColor: new THREE.Color(0xff44ff),  // magenta
         obstacleInterval: 1.5,        // faster obstacle spawn
         enemyInterval: 7,             
         enemyMaxCount: 2,             // up to 2 enemies per wave
         difficultyParams: {           
+            level: 2,
             count: 3,
             wallSize: 1,
             gapSize: PLANE_RADIUS * 4.6,
@@ -61,6 +63,7 @@ export const LEVELS = [
         enemyInterval: 5,             
         enemyMaxCount: 3,             // up to 3 enemies per wave
         difficultyParams: {           
+            level: 3,
             count: 3,
             wallSize: 1.2,
             gapSize: PLANE_RADIUS * 4,
