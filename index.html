@@ -737,8 +737,6 @@
         }
 
         .upgrade-item {
-            background: linear-gradient(135deg, rgba(0, 255, 255, 1), rgba(0, 100, 255, 1));
-            border: 1px solid #0ff;
             border-radius: 6px;
             cursor: grab;
             display: flex;
@@ -748,10 +746,17 @@
             font-family: 'Orbitron', sans-serif;
             font-size: 12px;
             text-align: center;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
             transition: transform 0.2s, box-shadow 0.2s;
             user-select: none;
             flex-shrink: 0;
+
+            /* Unpurchased state: 50% transparent, darker */
+            opacity: 0.5;
+            filter: brightness(0.6);
+        }
+
+        .upgrade-item:active {
+            cursor: grabbing;
         }
 
         .upgrade-cost-tag {
@@ -766,24 +771,41 @@
             text-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
         }
 
-        .upgrade-item:hover {
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+        .upgrade-item.owned {
+            opacity: 1;
+            filter: brightness(1);
+        }
+
+        /* Engine: yellow (#ffcc00) */
+        .upgrade-item.engine {
+            background: linear-gradient(135deg, rgba(255, 204, 0, 1), rgba(200, 150, 0, 1));
+            border: 1px solid #fc0;
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+        }
+        .upgrade-item.engine:hover {
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.6);
             transform: scale(1.02);
         }
 
-        .upgrade-item:active {
-            cursor: grabbing;
+        /* Economy: green (#22ff66) */
+        .upgrade-item.economy {
+            background: linear-gradient(135deg, rgba(34, 255, 102, 1), rgba(0, 180, 50, 1));
+            border: 1px solid #2f6;
+            box-shadow: 0 0 10px rgba(34, 255, 102, 0.3);
+        }
+        .upgrade-item.economy:hover {
+            box-shadow: 0 0 20px rgba(34, 255, 102, 0.6);
+            transform: scale(1.02);
         }
 
-        .upgrade-item.owned {
-            background: linear-gradient(135deg, rgba(0, 255, 100, 1), rgba(0, 150, 50, 1));
-            border: 1px solid #0f5;
-            box-shadow: 0 0 10px rgba(0, 255, 100, 0.3);
-            color: #afa;
+        /* Defense: blue (#33aaff) */
+        .upgrade-item.defense {
+            background: linear-gradient(135deg, rgba(51, 170, 255, 1), rgba(0, 100, 200, 1));
+            border: 1px solid #3af;
+            box-shadow: 0 0 10px rgba(51, 170, 255, 0.3);
         }
-
-        .upgrade-item.owned:hover {
-            box-shadow: 0 0 20px rgba(0, 255, 100, 0.6);
+        .upgrade-item.defense:hover {
+            box-shadow: 0 0 20px rgba(51, 170, 255, 0.6);
             transform: scale(1.02);
         }
 

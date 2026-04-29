@@ -122,9 +122,13 @@ export function spawnHighValuePickup(scene, pos) {
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
 const _lowMat = new THREE.MeshBasicMaterial({ color: 0x55ee99 });
 
-export function spawnLowValuePickup(scene, wx, wy, wz) {
+let formationIdCounter = 0;
+const formationTracker = {};
+
+export function spawnLowValuePickup(scene, wx, wy, wz, formationId = null) {
     const m = new THREE.Mesh(_lowGeo, _lowMat);
     m.position.set(wx, wy, wz);
+    if (formationId) m.userData.formationId = formationId;
     scene.add(m);
     pickups.push({ mesh: m, type: 'credits_low' });
 }
@@ -135,8 +139,12 @@ export function spawnLowValueFormation(scene, slot) {
     const dx    = slot.dx   ?? 0;
     const dy    = slot.dy   ?? 0;
     const Z_STEP = 8;
+    
+    const fid = ++formationIdCounter;
+    formationTracker[fid] = { total: count, collected: 0 };
+    
     for (let i = 0; i < count; i++) {
-        spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP);
+        spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP, fid);
     }
 }
 
@@ -156,13 +164,22 @@ export function spawnShieldPickup(scene, pos) {
    UPDATE
    ═══════════════════════════════════════════════════════════ */
 
-export function updatePickups(scene, dt, speed, aircraftPos) {
-    const result = { fuel: 0, credits: 0, creditsPos: null, shield: 0 };
+export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0) {
+    const result = { fuel: 0, credits: 0, creditsPos: null, shield: 0, formationCompleted: false };
     for (let i = pickups.length - 1; i >= 0; i--) {
         const p = pickups[i];
         p.mesh.position.z += speed * dt;
         p.mesh.rotation.y += dt * 3;
         p.mesh.rotation.x += dt * 1.7;
+
+        if (magnetStrength > 0) {
+            // Upgrade Logic: Magnet attracts nearby pickups
+            const dist = p.mesh.position.distanceTo(aircraftPos);
+            if (dist < 15) {
+                const dir = aircraftPos.clone().sub(p.mesh.position).normalize();
+                p.mesh.position.add(dir.multiplyScalar(magnetStrength * dt));
+            }
+        }
 
         if (aircraftPos.distanceTo(p.mesh.position) < getCollectRadius(aircraftPos)) {
             switch (p.type) {
@@ -179,6 +196,17 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
                 case 'credits_low':
                     result.credits += 40;
                     result.creditsPos = p.mesh.position.clone();
+                    // Upgrade Logic: Formation Bonus tracking
+                    if (p.mesh.userData.formationId) {
+                        const fid = p.mesh.userData.formationId;
+                        if (formationTracker[fid]) {
+                            formationTracker[fid].collected++;
+                            if (formationTracker[fid].collected >= formationTracker[fid].total) {
+                                result.formationCompleted = true;
+                                delete formationTracker[fid];
+                            }
+                        }
+                    }
                     playCollect2();
                     break;
                 case 'shield':
@@ -192,6 +220,9 @@ export function updatePickups(scene, dt, speed, aircraftPos) {
         }
 
         if (p.mesh.position.z > DESPAWN_Z) {
+            if (p.mesh.userData.formationId) {
+                delete formationTracker[p.mesh.userData.formationId];
+            }
             scene.remove(p.mesh);
             pickups.splice(i, 1);
         }
@@ -203,4 +234,5 @@ export function clearPickups(scene) {
     for (const p of pickups) scene.remove(p.mesh);
     pickups.length = 0;
     clearBurstParticles(scene);
+    for (let key in formationTracker) delete formationTracker[key];
 }

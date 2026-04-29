@@ -23,7 +23,7 @@ import { LEVELS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFor
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
-import { enterUpgradesMenu, exitUpgradesMenu } from './upgrades.js';
+import { enterUpgradesMenu, exitUpgradesMenu, getEquippedUpgrades } from './upgrades.js';
 import Stats from 'stats';
 import { settings, saveSettings } from './settings.js';
 
@@ -357,6 +357,50 @@ function clearCreditsText(scene) {
 let fuel, credits, elapsed, gameOver, boosting;
 let fuelOut = false, fuelOutTimer = 0;
 
+/* ── Upgrades State ───────────────────────────────────────── */
+let upgFuelTankMult = 1.0;
+let upgBaseAccelMult = 1.0;
+let upgTopSpeedMult = 1.0;
+let upgBoostFuelMult = 1.0;
+let upgPassiveCreditsMult = 1.0;
+let upgMagnetStrength = 0;
+let upgFormationBonus = 0;
+let upgShieldDurationBonus = 0;
+let upgInvincibleShield = false;
+let upgPermanentShield = false;
+let upgNavSystem = false;
+let navSystemLight = null;
+
+function applyUpgrades() {
+    // Upgrade Logic: compute multipliers based on equipped upgrades
+    const eq = getEquippedUpgrades().map(u => u.id);
+    
+    upgFuelTankMult = 1.0 + (eq.includes('eng1') ? 0.15 : 0) + (eq.includes('eng3') ? 0.30 : 0);
+    upgBaseAccelMult = 1.0 + (eq.includes('eng2') ? 0.10 : 0) + (eq.includes('eng5') ? 0.25 : 0);
+    upgTopSpeedMult = 1.0 + (eq.includes('eng5') ? 0.25 : 0);
+    upgBoostFuelMult = eq.includes('eng4') ? 0.5 : 1.0;
+    
+    upgPassiveCreditsMult = 1.0 + (eq.includes('eco1') ? 0.10 : 0);
+    upgMagnetStrength = (eq.includes('eco2') ? 10 : 0) + (eq.includes('eco4') ? 15 : 0);
+    upgFormationBonus = eq.includes('eco3') ? 50 : 0;
+    
+    upgShieldDurationBonus = (eq.includes('def1') ? 5 : 0) + (eq.includes('def2') ? 5 : 0);
+    upgInvincibleShield = eq.includes('def3');
+    upgNavSystem = eq.includes('def4');
+    upgPermanentShield = eq.includes('def5');
+
+    if (upgNavSystem && !navSystemLight) {
+        navSystemLight = new THREE.SpotLight(0xff0000, 5.0, 150, 0.2, 0.5, 1);
+        scene.add(navSystemLight);
+        scene.add(navSystemLight.target);
+    } else if (!upgNavSystem && navSystemLight) {
+        scene.remove(navSystemLight);
+        scene.remove(navSystemLight.target);
+        navSystemLight.dispose();
+        navSystemLight = null;
+    }
+}
+
 let spawnTimer, asteroidTimer, fuelPUTimer, formationTimer, creditsTimer, shieldPUTimer, enemyTimer;
 let shieldTimer;
 // How many times enemies have been spawned — drives multi-enemy probability ramp
@@ -516,7 +560,9 @@ const zPlane    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
    INIT  /  RESTART
    ═══════════════════════════════════════════════════════════ */
 function init() {
-    fuel = FUEL_MAX; credits = 0; elapsed = 0;
+    applyUpgrades();
+    const effectiveFuelMax = FUEL_MAX * upgFuelTankMult; // Upgrade Logic: Fuel tank
+    fuel = effectiveFuelMax; credits = 0; elapsed = 0;
     gameOver = false; boosting = false;
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
@@ -693,6 +739,7 @@ function enterMenu() {
     scene.children
         .filter(c => c.isLight || c === guideLine)
         .forEach(c => scene.remove(c));
+    navSystemLight = null; // Removed above
 
     // Create menu
     if (menuController) menuController.dispose();
@@ -786,6 +833,7 @@ function loop() {
     requestAnimationFrame(loop);
     stats.begin();
     const dt = Math.min(clock.getDelta(), 0.05);
+    const effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
 
     /* ── MENU state ───────────────────────────────────── */
     if (gameState === 'MENU') {
@@ -826,7 +874,8 @@ function loop() {
 
     elapsed += dt;
     const shielded = shieldTimer > 0;
-    if (shielded) shieldTimer -= dt;
+    // Upgrade Logic: Permanent Shield
+    if (shielded && !upgPermanentShield) shieldTimer -= dt;
 
     // Level Scaling — speed is set per level, with optional ramp only on final level
     const currentLevel = LEVELS[currentLevelIdx];
@@ -836,7 +885,8 @@ function loop() {
         levelSpeedRamp = levelTimer * currentLevel.speedRampPerSecond;
     }
     const baseSpeed = (OBS_BASE_SPEED + levelSpeedRamp) * currentLevel.speedMultiplier;
-    let speed = boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed;
+    // Upgrade Logic: Top Speed 
+    let speed = (boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed) * upgTopSpeedMult;
     
     // Out of fuel slowdown
     if (fuelOut) {
@@ -848,11 +898,14 @@ function loop() {
     }
 
     const creditsMult = boosting ? BOOST_CREDITS_MULT : 1;
-    credits += dt * (10 + elapsed * 0.5) * creditsMult;
+    // Upgrade Logic: Passive Credits
+    credits += dt * (10 + elapsed * 0.5) * creditsMult * upgPassiveCreditsMult;
 
     /* ── Fuel ─────────────────────────────────────────── */
     if (!fuelOut) {
-        fuel -= dt * (boosting ? 2 : 1);
+        // Upgrade Logic: Eff. Boost uses less extra fuel. (Base 1, Extra 1 * mult)
+        const boostCost = 1 + (1 * upgBoostFuelMult); 
+        fuel -= dt * (boosting ? boostCost : 1);
         if (fuel <= 0) { 
             fuel = 0; 
             fuelOut = true; 
@@ -871,8 +924,9 @@ function loop() {
     target.z = 0;
 
     /* ── Plane steering ───────────────────────────────── */
-    const maxSpd = boosting ? 60 : 20;
-    const accel  = boosting ? 120 : 40;
+    // Upgrade Logic: Steering top speed and acceleration
+    const maxSpd = (boosting ? 60 : 20) * upgTopSpeedMult;
+    const accel  = (boosting ? 120 : 40) * upgBaseAccelMult;
 
     tmpV.subVectors(target, aircraft.position);
     const dist = tmpV.length();
@@ -901,7 +955,7 @@ function loop() {
         : 0.9 + Math.sin(elapsed * 8) * 0.12;
     aircraft.userData.glow.scale.set(pulse, pulse, boosting ? pulse * 2 : pulse);
     aircraft.userData.eLight.intensity = boosting ? 3 : 1.2;
-    const ft = 1 - fuel / FUEL_MAX;
+    const ft = 1 - fuel / effectiveFuelMax;
     matGlow.color.setRGB(
         THREE.MathUtils.lerp(0,    1,    ft),
         THREE.MathUtils.lerp(1,    0.27, ft),
@@ -915,6 +969,12 @@ function loop() {
     lp[3] = target.x;            lp[4] = target.y;            lp[5] = target.z;
     guideLine.geometry.attributes.position.needsUpdate = true;
     matLine.opacity = THREE.MathUtils.clamp(dist * 0.06, 0, 0.4);
+
+    if (navSystemLight) {
+        // Upgrade Logic: Navigation System
+        navSystemLight.position.copy(aircraft.position);
+        navSystemLight.target.position.set(aircraft.position.x, aircraft.position.y, aircraft.position.z - 100);
+    }
 
     /* ── Camera follow ────────────────────────────────── */
     camera.position.x += (aircraft.position.x * 0.35 - camera.position.x) * 3 * dt;
@@ -1090,9 +1150,9 @@ function loop() {
     updatePlanet(dt, speed);
 
     /* ── Update pickups ───────────────────────────────── */
-    const puResult = updatePickups(scene, dt, speed, aircraft.position);
+    const puResult = updatePickups(scene, dt, speed, aircraft.position, upgMagnetStrength); // Upgrade Logic: Magnet
     if (puResult.fuel > 0)   { 
-        fuel = Math.min(FUEL_MAX, fuel + puResult.fuel);
+        fuel = Math.min(FUEL_MAX * upgFuelTankMult, fuel + puResult.fuel); // Upgrade Logic: Fuel tank
         stopFuelLowBeep();
         prevFuelLow = false;
     }
@@ -1106,8 +1166,16 @@ function loop() {
             spawnCreditsText(scene, puResult.creditsPos, puResult.credits);
         }
     }
+    
+    if (puResult.formationCompleted && upgFormationBonus > 0) {
+        // Upgrade Logic: Formation Bonus
+        credits += upgFormationBonus;
+        spawnCollectBurst(scene, puResult.creditsPos || aircraft.position, 0x44ff88);
+        spawnCreditsText(scene, puResult.creditsPos || aircraft.position, upgFormationBonus);
+    }
+    
     if (puResult.shield > 0) {
-        shieldTimer = SHIELD_DURATION;
+        shieldTimer = SHIELD_DURATION + upgShieldDurationBonus; // Upgrade Logic: Shield Duration
         if (!stopShieldHum) stopShieldHum = startShieldHum();
     }
 
@@ -1155,17 +1223,20 @@ function loop() {
         if (gotHit) hitWhileShielded = true;
     }
     if (hitWhileShielded) {
-        // Trigger the 1.5 s flash-out countdown instead of instant removal
-        const FLASH_WINDOW = 1.5;
-        shieldTimer = Math.min(shieldTimer, FLASH_WINDOW);
+        // Upgrade Logic: Invincible Shield
+        if (!upgInvincibleShield) {
+            // Trigger the 1.5 s flash-out countdown instead of instant removal
+            const FLASH_WINDOW = 1.5;
+            shieldTimer = Math.min(shieldTimer, FLASH_WINDOW);
+        }
     }
 
     /* ── HUD ──────────────────────────────────────────── */
     elCredits.textContent = Math.floor(credits);
-    const fuelPct = (fuel / FUEL_MAX) * 100;
+    const fuelPct = (fuel / effectiveFuelMax) * 100;
     elFuel.style.width = fuelPct + '%';
     {
-        const t = 1 - fuel / FUEL_MAX;
+        const t = 1 - fuel / effectiveFuelMax;
         const c1 = `rgb(${Math.round(255 * t)},${Math.round(THREE.MathUtils.lerp(170, 68, t))},${Math.round(THREE.MathUtils.lerp(255, 68, t))})`;
         const c2 = `rgb(${Math.round(THREE.MathUtils.lerp(255, 255, t))},${Math.round(THREE.MathUtils.lerp(255, 136, t))},${Math.round(THREE.MathUtils.lerp(255, 136, t))})`;
         elFuel.style.background = `linear-gradient(90deg, ${c1}, ${c2})`;

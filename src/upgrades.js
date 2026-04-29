@@ -8,19 +8,24 @@ let wasHudVisible = false;
 // Base data
 const UPGRADES_DB = [
     // Engine
-    { id: 'eng1', category: 'engine', name: 'Placeholder', w: 1, h: 2, cost: 500, desc: 'placeholder' },
-    { id: 'eng2', category: 'engine', name: 'Placeholder', w: 2, h: 2, cost: 1500, desc: 'placeholder' },
-    { id: 'eng3', category: 'engine', name: 'Placeholder', w: 3, h: 1, cost: 800, desc: 'placeholder' },
+    { id: 'eng1', category: 'engine', name: '+15% Fuel', w: 1, h: 1, cost: 500, desc: 'Increases fuel tank capacity by 15%.' },
+    { id: 'eng2', category: 'engine', name: '+10% Accel', w: 1, h: 1, cost: 600, desc: 'Increases base acceleration by 10%.' },
+    { id: 'eng3', category: 'engine', name: '+30% Fuel', w: 1, h: 3, cost: 1200, desc: 'Increases fuel tank capacity by 30%.' },
+    { id: 'eng4', category: 'engine', name: 'Eff. Boost', w: 3, h: 1, cost: 1500, desc: 'Boosting uses half the extra fuel.' },
+    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', w: 2, h: 2, cost: 2500, desc: 'Increases base acceleration and top speed by 25%.' },
     
     // Economy
-    { id: 'eco1', category: 'economy', name: 'Placeholder', w: 1, h: 1, cost: 200, desc: 'placeholder' },
-    { id: 'eco2', category: 'economy', name: 'Placeholder', w: 2, h: 1, cost: 600, desc: 'placeholder' },
-    { id: 'eco3', category: 'economy', name: 'Placeholder', w: 2, h: 3, cost: 2000, desc: 'placeholder' },
+    { id: 'eco1', category: 'economy', name: '+10% Pass. Cr.', w: 1, h: 1, cost: 400, desc: 'Increases time-based credits by 10%.' },
+    { id: 'eco2', category: 'economy', name: 'Magnet', w: 3, h: 1, cost: 1000, desc: 'Magnet (10 strength) attracts nearby pickups.' },
+    { id: 'eco3', category: 'economy', name: 'Form. Bonus', w: 1, h: 3, cost: 1500, desc: '+50 credits for collecting every pickup in a formation.' },
+    { id: 'eco4', category: 'economy', name: 'Mega Magnet', w: 2, h: 2, cost: 2000, desc: 'Mega Magnet (15 strength) attracts nearby pickups.' },
     
     // Defense
-    { id: 'def1', category: 'defense', name: 'Placeholder', w: 1, h: 1, cost: 300, desc: 'placeholder' },
-    { id: 'def2', category: 'defense', name: 'Placeholder', w: 1, h: 3, cost: 1200, desc: 'placeholder' },
-    { id: 'def3', category: 'defense', name: 'Placeholder', w: 3, h: 2, cost: 2500, desc: 'placeholder' },
+    { id: 'def1', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def2', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def3', category: 'defense', name: 'Inv. Shield', w: 1, h: 3, cost: 1500, desc: 'Shield cannot be destroyed by impact.' },
+    { id: 'def4', category: 'defense', name: 'Nav System', w: 3, h: 1, cost: 1800, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
+    { id: 'def5', category: 'defense', name: 'Perm. Shield', w: 2, h: 2, cost: 3000, desc: 'Shield never expires.' },
 ];
 
 let selectedUpgrade = null;
@@ -278,7 +283,7 @@ function renderUpgradesLists() {
         const u = UPGRADES_DB.find(upg => upg.id === eq.id);
         if (u) {
             const item = document.createElement('div');
-            item.className = 'upgrade-item owned';
+            item.className = `upgrade-item owned ${u.category}`;
             item.style.flexDirection = 'column';
             item.dataset.id = u.id;
             
@@ -316,7 +321,7 @@ function renderUpgradesLists() {
             container.className = 'upgrade-container';
             
             const item = document.createElement('div');
-            item.className = 'upgrade-item';
+            item.className = `upgrade-item ${u.category}`;
             if (isOwned) item.classList.add('owned');
             item.style.flexDirection = 'column';
             item.dataset.id = u.id;

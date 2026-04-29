@@ -67,7 +67,7 @@ export const LEVELS = [
             gapOffset: 5,
         },
         // minor speed ramp only on the final level
-        speedRampPerSecond: 0.15,
+        speedRampPerSecond: 0.2,
     },
 ];
 
