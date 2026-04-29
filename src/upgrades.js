@@ -9,33 +9,82 @@ let wasHudVisible = false;
 // Base data
 const UPGRADES_DB = [
     // Engine
-    { id: 'eng1', category: 'engine', name: '+15% Fuel', w: 1, h: 1, cost: 500, desc: 'Increases fuel tank capacity by 15%.' },
-    { id: 'eng2', category: 'engine', name: '+10% Accel', w: 1, h: 1, cost: 600, desc: 'Increases base handling by 10%. ' },
-    { id: 'eng3', category: 'engine', name: '+30% Fuel', w: 1, h: 3, cost: 1200, desc: 'Increases fuel tank capacity by 30%.' },
-    { id: 'eng4', category: 'engine', name: 'Eff. Boost', w: 3, h: 1, cost: 1500, desc: 'Boosting uses half the extra fuel.' },
-    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', w: 2, h: 2, cost: 2500, desc: 'Increases base handling and top speed by 25%.' },
+    { id: 'eng1', category: 'engine', name: '+15% Fuel', emoji: '⛽', w: 1, h: 1, cost: 500, desc: 'Increases fuel tank capacity by 15%.' },
+    { id: 'eng2', category: 'engine', name: '+10% Accel', emoji: '⚡', w: 1, h: 1, cost: 600, desc: 'Increases base handling by 10%. ' },
+    { id: 'eng3', category: 'engine', name: '+30% Fuel', emoji: '⛽', w: 1, h: 3, cost: 1200, desc: 'Increases fuel tank capacity by 30%.' },
+    { id: 'eng4', category: 'engine', name: 'Eff. Boost', emoji: '🍃', w: 3, h: 1, cost: 1500, desc: 'Boosting uses half the extra fuel.' },
+    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', emoji: '🚀', w: 2, h: 2, cost: 2500, desc: 'Increases base handling and top speed by 25%.' },
+    { id: 'eng6', category: 'engine', name: 'Boost Power', emoji: '🔥', w: 1, h: 3, cost: 1800, desc: 'Increases boost acceleration and speed by 50%.' },
     
     // Economy
-    { id: 'eco1', category: 'economy', name: '+10% Pass. Cr.', w: 1, h: 1, cost: 400, desc: 'Increases time-based credits by 10%.' },
-    { id: 'eco2', category: 'economy', name: 'Magnet', w: 3, h: 1, cost: 1000, desc: 'Magnet (10 strength) attracts nearby pickups.' },
-    { id: 'eco3', category: 'economy', name: 'Form. Bonus', w: 1, h: 3, cost: 1500, desc: '+50 credits for collecting every pickup in a formation.' },
-    { id: 'eco4', category: 'economy', name: 'Mega Magnet', w: 2, h: 2, cost: 2000, desc: 'Mega Magnet (15 strength) attracts nearby pickups.' },
+    { id: 'eco1', category: 'economy', name: '+10% Pass. Cr.', emoji: '📈', w: 1, h: 1, cost: 400, desc: 'Increases time-based credits by 10%.' },
+    { id: 'eco2', category: 'economy', name: 'Magnet', emoji: '🧲', w: 3, h: 1, cost: 1000, desc: 'Magnet (10 strength) attracts nearby pickups.' },
+    { id: 'eco3', category: 'economy', name: 'Form. Bonus', emoji: '💎', w: 1, h: 3, cost: 1500, desc: '+50 credits for collecting every pickup in a formation.' },
+    { id: 'eco4', category: 'economy', name: 'Mega Magnet', emoji: '🧲', w: 2, h: 2, cost: 2000, desc: 'Mega Magnet (15 strength) attracts nearby pickups.' },
     
     // Defense
-    { id: 'def1', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
-    { id: 'def2', category: 'defense', name: '+5s Shield', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
-    // { id: 'def3', category: 'defense', name: 'Inv. Shield', w: 1, h: 3, cost: 1500, desc: 'Shield cannot be destroyed by impact.' },
-    { id: 'def4', category: 'defense', name: 'Nav System', w: 3, h: 1, cost: 1800, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
-    { id: 'def5', category: 'defense', name: 'Perm. Shield', w: 2, h: 2, cost: 3000, desc: 'Shield never expires.' },
+    { id: 'def1', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def2', category: 'defense', name: '+5s Shield', emoji: '🛡️', w: 1, h: 1, cost: 500, desc: 'Increases shield duration by 5 seconds.' },
+    { id: 'def4', category: 'defense', name: 'Nav System', emoji: '📡', w: 3, h: 1, cost: 1800, desc: 'Projects a red light onto surfaces directly in front of the plane.' },
+    { id: 'def5', category: 'defense', name: 'Perm. Shield', emoji: '💠', w: 2, h: 2, cost: 3000, desc: 'Shield never expires.' },
 ];
 
 let selectedUpgrade = null;
+let selectedLockIndex = -1;
 let bankedCredits = 0;
 let ownedUpgrades = [];
 let equippedUpgrades = []; // { id, x, y }
-let activeCategory = 'engine';
+let unlockedCellIndices = [];
 let currentlyDraggingId = null;
 let dragOffset = { x: 0, y: 0 };
+const layoutCache = {};
+
+function getCategoryLayout(cat) {
+    if (layoutCache[cat]) return layoutCache[cat];
+    const items = UPGRADES_DB.filter(u => u.category === cat);
+    items.sort((a, b) => (a.w * a.h) - (b.w * b.h));
+    
+    const COLS = 4;
+    const grid = [];
+    const positions = {}; 
+    
+    const canPlace = (w, h, x, y) => {
+        if (x + w > COLS) return false;
+        for (let cy = y; cy < y + h; cy++) {
+            if (!grid[cy]) grid[cy] = Array(COLS).fill(false);
+            for (let cx = x; cx < x + w; cx++) {
+                if (grid[cy][cx]) return false;
+            }
+        }
+        return true;
+    };
+    
+    const place = (w, h, x, y) => {
+        for (let cy = y; cy < y + h; cy++) {
+            if (!grid[cy]) grid[cy] = Array(COLS).fill(false);
+            for (let cx = x; cx < x + w; cx++) {
+                grid[cy][cx] = true;
+            }
+        }
+    };
+    
+    items.forEach(u => {
+        let placed = false;
+        for (let y = 0; !placed; y++) {
+            for (let x = 0; x <= COLS - u.w; x++) {
+                if (canPlace(u.w, u.h, x, y)) {
+                    place(u.w, u.h, x, y);
+                    positions[u.id] = { x, y };
+                    placed = true;
+                    break;
+                }
+            }
+        }
+    });
+    
+    layoutCache[cat] = positions;
+    return positions;
+}
 
 export function getBankedCredits() {
     if (DEVELOPMENT_MODE) return 99999;
@@ -58,15 +107,45 @@ function loadProgress() {
     try {
         ownedUpgrades = JSON.parse(localStorage.getItem('ownedUpgrades') || '[]');
         equippedUpgrades = JSON.parse(localStorage.getItem('equippedUpgrades') || '[]');
+        unlockedCellIndices = JSON.parse(localStorage.getItem('unlockedCellIndices') || '[]');
     } catch (e) {
         ownedUpgrades = [];
         equippedUpgrades = [];
+        unlockedCellIndices = [];
     }
+    validateEquippedUpgrades();
 }
 
 function saveProgress() {
     localStorage.setItem('ownedUpgrades', JSON.stringify(ownedUpgrades));
     localStorage.setItem('equippedUpgrades', JSON.stringify(equippedUpgrades));
+    localStorage.setItem('unlockedCellIndices', JSON.stringify(unlockedCellIndices));
+}
+
+function validateEquippedUpgrades() {
+    let validEquipped = [];
+    for (const eq of equippedUpgrades) {
+        const u = UPGRADES_DB.find(upg => upg.id === eq.id);
+        if (!u) continue; 
+        
+        if (eq.x < 0 || eq.y < 0 || eq.x + u.w > 6 || eq.y + u.h > 3) continue;
+
+        const cells = getOccupiedCells(eq.id, eq.x, eq.y, u.w, u.h);
+        
+        let valid = true;
+        for (let c of cells) {
+            const cx = c % 6;
+            if (cx >= 3 && !unlockedCellIndices.includes(c)) valid = false;
+        }
+        
+        if (valid) {
+            validEquipped.push(eq);
+        }
+    }
+    if (validEquipped.length !== equippedUpgrades.length) {
+        equippedUpgrades = validEquipped;
+        saveProgress();
+    }
 }
 
 export function getEquippedUpgrades() {
@@ -158,17 +237,6 @@ export function exitUpgradesMenu(scene, camera) {
 }
 
 function initUpgradesUI() {
-    // Set up category buttons
-    const catBtns = document.querySelectorAll('.cat-btn');
-    catBtns.forEach(btn => {
-        btn.onclick = () => {
-            catBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            activeCategory = btn.dataset.cat;
-            renderUpgradesLists();
-        };
-    });
-
     renderUpgradesLists();
 }
 
@@ -180,102 +248,140 @@ function renderUpgradesLists() {
         Array.from(gridEl.children).forEach(c => c.classList.remove('drag-over', 'drag-invalid'));
     }
 
-    // Create 15 grid cells (5x3)
-    for (let i = 0; i < 15; i++) {
-        const gridX = i % 5;
-        const gridY = Math.floor(i / 5);
+    // Create 18 grid cells (6x3)
+    for (let i = 0; i < 18; i++) {
+        const gridX = i % 6;
+        const gridY = Math.floor(i / 6);
         const cell = document.createElement('div');
         cell.className = 'grid-cell';
         cell.dataset.index = i;
         cell.style.gridColumn = `${gridX + 1}`;
         cell.style.gridRow = `${gridY + 1}`;
         
-        cell.onclick = () => {
-            const eq = equippedUpgrades.find(e => {
-                const def = UPGRADES_DB.find(upg => upg.id === e.id);
-                const cells = getOccupiedCells(e.id, e.x, e.y, def.w, def.h);
-                return cells.includes(i);
-            });
-            if (eq) {
-                const u = UPGRADES_DB.find(upg => upg.id === eq.id);
-                if (u) selectUpgrade(u);
-            }
-        };
-
-        cell.draggable = true;
-        cell.ondragstart = (e) => {
-            const eq = equippedUpgrades.find(e => {
-                const def = UPGRADES_DB.find(upg => upg.id === e.id);
-                if (!def) return false;
-                const cells = getOccupiedCells(e.id, e.x, e.y, def.w, def.h);
-                return cells.includes(i);
-            });
-            if (eq) {
-                const u = UPGRADES_DB.find(upg => upg.id === eq.id);
-                if (u) {
-                    selectUpgrade(u);
-                    currentlyDraggingId = u.id;
-                    const clickX = i % 5;
-                    const clickY = Math.floor(i / 5);
-                    dragOffset.x = clickX - eq.x;
-                    dragOffset.y = clickY - eq.y;
-                    
-                    // Find the visual element to use as drag image
-                    const visualItem = Array.from(gridEl.children).find(c => c.dataset.id === u.id);
-                    if (visualItem) {
-                        const CELL_FULL = 64; // 60px cell + 4px gap
-                        e.dataTransfer.setDragImage(visualItem, dragOffset.x * CELL_FULL + 30, dragOffset.y * CELL_FULL + 30);
-                    }
-                    
-                    e.dataTransfer.setData('text/plain', u.id);
-                } else {
-                    e.preventDefault();
-                }
-            } else {
-                if (!currentlyDraggingId) e.preventDefault();
-            }
-        };
+        const isLocked = gridX >= 3 && !unlockedCellIndices.includes(i);
         
-        cell.ondragover = (e) => {
-            e.preventDefault();
-            if (currentlyDraggingId) {
-                const u = UPGRADES_DB.find(upg => upg.id === currentlyDraggingId);
-                if (u) {
-                    const targetX = gridX - dragOffset.x;
-                    const targetY = gridY - dragOffset.y;
-                    const isBoundsValid = (targetX >= 0 && targetY >= 0 && targetX + u.w <= 5 && targetY + u.h <= 3);
-                    
-                    // Performance optimization: only redraw if the target cell changed
-                    const stateKey = `${currentlyDraggingId}_${targetX}_${targetY}`;
-                    if (cell.dataset.lastHoverState === stateKey) return;
-                    cell.dataset.lastHoverState = stateKey;
-                    
-                    clearAllDragOver();
-                    
-                    // Forgiving UI: any drop in bounds is "valid" and will trigger smart displacement
-                    if (isBoundsValid) {
-                        for(let cy=targetY; cy<targetY+u.h; cy++){
-                            for(let cx=targetX; cx<targetX+u.w; cx++){
-                                const targetIdx = cy * 5 + cx;
-                                const targetCell = gridEl.children[targetIdx];
-                                if (targetCell && targetCell.classList.contains('grid-cell')) {
-                                    targetCell.classList.add('drag-over');
+        if (isLocked) {
+            cell.innerHTML = '<span class="monochrome-emoji">🔒</span>';
+            cell.style.display = 'flex';
+            cell.style.alignItems = 'center';
+            cell.style.justifyContent = 'center';
+            cell.style.fontSize = '24px';
+            cell.style.background = 'rgba(255, 0, 0, 0.05)';
+            cell.style.borderColor = 'rgba(255, 0, 0, 0.2)';
+            cell.style.cursor = 'pointer';
+            
+            if (i === selectedLockIndex) {
+                cell.classList.add('selected');
+            }
+
+            cell.onclick = () => selectLockSpace(i);
+        } else {
+            cell.onclick = () => {
+                const eq = equippedUpgrades.find(e => {
+                    const def = UPGRADES_DB.find(upg => upg.id === e.id);
+                    const cells = getOccupiedCells(e.id, e.x, e.y, def.w, def.h);
+                    return cells.includes(i);
+                });
+                if (eq) {
+                    const u = UPGRADES_DB.find(upg => upg.id === eq.id);
+                    if (u) selectUpgrade(u);
+                }
+            };
+
+            cell.draggable = true;
+            cell.ondragstart = (e) => {
+                const eq = equippedUpgrades.find(e => {
+                    const def = UPGRADES_DB.find(upg => upg.id === e.id);
+                    if (!def) return false;
+                    const cells = getOccupiedCells(e.id, e.x, e.y, def.w, def.h);
+                    return cells.includes(i);
+                });
+                if (eq) {
+                    const u = UPGRADES_DB.find(upg => upg.id === eq.id);
+                    if (u) {
+                        selectUpgrade(u);
+                        currentlyDraggingId = u.id;
+                        const clickX = i % 6;
+                        const clickY = Math.floor(i / 6);
+                        dragOffset.x = clickX - eq.x;
+                        dragOffset.y = clickY - eq.y;
+                        
+                        const visualItem = Array.from(gridEl.children).find(c => c.dataset.id === u.id);
+                        if (visualItem) {
+                            const CELL_FULL = 64; 
+                            e.dataTransfer.setDragImage(visualItem, dragOffset.x * CELL_FULL + 30, dragOffset.y * CELL_FULL + 30);
+                        }
+                        
+                        e.dataTransfer.setData('text/plain', u.id);
+                    } else {
+                        e.preventDefault();
+                    }
+                } else {
+                    if (!currentlyDraggingId) e.preventDefault();
+                }
+            };
+            
+            cell.ondragover = (e) => {
+                e.preventDefault();
+                if (currentlyDraggingId) {
+                    const u = UPGRADES_DB.find(upg => upg.id === currentlyDraggingId);
+                    if (u) {
+                        const targetX = gridX - dragOffset.x;
+                        const targetY = gridY - dragOffset.y;
+                        const isBoundsValid = (targetX >= 0 && targetY >= 0 && targetX + u.w <= 6 && targetY + u.h <= 3);
+                        
+                        let hasLocked = false;
+                        if (isBoundsValid) {
+                            for(let cy=targetY; cy<targetY+u.h; cy++){
+                                for(let cx=targetX; cx<targetX+u.w; cx++){
+                                    const tIdx = cy * 6 + cx;
+                                    if (cx >= 3 && !unlockedCellIndices.includes(tIdx)) {
+                                        hasLocked = true;
+                                    }
+                                }
+                            }
+                        }
+
+                        const stateKey = `${currentlyDraggingId}_${targetX}_${targetY}`;
+                        if (cell.dataset.lastHoverState === stateKey) return;
+                        cell.dataset.lastHoverState = stateKey;
+                        
+                        clearAllDragOver();
+                        
+                        if (isBoundsValid && !hasLocked) {
+                            for(let cy=targetY; cy<targetY+u.h; cy++){
+                                for(let cx=targetX; cx<targetX+u.w; cx++){
+                                    const targetIdx = cy * 6 + cx;
+                                    const targetCell = gridEl.children[targetIdx];
+                                    if (targetCell && targetCell.classList.contains('grid-cell')) {
+                                        targetCell.classList.add('drag-over');
+                                    }
+                                }
+                            }
+                        } else if (isBoundsValid && hasLocked) {
+                            for(let cy=targetY; cy<targetY+u.h; cy++){
+                                for(let cx=targetX; cx<targetX+u.w; cx++){
+                                    const targetIdx = cy * 6 + cx;
+                                    const targetCell = gridEl.children[targetIdx];
+                                    if (targetCell && targetCell.classList.contains('grid-cell')) {
+                                        targetCell.classList.add('drag-invalid');
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-        };
-        cell.ondragleave = () => { 
-            delete cell.dataset.lastHoverState;
-            clearAllDragOver(); 
-        };
-        cell.ondrop = (e) => { 
-            delete cell.dataset.lastHoverState;
-            clearAllDragOver(); 
-            handleDrop(e, i); 
-        };
+            };
+            cell.ondragleave = () => { 
+                delete cell.dataset.lastHoverState;
+                clearAllDragOver(); 
+            };
+            cell.ondrop = (e) => { 
+                delete cell.dataset.lastHoverState;
+                clearAllDragOver(); 
+                handleDrop(e, i); 
+            };
+        }
         
         gridEl.appendChild(cell);
     }
@@ -290,8 +396,21 @@ function renderUpgradesLists() {
             item.dataset.id = u.id;
             
             const nameEl = document.createElement('div');
-            nameEl.textContent = u.name;
+            nameEl.className = 'upgrade-name';
+            
+            // Emoji Scaling logic
+            let fs = 24;
+            if (u.w === 1 && u.h === 1) fs = 20; // 0.8x
+            else if ((u.w === 3 && u.h === 1) || (u.w === 1 && u.h === 3)) fs = 29; // 1.2x
+            else if (u.w === 2 && u.h === 2) fs = 48; // 2.0x
+            
+            nameEl.style.fontSize = fs + 'px';
+            nameEl.textContent = u.emoji;
             item.appendChild(nameEl);
+            
+            if (selectedUpgrade && u.id === selectedUpgrade.id) {
+                item.classList.add('selected');
+            }
 
             item.style.position = 'relative';
             item.style.gridColumn = `${eq.x + 1} / span ${u.w}`;
@@ -307,67 +426,111 @@ function renderUpgradesLists() {
         }
     });
 
-    // Populate available list
-    const availableEl = document.getElementById('available-list');
-    availableEl.innerHTML = '';
-    
-    const CELL_SIZE = 60; 
-    const GAP = 4;
-
-    UPGRADES_DB.forEach(u => {
-        const isOwned = ownedUpgrades.includes(u.id);
-        const eqInfo = equippedUpgrades.find(eq => eq.id === u.id);
+    // Populate available lists
+    ['engine', 'economy', 'defense'].forEach(cat => {
+        const colEl = document.getElementById(`available-list-${cat}`);
+        if (!colEl) return;
+        colEl.innerHTML = '';
         
-        if (!eqInfo && u.category === activeCategory) {
+        const catLayout = getCategoryLayout(cat);
+
+        UPGRADES_DB.forEach(u => {
+            if (u.category !== cat) return;
+            const isOwned = ownedUpgrades.includes(u.id);
+            const eqInfo = equippedUpgrades.find(eq => eq.id === u.id);
+            const pos = catLayout[u.id];
+            
             const container = document.createElement('div');
             container.className = 'upgrade-container';
+            container.style.gridColumn = `${pos.x + 1} / span ${u.w}`;
+            container.style.gridRow = `${pos.y + 1} / span ${u.h}`;
             
-            const item = document.createElement('div');
-            item.className = `upgrade-item ${u.category}`;
-            if (isOwned) item.classList.add('owned');
-            item.style.flexDirection = 'column';
-            item.dataset.id = u.id;
-            
-            const nameEl = document.createElement('div');
-            nameEl.textContent = u.name;
-            item.appendChild(nameEl);
+            if (eqInfo) {
+                // Placeholder for equipped item to keep positions locked
+                const placeholder = document.createElement('div');
+                placeholder.className = 'upgrade-placeholder';
+                placeholder.style.width = '100%';
+                placeholder.style.height = '100%';
+                container.appendChild(placeholder);
+            } else {
+                const item = document.createElement('div');
+                item.className = `upgrade-item ${u.category}`;
+                if (isOwned) item.classList.add('owned');
+                if (selectedUpgrade && u.id === selectedUpgrade.id) item.classList.add('selected');
+                item.style.flexDirection = 'column';
+                item.dataset.id = u.id;
+                
+                const nameEl = document.createElement('div');
+                nameEl.className = 'upgrade-name';
+                
+                // Emoji Scaling logic
+                let fs = 24;
+                if (u.w === 1 && u.h === 1) fs = 20; // 0.8x
+                else if ((u.w === 3 && u.h === 1) || (u.w === 1 && u.h === 3)) fs = 29; // 1.2x
+                else if (u.w === 2 && u.h === 2) fs = 48; // 2.0x
+                
+                nameEl.style.fontSize = fs + 'px';
+                nameEl.textContent = u.emoji;
+                item.appendChild(nameEl);
 
-            item.draggable = isOwned;
-            item.addEventListener('click', () => selectUpgrade(u));
-            item.addEventListener('dragstart', (e) => {
-                selectUpgrade(u);
-                currentlyDraggingId = u.id;
-                const rect = item.getBoundingClientRect();
-                const CELL_FULL = 64;
-                dragOffset.x = Math.floor((e.clientX - rect.left) / CELL_FULL);
-                dragOffset.y = Math.floor((e.clientY - rect.top) / CELL_FULL);
-                e.dataTransfer.setData('text/plain', u.id);
-            });
-            item.addEventListener('dragend', () => {
-                currentlyDraggingId = null;
-                const gridEl = document.getElementById('active-grid');
-                Array.from(gridEl.children).forEach(c => c.classList.remove('drag-over', 'drag-invalid'));
-            });
+                item.draggable = isOwned;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectUpgrade(u);
+                });
+                item.addEventListener('dragstart', (e) => {
+                    selectUpgrade(u);
+                    currentlyDraggingId = u.id;
+                    const rect = item.getBoundingClientRect();
+                    const CELL_FULL = 64;
+                    dragOffset.x = Math.floor((e.clientX - rect.left) / CELL_FULL);
+                    dragOffset.y = Math.floor((e.clientY - rect.top) / CELL_FULL);
+                    e.dataTransfer.setData('text/plain', u.id);
+                });
+                item.addEventListener('dragend', () => {
+                    currentlyDraggingId = null;
+                    const gridEl = document.getElementById('active-grid');
+                    Array.from(gridEl.children).forEach(c => c.classList.remove('drag-over', 'drag-invalid'));
+                });
 
-            item.style.position = 'relative';
-            item.style.width = `${u.w * CELL_SIZE + (u.w - 1) * GAP}px`;
-            item.style.height = `${u.h * CELL_SIZE + (u.h - 1) * GAP}px`;
-            item.style.flexShrink = '0';
-            
-            container.appendChild(item);
-            
-            if (!isOwned) {
-                const costTag = document.createElement('div');
-                costTag.className = 'upgrade-cost-tag';
-                costTag.textContent = `${u.cost} Credits`;
-                container.appendChild(costTag);
+                item.style.position = 'relative';
+                item.style.width = '100%';
+                item.style.height = '100%';
+                item.style.flexShrink = '0';
+                
+                container.appendChild(item);
+                
+                if (!isOwned) {
+                    const costTag = document.createElement('div');
+                    costTag.className = 'upgrade-item-cost';
+                    costTag.textContent = `${u.cost}`;
+                    item.appendChild(costTag);
+                }
             }
             
-            availableEl.appendChild(container);
-        }
+            colEl.appendChild(container);
+        });
     });
 
-    if (selectedUpgrade) selectUpgrade(selectedUpgrade);
+    if (selectedUpgrade) {
+        const u = selectedUpgrade;
+        document.getElementById('info-title').textContent = u.name;
+        const isOwned = ownedUpgrades.includes(u.id);
+        document.getElementById('info-desc').textContent = u.desc;
+        const buyBtn = document.getElementById('buy-btn');
+        if (isOwned) {
+            buyBtn.disabled = true;
+            buyBtn.textContent = 'PURCHASED';
+        } else {
+            if (bankedCredits >= u.cost) {
+                buyBtn.disabled = false;
+                buyBtn.textContent = `BUY (${u.cost})`;
+            } else {
+                buyBtn.disabled = true;
+                buyBtn.textContent = `INSUFFICIENT (${u.cost})`;
+            }
+        }
+    }
 }
 
 function handleDrop(e, cellIndex) {
@@ -382,13 +545,21 @@ function handleDrop(e, cellIndex) {
         return; 
     }
 
-    const gridX = cellIndex % 5;
-    const gridY = Math.floor(cellIndex / 5);
+    const gridX = cellIndex % 6;
+    const gridY = Math.floor(cellIndex / 6);
     const targetX = gridX - dragOffset.x;
     const targetY = gridY - dragOffset.y;
 
     // Check bounds
-    if (targetX < 0 || targetY < 0 || targetX + u.w > 5 || targetY + u.h > 3) return;
+    if (targetX < 0 || targetY < 0 || targetX + u.w > 6 || targetY + u.h > 3) return;
+
+    // Check if any target cell is locked
+    const newCells = getOccupiedCells(u.id, targetX, targetY, u.w, u.h);
+    const hasLocked = newCells.some(c => {
+        const cx = c % 6;
+        return cx >= 3 && !unlockedCellIndices.includes(c);
+    });
+    if (hasLocked) return;
 
     const fromEq = equippedUpgrades.find(eq => eq.id === u.id);
 
@@ -396,7 +567,6 @@ function handleDrop(e, cellIndex) {
     equippedUpgrades = equippedUpgrades.filter(eq => eq.id !== u.id);
 
     // Find all items overlapping the drop zone
-    const newCells = getOccupiedCells(u.id, targetX, targetY, u.w, u.h);
     const overlapping = equippedUpgrades.filter(eq => {
         const eqDef = UPGRADES_DB.find(upg => upg.id === eq.id);
         if (!eqDef) return false;
@@ -412,8 +582,15 @@ function handleDrop(e, cellIndex) {
 
     // Helper to check if a spot is free for a displaced item
     const canPlaceAt = (testId, w, h, x, y) => {
-        if (x < 0 || y < 0 || x + w > 5 || y + h > 3) return false;
+        if (x < 0 || y < 0 || x + w > 6 || y + h > 3) return false;
         const cells = getOccupiedCells(testId, x, y, w, h);
+        
+        const hasLockedCell = cells.some(c => {
+            const cx = c % 6;
+            return cx >= 3 && !unlockedCellIndices.includes(c);
+        });
+        if (hasLockedCell) return false;
+
         return !equippedUpgrades.some(eq => {
             const def = UPGRADES_DB.find(upg => upg.id === eq.id);
             if (!def) return false;
@@ -440,7 +617,7 @@ function handleDrop(e, cellIndex) {
         
         // Priority 2: Scan the grid for the first available spot
         for (let y = 0; y <= 3 - otherDef.h && !placed; y++) {
-            for (let x = 0; x <= 5 - otherDef.w && !placed; x++) {
+            for (let x = 0; x <= 6 - otherDef.w && !placed; x++) {
                 if (canPlaceAt(other.id, otherDef.w, otherDef.h, x, y)) {
                     other.x = x;
                     other.y = y;
@@ -449,8 +626,6 @@ function handleDrop(e, cellIndex) {
                 }
             }
         }
-        
-        // If not placed, it remains out of equippedUpgrades (sent to inventory)
     }
 
     saveProgress();
@@ -461,7 +636,7 @@ function getOccupiedCells(id, x, y, w, h) {
     const cells = [];
     for(let cy=y; cy<y+h; cy++){
         for(let cx=x; cx<x+w; cx++){
-            cells.push(cy * 5 + cx);
+            cells.push(cy * 6 + cx);
         }
     }
     return cells;
@@ -475,26 +650,64 @@ document.getElementById('screen-available').ondrop = (e) => {
     if (id) {
         const u = UPGRADES_DB.find(upg => upg.id === id);
         if (u) {
-            activeCategory = u.category;
-            // Update sidebar buttons visual state
-            const catBtns = document.querySelectorAll('.cat-btn');
-            catBtns.forEach(btn => {
-                if (btn.dataset.cat === activeCategory) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
+            equippedUpgrades = equippedUpgrades.filter(eq => eq.id !== id);
+            saveProgress();
+            renderUpgradesLists();
         }
-        equippedUpgrades = equippedUpgrades.filter(eq => eq.id !== id);
-        saveProgress();
-        renderUpgradesLists();
     }
 };
 
+function selectLockSpace(index) {
+    selectedLockIndex = index;
+    selectedUpgrade = null;
+    
+    document.querySelectorAll('.grid-cell').forEach(c => {
+        if (parseInt(c.dataset.index) === index) c.classList.add('selected');
+        else c.classList.remove('selected');
+    });
+    document.querySelectorAll('.upgrade-item').forEach(item => item.classList.remove('selected'));
+    
+    const cost = 5000 + unlockedCellIndices.length * 5000;
+    document.getElementById('info-title').textContent = 'LOCKED SPACE';
+    document.getElementById('info-desc').textContent = 'Unlock this grid space to equip more upgrades.';
+    
+    const buyBtn = document.getElementById('buy-btn');
+    if (bankedCredits >= cost) {
+        buyBtn.disabled = false;
+        buyBtn.textContent = `UNLOCK (${cost})`;
+    } else {
+        buyBtn.disabled = true;
+        buyBtn.textContent = `INSUFFICIENT (${cost})`;
+    }
+
+    buyBtn.onclick = () => {
+        if (bankedCredits >= cost) {
+            spendCredits(cost);
+            unlockedCellIndices.push(index);
+            selectedLockIndex = -1; // Deselect after purchase
+            saveProgress();
+            renderUpgradesLists();
+            
+            document.getElementById('info-title').textContent = 'SPACE UNLOCKED';
+            document.getElementById('info-desc').textContent = 'You can now equip upgrades here.';
+            buyBtn.disabled = true;
+            buyBtn.textContent = 'UNLOCKED';
+        }
+    };
+}
+
 function selectUpgrade(u) {
     selectedUpgrade = u;
+    selectedLockIndex = -1;
+    
+    document.querySelectorAll('.grid-cell').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('.upgrade-item').forEach(item => {
+        if (item.dataset.id === u.id) item.classList.add('selected');
+        else item.classList.remove('selected');
+    });
+    
     document.getElementById('info-title').textContent = u.name;
     const isOwned = ownedUpgrades.includes(u.id);
-
-    document.getElementById('info-cost').textContent = isOwned ? 'OWNED' : `Cost: ${u.cost} CREDITS`;
     document.getElementById('info-desc').textContent = u.desc;
     
     const buyBtn = document.getElementById('buy-btn');
@@ -504,10 +717,10 @@ function selectUpgrade(u) {
     } else {
         if (bankedCredits >= u.cost) {
             buyBtn.disabled = false;
-            buyBtn.textContent = 'BUY';
+            buyBtn.textContent = `BUY (${u.cost})`;
         } else {
             buyBtn.disabled = true;
-            buyBtn.textContent = 'INSUFFICIENT CREDITS';
+            buyBtn.textContent = `INSUFFICIENT (${u.cost})`;
         }
     }
 
@@ -516,7 +729,7 @@ function selectUpgrade(u) {
             spendCredits(u.cost);
             ownedUpgrades.push(u.id);
             saveProgress();
-            renderUpgradesLists(); // refreshes UI to show 'PURCHASED' and green color
+            renderUpgradesLists();
         }
     };
 }

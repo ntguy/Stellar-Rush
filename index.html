@@ -61,6 +61,7 @@
         }
 
         #fuel-wrap {
+            position: relative;
             width: 200px;
             height: 14px;
             margin-top: 8px;
@@ -68,6 +69,12 @@
             border-radius: 7px;
             border: 1px solid rgba(255, 255, 255, 0.2);
             overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        #fuel-wrap.boosting {
+            border-color: #f60;
+            box-shadow: 0 0 12px rgba(255, 100, 0, 0.5);
         }
 
         #fuel-bar {
@@ -76,6 +83,21 @@
             border-radius: 7px;
             background: linear-gradient(90deg, #0af, #0ff);
             transition: width 0.1s linear;
+            position: relative;
+            z-index: 2;
+        }
+
+        #fuel-bar-boost {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #f60, #f90);
+            z-index: 1;
+            transition: width 0.1s linear;
+            border-radius: 7px;
+            opacity: 0;
         }
 
         #fuel-bar.low {
@@ -699,7 +721,7 @@
         /* Grids */
         .upgrade-grid {
             display: grid;
-            grid-template-columns: repeat(5, 60px);
+            grid-template-columns: repeat(6, 60px);
             grid-template-rows: repeat(3, 60px);
             gap: 4px;
             padding: 10px;
@@ -728,13 +750,15 @@
             border-color: #f55;
         }
 
-        #available-list {
-            display: flex;
-            gap: 15px;
-            padding: 20px;
-            overflow-x: auto;
+        .available-list-col {
+            display: grid;
+            grid-template-columns: repeat(4, 60px);
+            grid-auto-rows: 60px;
+            gap: 4px;
+            padding: 10px;
+            overflow-y: auto;
             height: calc(100% - 35px);
-            align-items: flex-start;
+            justify-content: center;
         }
 
         /* Upgrade Item */
@@ -742,11 +766,12 @@
             position: relative;
             display: flex;
             justify-content: center;
-            width: fit-content;
-            margin-bottom: 25px;
+            width: 100%;
+            height: 100%;
         }
 
         .upgrade-item {
+            position: relative;
             border-radius: 6px;
             cursor: grab;
             display: flex;
@@ -759,31 +784,50 @@
             transition: transform 0.2s, box-shadow 0.2s;
             user-select: none;
             flex-shrink: 0;
+            overflow: hidden;
+        }
 
-            /* Unpurchased state: 50% transparent, darker */
-            opacity: 0.5;
-            filter: brightness(0.6);
+        .upgrade-item:not(.owned)::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 0;
+        }
+
+        .upgrade-item > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .upgrade-name {
+            padding: 5px;
+            font-weight: 700;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+        }
+
+        .upgrade-item-cost {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.9);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+        }
+
+        .monochrome-emoji {
+            filter: grayscale(1) brightness(1.2) contrast(1.1);
         }
 
         .upgrade-item:active {
             cursor: grabbing;
         }
 
-        .upgrade-cost-tag {
-            position: absolute;
-            bottom: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-            white-space: nowrap;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 10px;
-            color: #0af;
-            text-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
-        }
+
 
         .upgrade-item.owned {
-            opacity: 1;
-            filter: brightness(1);
+            /* Full opacity for owned items */
         }
 
         /* Engine: yellow (#ffcc00) */
@@ -819,6 +863,20 @@
             transform: scale(1.02);
         }
 
+        .selected {
+            border-width: 3px !important;
+            border-color: #0ff !important;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6) !important;
+            z-index: 10;
+        }
+
+        .upgrade-placeholder {
+            border: 1px dashed rgba(0, 170, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(0, 170, 255, 0.05);
+            flex-shrink: 0;
+        }
+
         /* Shape sizes (based on a base unit size, dynamically applied via JS depending on grid cell size) */
         
         #info-content {
@@ -846,7 +904,7 @@
 
         #info-desc {
             flex: 1;
-            font-size: 16px;
+            font-size: 18px;
             line-height: 1.4;
         }
 
@@ -869,6 +927,7 @@
     <div id="hud" class="hidden">
         <div id="credits">0</div>
         <div id="fuel-wrap">
+            <div id="fuel-bar-boost"></div>
             <div id="fuel-bar"></div>
         </div>
         <div id="boost-indicator">▸ BOOST</div>
@@ -966,27 +1025,26 @@
                     <div class="screen-title">UPGRADE TERMINAL</div>
                     <div id="info-content">
                         <h2 id="info-title">SELECT AN UPGRADE</h2>
-                        <div id="info-cost">Cost: ---</div>
                         <p id="info-desc">---</p>
-                        <button id="buy-btn" class="btn-premium" disabled>BUY</button>
+                        <div style="display: flex; align-items: center; gap: 15px; margin-top: auto;">
+                            <button id="buy-btn" class="btn-premium" disabled style="flex: 1;">BUY</button>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="bottom-screen">
-                <div id="screen-available" class="cockpit-screen">
-                    <div style="display: flex; flex-direction: column; width: 200px; border-right: 2px solid #0af;">
-                        <div class="screen-title">CATEGORIES</div>
-                        <div class="category-sidebar">
-                            <button class="cat-btn active" data-cat="engine">ENGINE</button>
-                            <button class="cat-btn" data-cat="economy">ECONOMY</button>
-                            <button class="cat-btn" data-cat="defense">DEFENSE</button>
-                        </div>
+                <div id="screen-available" class="cockpit-screen" style="flex-direction: row; align-items: stretch;">
+                    <div style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                        <div class="screen-title">ENGINE</div>
+                        <div id="available-list-engine" class="available-list-col"></div>
+                    </div>
+                    <div style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                        <div class="screen-title">ECONOMY</div>
+                        <div id="available-list-economy" class="available-list-col"></div>
                     </div>
                     <div style="flex: 1; display: flex; flex-direction: column;">
-                        <div class="screen-title">AVAILABLE UPGRADES</div>
-                        <div id="available-list">
-                            <!-- Available upgrades injected here -->
-                        </div>
+                        <div class="screen-title">DEFENSE</div>
+                        <div id="available-list-defense" class="available-list-col"></div>
                     </div>
                 </div>
             </div>

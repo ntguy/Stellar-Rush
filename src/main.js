@@ -363,12 +363,15 @@ function clearCreditsText(scene) {
    ═══════════════════════════════════════════════════════════ */
 let fuel, credits, elapsed, gameOver, boosting;
 let fuelOut = false, fuelOutTimer = 0;
+let boostExtraFuelSpent = 0;
+let boostFadeTimer = 0;
 
 /* ── Upgrades State ───────────────────────────────────────── */
 let upgFuelTankMult = 1.0;
 let upgBaseAccelMult = 1.0;
 let upgTopSpeedMult = 1.0;
 let upgBoostFuelMult = 1.0;
+let upgBoostPowerMult = 1.0;
 let upgPassiveCreditsMult = 1.0;
 let upgMagnetStrength = 0;
 let upgFormationBonus = 0;
@@ -389,6 +392,7 @@ function applyUpgrades() {
     upgBaseAccelMult = 1.0 + (eq.includes('eng2') ? 0.10 : 0) + (eq.includes('eng5') ? 0.25 : 0);
     upgTopSpeedMult = 1.0 + (eq.includes('eng5') ? 0.25 : 0);
     upgBoostFuelMult = eq.includes('eng4') ? 0.5 : 1.0;
+    upgBoostPowerMult = eq.includes('eng6') ? 1.5 : 1.0;
     
     upgPassiveCreditsMult = 1.0 + (eq.includes('eco1') ? 0.10 : 0);
     upgMagnetStrength = (eq.includes('eco2') ? 10 : 0) + (eq.includes('eco4') ? 15 : 0);
@@ -510,7 +514,9 @@ window.addEventListener('keydown', e => {
    HUD ELEMENTS
    ═══════════════════════════════════════════════════════════ */
 const elCredits   = document.getElementById('credits');
-const elFuel    = document.getElementById('fuel-bar');
+const elFuelWrap  = document.getElementById('fuel-wrap');
+const elFuel      = document.getElementById('fuel-bar');
+const elFuelBoost = document.getElementById('fuel-bar-boost');
 const elBoost   = document.getElementById('boost-indicator');
 const elShield  = document.getElementById('shield-indicator');
 const elOverlay = document.getElementById('game-over');
@@ -618,6 +624,8 @@ function init() {
     enemySpawnCount = 0;
     prevBoosting = false;
     prevFuelLow  = false;
+    boostExtraFuelSpent = 0;
+    boostFadeTimer = 0;
     // Stop any active looping sounds
     stopBoostHum?.();    stopBoostHum    = null;
     stopShieldHum?.();   stopShieldHum   = null;
@@ -923,8 +931,10 @@ function loop() {
         levelSpeedRamp = levelTimer * currentLevel.speedRampPerSecond;
     }
     const baseSpeed = (OBS_BASE_SPEED + levelSpeedRamp) * currentLevel.speedMultiplier;
-    // Upgrade Logic: Top Speed 
-    let speed = (boosting ? baseSpeed * BOOST_SPEED_MULT : baseSpeed) * upgTopSpeedMult;
+    
+    // Upgrade Logic: Boost Power increases the boost speed increase by 50%
+    const boostSpeedInc = (BOOST_SPEED_MULT - 1) * upgBoostPowerMult;
+    let speed = (boosting ? baseSpeed * (1 + boostSpeedInc) : baseSpeed) * upgTopSpeedMult;
     
     // Out of fuel slowdown
     if (fuelOut) {
@@ -963,8 +973,13 @@ function loop() {
 
     /* ── Plane steering ───────────────────────────────── */
     // Upgrade Logic: Steering top speed and acceleration
-    const maxSpd = (boosting ? 60 : 20) * upgTopSpeedMult;
-    const accel  = (boosting ? 120 : 40) * upgBaseAccelMult;
+    // Base: 20 top speed, 40 acceleration.
+    // Boost increase: 40 top speed, 60 acceleration.
+    const topSpeedBoost = 40 * upgBoostPowerMult;
+    const accelBoost    = 60 * upgBoostPowerMult;
+    
+    const maxSpd = (boosting ? 20 + topSpeedBoost : 20) * upgTopSpeedMult;
+    const accel  = (boosting ? 40 + accelBoost    : 40) * upgBaseAccelMult;
 
     tmpV.subVectors(target, aircraft.position);
     const dist = tmpV.length();
@@ -1295,7 +1310,39 @@ function loop() {
     /* ── HUD ──────────────────────────────────────────── */
     elCredits.textContent = Math.floor(credits);
     const fuelPct = (fuel / effectiveFuelMax) * 100;
-    elFuel.style.width = fuelPct + '%';
+    
+    if (boosting && !fuelOut) {
+        elFuelWrap.classList.add('boosting');
+        boostFadeTimer = 0;
+        elFuelBoost.style.opacity = '1';
+        
+        // Calculate extra fuel spent since this boost started
+        const extraRate = 1 * upgBoostFuelMult;
+        boostExtraFuelSpent += dt * extraRate;
+        
+        const extraPct = (boostExtraFuelSpent / effectiveFuelMax) * 100;
+        elFuel.style.width = fuelPct + '%';
+        elFuelBoost.style.width = Math.min(100, fuelPct + extraPct) + '%';
+    } else {
+        elFuelWrap.classList.remove('boosting');
+        elFuel.style.width = fuelPct + '%';
+        
+        if (prevBoosting && !boosting) {
+            boostFadeTimer = 0.3;
+        }
+
+        if (boostFadeTimer > 0) {
+            boostFadeTimer -= dt;
+            if (boostFadeTimer < 0) boostFadeTimer = 0;
+            elFuelBoost.style.opacity = (boostFadeTimer / 0.3).toString();
+            // Keep width at its last value during fade
+        } else {
+            boostExtraFuelSpent = 0;
+            elFuelBoost.style.width = '0';
+            elFuelBoost.style.opacity = '0';
+        }
+    }
+
     {
         const t = 1 - fuel / effectiveFuelMax;
         const c1 = `rgb(${Math.round(255 * t)},${Math.round(THREE.MathUtils.lerp(170, 68, t))},${Math.round(THREE.MathUtils.lerp(255, 68, t))})`;
