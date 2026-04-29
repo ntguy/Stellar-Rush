@@ -5,7 +5,7 @@ import {
     FUEL_MAX, FUEL_PICKUP_BASE, FORMATION_BASE, CREDITS_PICKUP_BASE, SHIELD_PICKUP_BASE,
     OBS_BASE_SPEED, OBS_SPEED_RAMP, OBS_TARGET_OPACITY, OBS_FADE_TIME,
     BOOST_SPEED_MULT, BOOST_CREDITS_MULT, SHIELD_DURATION,
-    matBody, matAccent, matGlow, matAsteroid, matLine
+    matBody, matAccent, matGlow, matAsteroid, matLine, DEVELOPMENT_MODE
 } from './config.js';
 
 import { nextObstacle, resetSequencer } from './patterns.js';
@@ -29,11 +29,6 @@ import { settings, saveSettings } from './settings.js';
 
 // ─── Menu animation config ───
 import { getMenuConfig } from './menu-variation-1.js';
-
-/* ═══════════════════════════════════════════════════════════
-   DEVELOPMENT_MODE  —  set true to skip menu and boot into game
-   ═══════════════════════════════════════════════════════════ */
-const DEVELOPMENT_MODE = true;
 
 /* ═══════════════════════════════════════════════════════════
    GAME STATE  —  'MENU' | 'PLAYING'
@@ -390,7 +385,7 @@ function applyUpgrades() {
     upgPermanentShield = eq.includes('def5');
 
     if (upgNavSystem && !navSystemLight) {
-        navSystemLight = new THREE.SpotLight(0xff0000, 5.0, 150, 0.2, 0.5, 1);
+        navSystemLight = new THREE.SpotLight(0xff0000, 50.0, 150, 0.04, 0.5, 0.8);
         scene.add(navSystemLight);
         scene.add(navSystemLight.target);
     } else if (!upgNavSystem && navSystemLight) {

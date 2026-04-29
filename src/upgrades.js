@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DEVELOPMENT_MODE } from './config.js';
 
 let isUpgradesActive = false;
 let returnCallback = null;
@@ -37,6 +38,7 @@ let currentlyDraggingId = null;
 let dragOffset = { x: 0, y: 0 };
 
 export function getBankedCredits() {
+    if (DEVELOPMENT_MODE) return 99999;
     return parseInt(localStorage.getItem('bankedCredits') || '0', 10);
 }
 
