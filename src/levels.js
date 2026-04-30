@@ -15,7 +15,7 @@ export const LEVELS = [
     {
         /* Level 1 — Blue */
         level: 1,
-        duration: 5,                 // seconds
+        duration: 40,                 // seconds
         speedMultiplier: 1.0,         // base speed multiplier
         tunnelColor: new THREE.Color(0x4488ff),  // blue
         obstacleInterval: 1.6,        // seconds between obstacles
@@ -39,7 +39,7 @@ export const LEVELS = [
     {
         /* Level 2 — Magenta */
         level: 2,
-        duration: 5,                 // seconds
+        duration: 50,                 // seconds
         speedMultiplier: 1.10,        // +10% speed
         tunnelColor: new THREE.Color(0xff44ff),  // magenta
         obstacleInterval: 1.5,        // faster obstacle spawn
