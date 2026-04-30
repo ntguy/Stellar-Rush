@@ -83,7 +83,6 @@ export function spawnMover(scene, moveType = 'horizontal', zOffset = 0) {
     }
 
     scene.add(g);
-    scene.add(g);
     enemies.push({
         type: 'mover', group: g, vel, moveType, spd,
         circleCenter, circleAngle,

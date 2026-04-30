@@ -803,7 +803,7 @@ function init() {
     colorShiftFrom = null;
     colorShiftTo = null;
 
-    spawnTimer = 0; asteroidTimer = 0;
+    spawnTimer = 0; asteroidTimer = 0; enemyTimer = 0;
     // Initialise pickup timers as objects with value and threshold
     const _jitter0 = base => base * (0.8 + Math.random() * 0.4);
     fuelPUTimer    = { value: 0, _threshold: _jitter0(FUEL_PICKUP_BASE) };
