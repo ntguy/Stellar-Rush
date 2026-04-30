@@ -70,6 +70,10 @@ if (!localStorage.getItem('stellarRushSettings')) {
     saveSettings();
 }
 
+const isLow = settings.preset === 'Low';
+const isMedium = settings.preset === 'Medium';
+const elGameContainer = document.getElementById('game-container');
+
 const stats = new Stats();
 stats.showPanel(0);
 stats.dom.style.display = settings.fpsEnabled ? 'block' : 'none';
@@ -78,22 +82,55 @@ stats.dom.style.right = '70px';
 stats.dom.style.left = '';
 stats.dom.style.top = '16px';
 stats.dom.style.bottom = '';
-document.body.appendChild(stats.dom);
+if (elGameContainer) elGameContainer.appendChild(stats.dom);
+else document.body.appendChild(stats.dom);
 
-const isLow = settings.preset === 'Low';
-const isMedium = settings.preset === 'Medium';
+const MIN_ASPECT = 1.6; // 16:10
+const MAX_ASPECT = 2.0; // 18:9
+let gameRect = { width: window.innerWidth, height: window.innerHeight, left: 0, top: 0 };
 
 const renderer = new THREE.WebGLRenderer({ antialias: !isLow });
 const pr = isLow ? 1.0 : (isMedium ? 1.5 : Math.min(devicePixelRatio, 2));
 renderer.setPixelRatio(pr);
-renderer.setSize(innerWidth, innerHeight);
-document.body.appendChild(renderer.domElement);
+
+function updateSize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    let aspect = w / h;
+
+    let gameW = w;
+    let gameH = h;
+
+    if (aspect < MIN_ASPECT) {
+        gameH = w / MIN_ASPECT;
+    } else if (aspect > MAX_ASPECT) {
+        gameW = h * MAX_ASPECT;
+    }
+
+    gameRect.width = gameW;
+    gameRect.height = gameH;
+    gameRect.left = (w - gameW) / 2;
+    gameRect.top = (h - gameH) / 2;
+
+    if (elGameContainer) {
+        elGameContainer.style.width = `${gameW}px`;
+        elGameContainer.style.height = `${gameH}px`;
+    }
+
+    renderer.setSize(gameW, gameH);
+    camera.aspect = gameW / gameH;
+    camera.updateProjectionMatrix();
+}
+
+if (elGameContainer) elGameContainer.appendChild(renderer.domElement);
+else document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000005);
 scene.fog = new THREE.FogExp2(0x000005, 0.0015);
 
-const camera = new THREE.PerspectiveCamera(settings.fov, innerWidth / innerHeight, 0.1, 500);
+const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.1, 500);
+updateSize();
 camera.position.set(0, 10, 20);
 
 /* ═══════════════════════════════════════════════════════════
@@ -609,8 +646,8 @@ function resetJoystick() {
 
 window.addEventListener('mousemove', e => {
     if (isMobile) return;
-    mouseNDC.x =  (e.clientX / innerWidth)  * 2 - 1;
-    mouseNDC.y = -(e.clientY / innerHeight) * 2 + 1;
+    mouseNDC.x =  ((e.clientX - gameRect.left) / gameRect.width)  * 2 - 1;
+    mouseNDC.y = -((e.clientY - gameRect.top) / gameRect.height) * 2 + 1;
 });
 window.addEventListener('mousedown', e => { 
     if (isMobile) return;
@@ -681,11 +718,7 @@ window.addEventListener('pointercancel', e => {
     }
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
-window.addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-});
+window.addEventListener('resize', updateSize);
 
 /* ── Pause / Escape handling ──────────────────────────────── */
 window.addEventListener('keydown', e => {
