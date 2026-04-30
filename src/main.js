@@ -140,9 +140,6 @@ scene.add(new THREE.AmbientLight(0x335588, 1.2));
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(4, 12, 8);
 scene.add(sun);
-const rim = new THREE.DirectionalLight(0x4488ff, 0.6);
-rim.position.set(-3, -4, -6);
-scene.add(rim);
 
 /* ═══════════════════════════════════════════════════════════
    AIRCRAFT
