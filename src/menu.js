@@ -252,8 +252,10 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
     const tracked = [];
     const track = obj => { tracked.push(obj); return obj; };
 
-    scene.add(track(new THREE.AmbientLight(0x334466, 1.5)));
-    const dir = new THREE.DirectionalLight(0xffffff, 0.8); dir.position.set(5, 15, 10); scene.add(track(dir));
+    // scene.add(track(new THREE.AmbientLight(0x334466, 1.5)));
+    const dir = new THREE.DirectionalLight(0xffb84d, 200); dir.position.set(5, 15, -80); scene.add(track(dir));
+    const point = new THREE.PointLight(0xffb84d, 9000.0, 500); point.position.set(5, 10, -100); scene.add(track(point));
+    const spot = new THREE.SpotLight(0xffb84d, 50.0, 50); spot.position.set(5, 10, 0); scene.add(track(spot));
 
     const { mesh: starMesh, material: starMat, syncToCamera } = buildStarField(cfg.starCount, undefined, true);
     scene.add(track(starMesh));

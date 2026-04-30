@@ -11,7 +11,7 @@ export function makeAircraft() {
 
     const coolBody = new THREE.MeshPhysicalMaterial({
         color: 0xbbddff, // very light blue
-        metalness: 0.2,
+        metalness: 0,
         roughness: 0.05,
         clearcoat: 1.0,
         clearcoatRoughness: 0.02,
@@ -20,7 +20,7 @@ export function makeAircraft() {
     
     const coolAccent = new THREE.MeshPhysicalMaterial({
         color: 0x00ffcc, // Cyan
-        metalness: 0.9,
+        metalness: 0.1,
         roughness: 0.1,
         clearcoat: 1.0,
         clearcoatRoughness: 0.2,

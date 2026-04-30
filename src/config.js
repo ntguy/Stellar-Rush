@@ -60,8 +60,8 @@ export const ENEMY_LASER_DURATION = 0.3;
    Cloned per-instance when fade / opacity is needed (so the
    base material here stays unchanged).  depthWrite: false on
    transparent mats prevents overlapping walls from darkening. */
-export const matBody     = new THREE.MeshPhongMaterial({ color: 0x1199dd, flatShading: true });   // aircraft fuselage & wings
-export const matAccent   = new THREE.MeshPhongMaterial({ color: 0x00eeff, flatShading: true });   // cockpit, fins
+export const matBody     = new THREE.MeshPhongMaterial({ color: 0x1199dd, flatShading: true, specular: 0x444444 });   // aircraft fuselage & wings
+export const matAccent   = new THREE.MeshPhongMaterial({ color: 0x00eeff, flatShading: true, specular: 0xffffff });   // cockpit, fins
 export const matGlow     = new THREE.MeshBasicMaterial({ color: 0x00fff7 });                      // engine glow (colour mutated per-frame to track fuel)
 export const matObs      = new THREE.MeshPhongMaterial({ color: 0xddeeff, flatShading: true, transparent: true, opacity: OBS_TARGET_OPACITY, depthWrite: false }); // solid obstacles (fade-in via cloned mats)
 export const matObsSolid = new THREE.MeshPhongMaterial({ color: 0xbbd8ff, flatShading: true }); // opaque walls  used for single-piece walls that never overlap
