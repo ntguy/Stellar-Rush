@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
     SPAWN_Z, DESPAWN_Z, BOUNDS_X, BOUNDS_Y, PLANE_RADIUS,
-    FUEL_MAX, FUEL_PICKUP_VALUE, SHIELD_DURATION, matShield
+    FUEL_MAX, FUEL_PICKUP_VALUE, SHIELD_DURATION, matShield,
+    OBS_FADE_TIME, OBS_TARGET_OPACITY
 } from './config.js';
 
 import { playCollect1, playCollect2 } from './audio.js';
@@ -94,29 +95,45 @@ export function clearBurstParticles(scene) {
    ═══════════════════════════════════════════════════════════ */
 
 export function spawnFuelPickup(scene, pos) {
-    const m = new THREE.Mesh(fuelGeo, fuelMat);
-    m.add(new THREE.Mesh(fuelHazeGeo, fuelHazeMat));
-    m.add(new THREE.PointLight(0xffcc00, 4, 22));
+    const mainMat = fuelMat.clone();
+    mainMat.transparent = true;
+    mainMat.opacity = 0;
+    const m = new THREE.Mesh(fuelGeo, mainMat);
+
+    const hazeMat = fuelHazeMat.clone();
+    hazeMat.opacity = 0;
+    const haze = new THREE.Mesh(fuelHazeGeo, hazeMat);
+    m.add(haze);
+
+    m.add(new THREE.PointLight(0xffcc00, 0, 22));
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
         m.position.set((Math.random() - 0.5) * BOUNDS_X * 0.7, (Math.random() - 0.5) * BOUNDS_Y * 0.5, SPAWN_Z);
     }
     scene.add(m);
-    pickups.push({ mesh: m, type: 'fuel' });
+    pickups.push({ mesh: m, type: 'fuel', fadeAge: 0, haze });
 }
 
 export function spawnHighValuePickup(scene, pos) {
-    const m = new THREE.Mesh(highValueGeo, highValueMat);
-    m.add(new THREE.Mesh(highValueHazeGeo, highValueHazeMat));
-    m.add(new THREE.PointLight(0x44ff88, 3, 18));
+    const mainMat = highValueMat.clone();
+    mainMat.transparent = true;
+    mainMat.opacity = 0;
+    const m = new THREE.Mesh(highValueGeo, mainMat);
+
+    const hazeMat = highValueHazeMat.clone();
+    hazeMat.opacity = 0;
+    const haze = new THREE.Mesh(highValueHazeGeo, hazeMat);
+    m.add(haze);
+
+    m.add(new THREE.PointLight(0x44ff88, 0, 18));
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
         m.position.set((Math.random() - 0.5) * BOUNDS_X * 0.8, (Math.random() - 0.5) * BOUNDS_Y * 0.6, SPAWN_Z);
     }
     scene.add(m);
-    pickups.push({ mesh: m, type: 'credits_high' });
+    pickups.push({ mesh: m, type: 'credits_high', fadeAge: 0, haze });
 }
 
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
@@ -126,11 +143,14 @@ let formationIdCounter = 0;
 const formationTracker = {};
 
 export function spawnLowValuePickup(scene, wx, wy, wz, formationId = null) {
-    const m = new THREE.Mesh(_lowGeo, _lowMat);
+    const mat = _lowMat.clone();
+    mat.transparent = true;
+    mat.opacity = 0;
+    const m = new THREE.Mesh(_lowGeo, mat);
     m.position.set(wx, wy, wz);
     if (formationId) m.userData.formationId = formationId;
     scene.add(m);
-    pickups.push({ mesh: m, type: 'credits_low' });
+    pickups.push({ mesh: m, type: 'credits_low', fadeAge: 0 });
 }
 
 export function spawnLowValueFormation(scene, slot) {
@@ -149,15 +169,18 @@ export function spawnLowValueFormation(scene, slot) {
 }
 
 export function spawnShieldPickup(scene, pos) {
-    const m = new THREE.Mesh(shieldGeo, shieldMatClone);
+    const mat = shieldMatClone.clone();
+    mat.transparent = true;
+    mat.opacity = 0;
+    const m = new THREE.Mesh(shieldGeo, mat);
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
         m.position.set((Math.random() - 0.5) * BOUNDS_X * 0.6, (Math.random() - 0.5) * BOUNDS_Y * 0.5, SPAWN_Z);
     }
-    m.add(new THREE.PointLight(0x33aaff, 1.5, 10));
+    m.add(new THREE.PointLight(0x33aaff, 0, 10));
     scene.add(m);
-    pickups.push({ mesh: m, type: 'shield' });
+    pickups.push({ mesh: m, type: 'shield', fadeAge: 0 });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -171,6 +194,26 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
         p.mesh.position.z += speed * dt;
         p.mesh.rotation.y += dt * 3;
         p.mesh.rotation.x += dt * 1.7;
+
+        // Handle fade-in
+        if (p.fadeAge < OBS_FADE_TIME) {
+            p.fadeAge += dt;
+            const t = Math.min(p.fadeAge / OBS_FADE_TIME, 1.0);
+            const opacity = t * OBS_TARGET_OPACITY;
+            p.mesh.material.opacity = opacity;
+            if (p.haze) {
+                // Fading haze to its target opacity (0.18 or 0.20)
+                const targetHaze = p.type === 'fuel' ? 0.18 : 0.20;
+                p.haze.material.opacity = t * targetHaze;
+            }
+            // Fade point lights if they exist
+            p.mesh.children.forEach(c => {
+                if (c.isPointLight) {
+                    const targetInt = (p.type === 'fuel') ? 4 : (p.type === 'credits_high' ? 3 : 1.5);
+                    c.intensity = t * targetInt;
+                }
+            });
+        }
 
         if (magnetStrength > 0) {
             // Upgrade Logic: Magnet attracts nearby pickups
