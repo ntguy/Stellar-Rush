@@ -402,6 +402,7 @@ function clearCreditsText(scene) {
    ═══════════════════════════════════════════════════════════ */
 let fuel, credits, elapsed, gameOver, boosting;
 let fuelOut = false, fuelOutTimer = 0;
+let effectiveFuelMax = FUEL_MAX;
 let boostExtraFuelSpent = 0;
 let boostFadeTimer = 0;
 
@@ -441,6 +442,11 @@ function applyUpgrades() {
     upgInvincibleShield = eq.includes('def3');
     upgNavSystem = eq.includes('def4');
     upgPermanentShield = eq.includes('def5');
+    
+    effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
+    if (elFuelWrap) {
+        elFuelWrap.style.width = (200 * upgFuelTankMult) + 'px';
+    }
 
     if (upgNavSystem && !navBeam) {
         // Upgrade Logic: Laser Navigation System Initialization
@@ -818,8 +824,9 @@ const zPlane    = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
    ═══════════════════════════════════════════════════════════ */
 function init() {
     applyUpgrades();
-    const effectiveFuelMax = FUEL_MAX * upgFuelTankMult; // Upgrade Logic: Fuel tank
-    fuel = effectiveFuelMax; credits = 0; elapsed = 0;
+    effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
+    fuel = effectiveFuelMax;
+    credits = 0; elapsed = 0;
     gameOver = false; boosting = false;
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
@@ -1122,7 +1129,6 @@ function loop() {
     requestAnimationFrame(loop);
     stats.begin();
     const dt = Math.min(clock.getDelta(), 0.05);
-    const effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
 
     /* ── MENU state ───────────────────────────────────── */
     if (gameState === 'MENU') {
@@ -1547,7 +1553,7 @@ function loop() {
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position, upgMagnetStrength); // Upgrade Logic: Magnet
     if (puResult.fuel > 0)   { 
-        fuel = Math.min(FUEL_MAX * upgFuelTankMult, fuel + puResult.fuel); // Upgrade Logic: Fuel tank
+        fuel = Math.min(effectiveFuelMax, fuel + puResult.fuel); // Upgrade Logic: Fuel tank
         stopFuelLowBeep();
         prevFuelLow = false;
     }

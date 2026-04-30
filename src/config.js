@@ -25,9 +25,9 @@ export const SPAWN_Z  = -200;     // Z where new objects appear (behind camera) 
 export const DESPAWN_Z = 25;      // Z where objects are removed (past camera)
 
 /*  Gameplay  */
-export const FUEL_MAX             = 42;  // seconds of fuel
-export const FUEL_PICKUP_VALUE    = 21;  // seconds per pickup
-export const FUEL_PICKUP_BASE     = 14;  // baseline seconds between fuel drops
+export const FUEL_MAX             = 40;  // seconds of fuel
+export const FUEL_PICKUP_VALUE    = 20;  // seconds per pickup
+export const FUEL_PICKUP_BASE     = 15;  // baseline seconds between fuel drops
 
 export const FORMATION_BASE       = 5;   // baseline seconds between gem formations
 export const CREDITS_PICKUP_BASE  = 10;  // baseline seconds between high-value credit gems
