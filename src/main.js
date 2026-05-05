@@ -12,10 +12,10 @@ import { nextObstacle, resetSequencer } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
 import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
 import {
-    playLaserFire, playCrash, playFuelCollect, playCreditsCollect, playShieldCollect,
+    playCrash,
     startShieldHum, startBoostHum, startFuelLowBeep,
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
-    setLowFuelVolume, stopFuelLowBeep, playOutOfFuel,
+    setLowFuelVolume, stopFuelLowBeep, playOutOfFuel, stopOutOfFuel,
     startMenuMusic, stopMenuMusic
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor } from './tunnel.js';
@@ -1424,6 +1424,9 @@ function animate() {
     if (puResult.fuel > 0)   { 
         fuel = Math.min(effectiveFuelMax, fuel + puResult.fuel); // Upgrade Logic: Fuel tank
         stopFuelLowBeep();
+        stopOutOfFuel();
+        fuelOut = false;
+        fuelOutTimer = 0;
         prevFuelLow = false;
     }
 

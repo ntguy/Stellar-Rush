@@ -10,6 +10,8 @@ let lowFuelSource = null;
 let lowFuelGain = null;
 let menuMusicSource = null;
 let menuMusicGain = null;
+let outOfFuelSource = null;
+let outOfFuelGain = null;
 
 /**
  * Loads an audio file and decodes it into a buffer.
@@ -164,7 +166,25 @@ export function playCollect2() {
 }
 
 export function playOutOfFuel() {
-    playOneShot('outOfFuel', 0.1);
+    if (!ctx || !buffers['outOfFuel']) return;
+    stopOutOfFuel();
+
+    outOfFuelSource = ctx.createBufferSource();
+    outOfFuelSource.buffer = buffers['outOfFuel'];
+    
+    outOfFuelGain = ctx.createGain();
+    outOfFuelGain.gain.value = 0.2;
+
+    outOfFuelSource.connect(outOfFuelGain).connect(ctx.destination);
+    outOfFuelSource.start();
+}
+
+export function stopOutOfFuel() {
+    if (outOfFuelSource) {
+        try { outOfFuelSource.stop(); } catch(e) {}
+        outOfFuelSource = null;
+        outOfFuelGain = null;
+    }
 }
 
 export function playFuelCollect()   {}
