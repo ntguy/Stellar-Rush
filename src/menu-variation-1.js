@@ -50,13 +50,13 @@ export function getMenuConfig() {
         /* ── Title style ─────────────────────────────────────*/
         titleFont: "'Orbitron', sans-serif",
         titleAnimation: 'slide-glow',
-        stellarSize: '86px',
-        rushSize: '86px',
+        stellarSize: '5.69vw',
+        rushSize: '5.69vw',
         titleColor: '#ffffff',
-        titleGlow: '0 0 40px #00aaff, 0 0 80px #0066cc, 0 0 120px #003388',
-        titleLetterSpacing: '18px',
+        titleGlow: '0 0 2.65vw #00aaff, 0 0 5.29vw #0066cc, 0 0 7.94vw #003388',
+        titleLetterSpacing: '1.19vw',
 
         /* ── Play button ─────────────────────────────────────*/
-        playButtonAlign: 'far-left',
+        playButtonAlign: 'left',
     };
 }

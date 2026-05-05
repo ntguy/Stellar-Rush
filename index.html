@@ -41,8 +41,8 @@
         /* ── HUD ─────────────────────────────────────────── */
         #hud {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 2.04vh;
+            left: 1.32vw;
             color: #fff;
             font-family: 'Courier New', monospace;
             pointer-events: none;
@@ -54,19 +54,19 @@
         }
 
         #credits {
-            font-size: 28px;
-            letter-spacing: 2px;
+            font-size: 1.85vw;
+            letter-spacing: 0.13vw;
             font-family: 'Orbitron', sans-serif;
-            text-shadow: 0 0 10px #0af;
+            text-shadow: 0 0 0.66vw #0af;
         }
 
         #fuel-wrap {
             position: relative;
-            width: 200px;
-            height: 14px;
-            margin-top: 8px;
+            width: 13.23vw;
+            height: 1.43vh;
+            margin-top: 0.81vh;
             background: rgba(255, 255, 255, 0.1);
-            border-radius: 7px;
+            border-radius: 0.46vw;
             border: 1px solid rgba(255, 255, 255, 0.2);
             overflow: hidden;
             transition: border-color 0.2s, box-shadow 0.2s;
@@ -74,13 +74,13 @@
 
         #fuel-wrap.boosting {
             border-color: #f60;
-            box-shadow: 0 0 12px rgba(255, 100, 0, 0.5);
+            box-shadow: 0 0 0.79vw rgba(255, 100, 0, 0.5);
         }
 
         #fuel-bar {
             height: 100%;
             width: 100%;
-            border-radius: 7px;
+            border-radius: 0.46vw;
             background: linear-gradient(90deg, #0af, #0ff);
             transition: width 0.1s linear;
             position: relative;
@@ -96,7 +96,7 @@
             background: linear-gradient(90deg, #f60, #f90);
             z-index: 1;
             transition: width 0.1s linear;
-            border-radius: 7px;
+            border-radius: 0.46vw;
             opacity: 0;
         }
 
@@ -111,19 +111,19 @@
         }
 
         #boost-indicator {
-            font-size: 11px;
+            font-size: 0.73vw;
             color: #0ff;
-            margin-top: 4px;
-            letter-spacing: 3px;
+            margin-top: 0.41vh;
+            letter-spacing: 0.2vw;
             opacity: 0;
             transition: opacity 0.15s;
         }
 
         #shield-indicator {
-            font-size: 11px;
+            font-size: 0.73vw;
             color: #33aaff;
-            margin-top: 2px;
-            letter-spacing: 3px;
+            margin-top: 0.2vh;
+            letter-spacing: 0.2vw;
             opacity: 0;
             transition: opacity 0.15s;
         }
@@ -146,10 +146,10 @@
 
         #mobile-boost-btn {
             position: absolute;
-            bottom: 40px;
-            left: 40px;
-            width: 120px;
-            height: 120px;
+            bottom: 4.07vh;
+            left: 2.65vw;
+            width: 7.94vw;
+            height: 7.94vw;
             border-radius: 50%;
             background: rgba(0, 170, 255, 0.05);
             border: 2px solid rgba(0, 170, 255, 0.3);
@@ -158,16 +158,16 @@
             align-items: center;
             justify-content: center;
             font-family: 'Orbitron', sans-serif;
-            font-size: 14px;
+            font-size: 0.93vw;
             font-weight: 700;
-            letter-spacing: 3px;
+            letter-spacing: 0.2vw;
             pointer-events: auto;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
-            box-shadow: 0 0 20px rgba(0, 170, 255, 0.15), inset 0 0 15px rgba(0, 170, 255, 0.1);
+            box-shadow: 0 0 1.32vw rgba(0, 170, 255, 0.15), inset 0 0 0.99vw rgba(0, 170, 255, 0.1);
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             backdrop-filter: blur(8px);
-            text-shadow: 0 0 10px rgba(0, 170, 255, 0.5);
+            text-shadow: 0 0 0.66vw rgba(0, 170, 255, 0.5);
         }
 
         #mobile-boost-btn.active {
@@ -175,16 +175,16 @@
             border-color: #f60;
             color: #fff;
             transform: scale(0.9);
-            box-shadow: 0 0 40px rgba(255, 100, 0, 0.5), inset 0 0 20px rgba(255, 100, 0, 0.2);
-            text-shadow: 0 0 15px #f60;
+            box-shadow: 0 0 2.65vw rgba(255, 100, 0, 0.5), inset 0 0 1.32vw rgba(255, 100, 0, 0.2);
+            text-shadow: 0 0 0.99vw #f60;
         }
 
         #mobile-joystick-zone {
             position: absolute;
-            bottom: 40px;
-            right: 40px;
-            width: 220px;
-            height: 220px;
+            bottom: 4.07vh;
+            right: 2.65vw;
+            width: 14.55vw;
+            height: 14.55vw;
             pointer-events: auto;
             touch-action: none;
             display: flex;
@@ -193,13 +193,13 @@
         }
 
         #mobile-joystick-base {
-            width: 220px;
-            height: 220px;
+            width: 14.55vw;
+            height: 14.55vw;
             border-radius: 50%;
             background: rgba(0, 170, 255, 0.05);
             border: 2px solid rgba(0, 170, 255, 0.3);
-            box-shadow: 0 0 20px rgba(0, 170, 255, 0.15), inset 0 0 15px rgba(0, 170, 255, 0.1);
-            backdrop-filter: blur(8px);
+            box-shadow: 0 0 1.32vw rgba(0, 170, 255, 0.15), inset 0 0 0.99vw rgba(0, 170, 255, 0.1);
+            backdrop-filter: blur(1px);
             position: relative;
         }
 
@@ -207,21 +207,21 @@
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 80px;
-            height: 80px;
-            margin-top: -40px;
-            margin-left: -40px;
+            width: 5.29vw;
+            height: 5.29vw;
+            margin-top: -2.65vw;
+            margin-left: -2.65vw;
             border-radius: 50%;
             background: rgba(0, 170, 255, 0.4);
             border: 2px solid rgba(0, 170, 255, 0.8);
-            box-shadow: 0 0 15px rgba(0, 170, 255, 0.5);
+            box-shadow: 0 0 0.99vw rgba(0, 170, 255, 0.5);
             pointer-events: none;
             transition: background 0.2s, box-shadow 0.2s;
         }
 
         #mobile-joystick-zone.active #mobile-joystick-stick {
             background: rgba(0, 170, 255, 0.7);
-            box-shadow: 0 0 25px rgba(0, 170, 255, 0.8);
+            box-shadow: 0 0 1.65vw rgba(0, 170, 255, 0.8);
         }
 
         /* ── Game Over overlay ────────────────────────────── */
@@ -241,37 +241,37 @@
         }
 
         #game-over h1 {
-            font-size: 52px;
+            font-size: 3.44vw;
             color: #f43;
-            letter-spacing: 6px;
+            letter-spacing: 0.4vw;
         }
 
         #game-over .sub {
-            font-size: 22px;
-            margin-top: 8px;
+            font-size: 1.46vw;
+            margin-top: 0.81vh;
             color: #aaa;
         }
 
         #game-over button {
             display: block;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 1.53vh;
         }
 
         #game-over button:first-of-type {
-            margin-top: 28px;
+            margin-top: 2.85vh;
         }
 
         /* ── Menu button (top-right during gameplay) ──────── */
         #menu-btn {
             position: absolute;
-            top: 18px;
-            right: 20px;
-            width: 44px;
-            height: 44px;
+            top: 1.83vh;
+            right: 1.32vw;
+            width: 2.91vw;
+            height: 2.91vw;
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 8px;
+            border-radius: 0.53vw;
             cursor: pointer;
             display: none;
             align-items: center;
@@ -290,8 +290,8 @@
         }
 
         #menu-btn svg {
-            width: 22px;
-            height: 22px;
+            width: 1.46vw;
+            height: 1.46vw;
         }
 
         #menu-btn svg line {
@@ -320,22 +320,22 @@
         }
 
         #pause-menu h2 {
-            font-size: 36px;
+            font-size: 2.38vw;
             color: #ffffff;
-            letter-spacing: 6px;
-            text-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
-            margin-bottom: 40px;
+            letter-spacing: 0.4vw;
+            text-shadow: 0 0 1.32vw rgba(0, 170, 255, 0.5);
+            margin-bottom: 4.07vh;
         }
 
         #pause-menu button {
-            padding: 14px 44px;
+            padding: 1.43vh 2.91vw;
             font-family: 'Orbitron', monospace;
-            font-size: 15px;
-            letter-spacing: 3px;
+            font-size: 0.99vw;
+            letter-spacing: 0.2vw;
             background: transparent;
             color: #aaccff;
             border: 1px solid rgba(0, 170, 255, 0.35);
-            border-radius: 6px;
+            border-radius: 0.4vw;
             cursor: pointer;
             transition: all 0.25s;
         }
@@ -344,53 +344,53 @@
             background: rgba(0, 170, 255, 0.12);
             border-color: rgba(0, 170, 255, 0.7);
             color: #fff;
-            text-shadow: 0 0 10px #0af;
+            text-shadow: 0 0 0.66vw #0af;
         }
 
         .pause-btns {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 1.53vh;
             align-items: center;
         }
 
         .pause-btns .btn-premium {
-            width: 320px;
-            padding: 16px 0;
-            font-size: 14px;
+            width: 21.16vw;
+            padding: 1.63vh 0;
+            font-size: 0.93vw;
         }
 
         /* ── Settings Section ─────────────────────────────── */
         #graphics-settings {
-            margin-top: 40px;
+            margin-top: 4.07vh;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(0, 170, 255, 0.2);
-            border-radius: 8px;
-            padding: 20px;
+            border-radius: 0.53vw;
+            padding: 1.32vw;
             text-align: left;
-            width: 320px;
+            width: 21.16vw;
             margin-left: auto;
             margin-right: auto;
         }
 
         #graphics-settings h3 {
             color: #aaccff;
-            font-size: 16px;
-            letter-spacing: 2px;
-            margin-bottom: 15px;
+            font-size: 1.06vw;
+            letter-spacing: 0.13vw;
+            margin-bottom: 1.53vh;
             text-align: center;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 10px;
+            padding-bottom: 1.02vh;
         }
 
         .setting-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 1.53vh;
             font-family: 'Courier New', monospace;
             color: #ddd;
-            font-size: 14px;
+            font-size: 0.93vw;
         }
 
         .setting-row:last-child {
@@ -401,9 +401,9 @@
             background: #112;
             color: #fff;
             border: 1px solid #0af;
-            padding: 4px 8px;
+            padding: 0.41vh 0.53vw;
             font-family: 'Courier New', monospace;
-            border-radius: 4px;
+            border-radius: 0.26vw;
             outline: none;
             cursor: pointer;
         }
@@ -415,20 +415,21 @@
 
         #notification-overlay {
             position: absolute;
-            top: 60px;
+            top: 6.11vh;
             left: 50%;
             transform: translateX(-50%);
             color: #fff;
             font-family: 'Orbitron', sans-serif;
-            font-size: 16px;
-            letter-spacing: 2px;
+            font-size: 1.06vw;
+            letter-spacing: 0.13vw;
             text-transform: uppercase;
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.3s ease;
-            text-shadow: 0 0 10px #0af;
+            text-shadow: 0 0 0.66vw #0af;
             z-index: 1000;
         }
+
         #notification-overlay.show {
             opacity: 1;
         }
@@ -447,7 +448,7 @@
             position: absolute;
             top: 5%;
             left: 50%;
-            transform: translate(-50%, 20px);
+            transform: translate(-50%, 2.04vh);
             opacity: 0;
             transition: opacity 1.0s ease, transform 1.0s ease;
             text-align: center;
@@ -467,7 +468,7 @@
         }
 
         #title-rush {
-            margin-top: 4px;
+            margin-top: 0.41vh;
         }
 
         /* ── Slide-glow animation (variation 1) ──────────── */
@@ -481,7 +482,7 @@
 
         @keyframes slideFromLeft {
             from {
-                transform: translateX(-80px);
+                transform: translateX(-5.29vw);
                 opacity: 0;
             }
 
@@ -493,7 +494,7 @@
 
         @keyframes slideFromRight {
             from {
-                transform: translateX(80px);
+                transform: translateX(5.29vw);
                 opacity: 0;
             }
 
@@ -517,26 +518,26 @@
         @keyframes glitchIn {
             0% {
                 opacity: 0;
-                transform: translate(8px, -4px) skewX(10deg);
+                transform: translate(0.53vw, -0.41vh) skewX(10deg);
                 filter: hue-rotate(90deg);
             }
 
             20% {
                 opacity: 1;
-                transform: translate(-6px, 3px) skewX(-5deg);
+                transform: translate(-0.4vw, 0.31vh) skewX(-5deg);
             }
 
             40% {
-                transform: translate(4px, -2px) skewX(3deg);
+                transform: translate(0.26vw, -0.2vh) skewX(3deg);
                 filter: hue-rotate(0deg);
             }
 
             60% {
-                transform: translate(-2px, 1px) skewX(-1deg);
+                transform: translate(-0.13vw, 0.1vh) skewX(-1deg);
             }
 
             80% {
-                transform: translate(1px, 0) skewX(0deg);
+                transform: translate(0.07vw, 0) skewX(0deg);
             }
 
             100% {
@@ -549,7 +550,7 @@
         .anim-glitch::after {
             content: '';
             position: absolute;
-            inset: -10px;
+            inset: -0.66vw;
             background: repeating-linear-gradient(0deg, transparent, transparent 2px,
                     rgba(0, 0, 0, 0.15) 2px, rgba(0, 0, 0, 0.15) 4px);
             pointer-events: none;
@@ -595,15 +596,15 @@
 
         /* ── Premium button styling ───────────────────────── */
         .btn-premium {
-            padding: 20px 68px;
+            padding: 2.04vh 4.5vw;
             font-family: 'Orbitron', monospace;
-            font-size: 22px;
+            font-size: 1.46vw;
             font-weight: 700;
-            letter-spacing: 6px;
+            letter-spacing: 0.4vw;
             background: rgba(0, 170, 255, 0.08);
             color: #aaccff;
             border: 1px solid rgba(0, 170, 255, 0.3);
-            border-radius: 8px;
+            border-radius: 0.53vw;
             cursor: pointer;
             pointer-events: auto;
             transition: opacity 0.8s ease,
@@ -615,14 +616,19 @@
             background: rgba(0, 170, 255, 0.25);
             border-color: #0af;
             color: #fff;
-            text-shadow: 0 0 14px #0af;
-            box-shadow: 0 0 25px rgba(0, 170, 255, 0.4), inset 0 0 10px rgba(0, 170, 255, 0.3);
+            text-shadow: 0 0 0.93vw #0af;
+            box-shadow: 0 0 1.65vw rgba(0, 170, 255, 0.4), inset 0 0 0.66vw rgba(0, 170, 255, 0.3);
             outline: none;
         }
 
         @keyframes focusPulse {
-            from { box-shadow: 0 0 20px rgba(0, 170, 255, 0.45), inset 0 0 5px rgba(0, 170, 255, 0.2); }
-            to { box-shadow: 0 0 32px rgba(0, 170, 255, 0.75), inset 0 0 12px rgba(0, 170, 255, 0.4); }
+            from {
+                box-shadow: 0 0 1.32vw rgba(0, 170, 255, 0.45), inset 0 0 0.33vw rgba(0, 170, 255, 0.2);
+            }
+
+            to {
+                box-shadow: 0 0 2.12vw rgba(0, 170, 255, 0.75), inset 0 0 0.79vw rgba(0, 170, 255, 0.4);
+            }
         }
 
         .btn-premium.focused {
@@ -634,7 +640,7 @@
             position: absolute;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 2.04vh;
             opacity: 0;
             transition: opacity 0.6s, transform 0.6s;
             z-index: 100;
@@ -647,11 +653,11 @@
         }
 
         .menu-btn-base {
-            width: 280px;
-            height: 60px;
+            width: 18.52vw;
+            height: 6.11vh;
             font-family: 'Orbitron', sans-serif;
-            font-size: 18px;
-            letter-spacing: 4px;
+            font-size: 1.19vw;
+            letter-spacing: 0.26vw;
             cursor: pointer;
             background: rgba(0, 170, 255, 0.1);
             border: 1px solid #0af;
@@ -664,7 +670,7 @@
 
         /* Play button alignment variants */
         .align-left {
-            left: 20%;
+            left: 15%;
             top: 50%;
             transform: translateY(-50%);
         }
@@ -702,12 +708,12 @@
         /* Skip button */
         #skip-intro {
             position: absolute;
-            bottom: 30px;
-            right: 40px;
+            bottom: 3.05vh;
+            right: 2.65vw;
             color: rgba(255, 255, 255, 0.4);
             font-family: 'Orbitron', sans-serif;
-            font-size: 14px;
-            letter-spacing: 2px;
+            font-size: 0.93vw;
+            letter-spacing: 0.13vw;
             cursor: pointer;
             text-transform: uppercase;
             transition: color 0.3s ease, opacity 0.3s ease;
@@ -726,7 +732,7 @@
             position: absolute;
             inset: 0;
             z-index: 150;
-            perspective: 1200px;
+            perspective: 79.37vw;
             pointer-events: none;
             /* Let clicks pass to screens */
         }
@@ -750,9 +756,9 @@
         .top-screens {
             display: flex;
             width: 90%;
-            max-width: 1400px;
+            max-width: 92.59vw;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 2.04vh;
         }
 
         .joystick-space {
@@ -762,14 +768,14 @@
 
         .bottom-screen {
             width: 90%;
-            max-width: 1400px;
+            max-width: 92.59vw;
         }
 
         .cockpit-screen {
             background: rgba(0, 20, 40, 0.7);
             border: 2px solid #0af;
-            border-radius: 12px;
-            box-shadow: 0 0 30px rgba(0, 170, 255, 0.2) inset, 0 0 20px rgba(0, 170, 255, 0.4);
+            border-radius: 0.79vw;
+            box-shadow: 0 0 1.98vw rgba(0, 170, 255, 0.2) inset, 0 0 1.32vw rgba(0, 170, 255, 0.4);
             backdrop-filter: blur(8px);
             pointer-events: auto;
             position: relative;
@@ -807,8 +813,8 @@
             background: rgba(0, 10, 25, 0.9);
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            padding: 20px;
+            gap: 1.53vh;
+            padding: 1.32vw;
             justify-content: center;
         }
 
@@ -819,10 +825,10 @@
             border: 1px solid rgba(0, 170, 255, 0.3);
             color: #0af;
             font-family: 'Orbitron', sans-serif;
-            font-size: 14px;
-            padding: 15px;
+            font-size: 0.93vw;
+            padding: 1.53vh;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 0.26vw;
             transition: all 0.2s;
             text-transform: uppercase;
         }
@@ -836,29 +842,29 @@
             background: rgba(0, 170, 255, 0.5);
             border-color: #0ff;
             color: #fff;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 0.66vw rgba(0, 255, 255, 0.4);
         }
 
         .screen-title {
             background: rgba(0, 170, 255, 0.2);
             color: #0ff;
             text-align: center;
-            padding: 8px;
+            padding: 0.81vh;
             font-family: 'Orbitron', sans-serif;
             font-weight: 700;
-            letter-spacing: 4px;
+            letter-spacing: 0.26vw;
             border-bottom: 1px solid #0af;
-            font-size: 14px;
+            font-size: 0.93vw;
         }
 
         /* Grids */
         .upgrade-grid {
             display: grid;
-            grid-template-columns: repeat(6, 60px);
-            grid-template-rows: repeat(3, 60px);
-            gap: 4px;
-            padding: 10px;
-            height: calc(100% - 35px);
+            grid-template-columns: repeat(6, 3.97vw);
+            grid-template-rows: repeat(3, 3.97vw);
+            gap: 0.26vw;
+            padding: 0.66vw;
+            height: calc(100% - 2.32vw);
             box-sizing: border-box;
             position: relative;
             justify-content: center;
@@ -868,7 +874,7 @@
         .grid-cell {
             background: rgba(0, 170, 255, 0.05);
             border: 1px dashed rgba(0, 170, 255, 0.3);
-            border-radius: 4px;
+            border-radius: 0.26vw;
             position: relative;
             transition: background 0.2s, border-color 0.2s;
         }
@@ -885,12 +891,12 @@
 
         .available-list-col {
             display: grid;
-            grid-template-columns: repeat(4, 60px);
-            grid-auto-rows: 60px;
-            gap: 4px;
-            padding: 10px;
+            grid-template-columns: repeat(4, 3.97vw);
+            grid-auto-rows: 3.97vw;
+            gap: 0.26vw;
+            padding: 0.66vw;
             overflow-y: auto;
-            height: calc(100% - 35px);
+            height: calc(100% - 2.32vw);
             justify-content: center;
         }
 
@@ -905,14 +911,14 @@
 
         .upgrade-item {
             position: relative;
-            border-radius: 6px;
+            border-radius: 0.4vw;
             cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
             color: #fff;
             font-family: 'Orbitron', sans-serif;
-            font-size: 12px;
+            font-size: 0.79vw;
             text-align: center;
             transition: transform 0.2s, box-shadow 0.2s;
             user-select: none;
@@ -934,16 +940,16 @@
         }
 
         .upgrade-name {
-            padding: 5px;
+            padding: 0.33vw;
             font-weight: 700;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 0 0.33vw rgba(0, 0, 0, 0.8);
         }
 
         .upgrade-item-cost {
             position: absolute;
-            bottom: 4px;
-            right: 6px;
-            font-size: 10px;
+            bottom: 0.26vw;
+            right: 0.4vw;
+            font-size: 0.66vw;
             color: rgba(255, 255, 255, 0.9);
             font-family: 'Orbitron', sans-serif;
             font-weight: bold;
@@ -967,11 +973,11 @@
         .upgrade-item.engine {
             background: linear-gradient(135deg, rgba(255, 204, 0, 1), rgba(200, 150, 0, 1));
             border: 1px solid #fc0;
-            box-shadow: 0 0 10px rgba(255, 204, 0, 0.3);
+            box-shadow: 0 0 0.66vw rgba(255, 204, 0, 0.3);
         }
 
         .upgrade-item.engine:hover {
-            box-shadow: 0 0 20px rgba(255, 204, 0, 0.6);
+            box-shadow: 0 0 1.32vw rgba(255, 204, 0, 0.6);
             transform: scale(1.02);
         }
 
@@ -979,11 +985,11 @@
         .upgrade-item.economy {
             background: linear-gradient(135deg, rgba(34, 255, 102, 1), rgba(0, 180, 50, 1));
             border: 1px solid #2f6;
-            box-shadow: 0 0 10px rgba(34, 255, 102, 0.3);
+            box-shadow: 0 0 0.66vw rgba(34, 255, 102, 0.3);
         }
 
         .upgrade-item.economy:hover {
-            box-shadow: 0 0 20px rgba(34, 255, 102, 0.6);
+            box-shadow: 0 0 1.32vw rgba(34, 255, 102, 0.6);
             transform: scale(1.02);
         }
 
@@ -991,24 +997,24 @@
         .upgrade-item.defense {
             background: linear-gradient(135deg, rgba(51, 170, 255, 1), rgba(0, 100, 200, 1));
             border: 1px solid #3af;
-            box-shadow: 0 0 10px rgba(51, 170, 255, 0.3);
+            box-shadow: 0 0 0.66vw rgba(51, 170, 255, 0.3);
         }
 
         .upgrade-item.defense:hover {
-            box-shadow: 0 0 20px rgba(51, 170, 255, 0.6);
+            box-shadow: 0 0 1.32vw rgba(51, 170, 255, 0.6);
             transform: scale(1.02);
         }
 
         .selected {
             border-width: 3px !important;
             border-color: #0ff !important;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.6) !important;
+            box-shadow: 0 0 0.99vw rgba(0, 255, 255, 0.6) !important;
             z-index: 10;
         }
 
         .upgrade-placeholder {
             border: 1px dashed rgba(0, 170, 255, 0.2);
-            border-radius: 6px;
+            border-radius: 0.4vw;
             background: rgba(0, 170, 255, 0.05);
             flex-shrink: 0;
         }
@@ -1016,7 +1022,7 @@
         /* Shape sizes (based on a base unit size, dynamically applied via JS depending on grid cell size) */
 
         #info-content {
-            padding: 20px;
+            padding: 1.32vw;
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -1027,27 +1033,27 @@
         #info-title {
             color: #0ff;
             font-family: 'Orbitron', sans-serif;
-            margin-bottom: 10px;
-            font-size: 22px;
+            margin-bottom: 1.02vh;
+            font-size: 1.46vw;
         }
 
         #info-cost {
             color: #f43;
             font-weight: bold;
-            margin-bottom: 20px;
-            font-size: 18px;
+            margin-bottom: 2.04vh;
+            font-size: 1.19vw;
         }
 
         #info-desc {
             flex: 1;
-            font-size: 18px;
+            font-size: 1.19vw;
             line-height: 1.4;
         }
 
         #info-content .btn-premium {
-            padding: 15px 0;
+            padding: 1.53vh 0;
             width: 100%;
-            margin-top: 20px;
+            margin-top: 2.04vh;
         }
 
         #info-content .btn-premium:disabled {
@@ -1055,6 +1061,7 @@
             cursor: not-allowed;
             pointer-events: none;
         }
+
         #game-container {
             position: absolute;
             left: 50%;
@@ -1071,160 +1078,162 @@
 <body>
     <div id="game-container">
 
-    <!-- HUD (during gameplay) -->
-    <div id="hud" class="hidden">
-        <div id="credits">000000</div>
-        <div id="fuel-wrap">
-            <div id="fuel-bar-boost"></div>
-            <div id="fuel-bar"></div>
-        </div>
-        <div id="boost-indicator">BOOST ACTIVE</div>
-        <div id="shield-indicator">SHIELD ACTIVE</div>
-    </div>
-
-    <div id="mobile-controls">
-        <div id="mobile-boost-btn">BOOST</div>
-        <div id="mobile-joystick-zone">
-            <div id="mobile-joystick-base">
-                <div id="mobile-joystick-stick"></div>
+        <!-- HUD (during gameplay) -->
+        <div id="hud" class="hidden">
+            <div id="credits">000000</div>
+            <div id="fuel-wrap">
+                <div id="fuel-bar-boost"></div>
+                <div id="fuel-bar"></div>
             </div>
-        </div>
-    </div>
-
-    <!-- Menu button (top-right during gameplay) -->
-    <div id="menu-btn">
-        <svg viewBox="0 0 24 24">
-            <line x1="4" y1="6" x2="20" y2="6" />
-            <line x1="4" y1="12" x2="20" y2="12" />
-            <line x1="4" y1="18" x2="20" y2="18" />
-        </svg>
-    </div>
-
-    <!-- Main Menu overlay (title + play) -->
-    <div id="main-menu">
-        <div id="title-container">
-            <div id="title-wrap">
-                <span id="title-stellar">STELLAR</span>
-                <span id="title-rush">RUSH</span>
-            </div>
-        </div>
-        <div id="menu-actions" class="align-left">
-            <button id="play-btn" class="btn-premium menu-btn-base">PLAY</button>
-            <button id="upgrades-menu-btn" class="btn-premium menu-btn-base" style="margin-top: 20px;">UPGRADES</button>
+            <div id="boost-indicator">BOOST ACTIVE</div>
+            <div id="shield-indicator">SHIELD ACTIVE</div>
         </div>
 
-        <div id="skip-intro">Click to Skip</div>
-    </div>
-
-    <!-- Pause overlay -->
-    <div id="pause-menu">
-        <div class="pause-inner">
-            <h2>PAUSED</h2>
-            <div class="pause-btns">
-                <button id="pause-resume-btn" class="btn-premium">RESUME</button>
-                <button id="pause-back-btn" class="btn-premium">BACK TO MAIN MENU</button>
-            </div>
-
-            <div id="graphics-settings">
-                <h3>SETTINGS</h3>
-                <div class="setting-row">
-                    <label for="setting-preset">Graphics Preset</label>
-                    <select id="setting-preset">
-                        <option value="High">High</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Low">Low</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <label for="setting-fps">Show FPS</label>
-                    <input type="checkbox" id="setting-fps">
-                </div>
-                <div class="setting-row">
-                    <label for="setting-fov">Field of View</label>
-                    <select id="setting-fov">
-                        <option value="50">50 (Narrow)</option>
-                        <option value="60">60 (Standard)</option>
-                        <option value="70">70 (Wide)</option>
-                    </select>
+        <div id="mobile-controls">
+            <div id="mobile-boost-btn">BOOST</div>
+            <div id="mobile-joystick-zone">
+                <div id="mobile-joystick-base">
+                    <div id="mobile-joystick-stick"></div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Game Over overlay -->
-    <div id="game-over">
-        <div>
-            <h1>GAME OVER</h1>
-            <div class="sub">CREDITS <span id="final-credits">0</span></div>
-            <button id="restart-btn" class="btn-premium" style="width: 100%;">RETRY</button>
-            <button id="upgrades-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">UPGRADES</button>
-            <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 10px;">MAIN
-                MENU</button>
-        </div>
-    </div>
-
-    <!-- Upgrades Menu -->
-    <div id="upgrades-menu" style="display: none;">
-        <button id="upgrades-back-btn" class="btn-premium"
-            style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 100; padding: 20px 40px; font-size: 20px; min-width: 200px;">EXIT</button>
-        <div id="upgrades-bank"
-            style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; text-align: center; color: #0ff; font-family: 'Orbitron', sans-serif; font-size: 24px; text-shadow: 0 0 10px #0af;">
-            CREDITS<br /><span id="banked-credits-display">0</span>
+        <!-- Menu button (top-right during gameplay) -->
+        <div id="menu-btn">
+            <svg viewBox="0 0 24 24">
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+            </svg>
         </div>
 
-        <div class="cockpit-screens">
-            <div class="top-screens">
-                <div id="screen-active" class="cockpit-screen">
-                    <div class="screen-title">ACTIVE UPGRADES</div>
-                    <div id="active-grid" class="upgrade-grid">
-                        <!-- 5x3 grid cells will be injected here -->
+        <!-- Main Menu overlay (title + play) -->
+        <div id="main-menu">
+            <div id="title-container">
+                <div id="title-wrap">
+                    <span id="title-stellar">STELLAR</span>
+                    <span id="title-rush">RUSH</span>
+                </div>
+            </div>
+            <div id="menu-actions" class="align-left">
+                <button id="play-btn" class="btn-premium menu-btn-base">PLAY</button>
+                <button id="upgrades-menu-btn" class="btn-premium menu-btn-base"
+                    style="margin-top: 2.04vh;">UPGRADES</button>
+            </div>
+
+            <div id="skip-intro">Click to Skip</div>
+        </div>
+
+        <!-- Pause overlay -->
+        <div id="pause-menu">
+            <div class="pause-inner">
+                <h2>PAUSED</h2>
+                <div class="pause-btns">
+                    <button id="pause-resume-btn" class="btn-premium">RESUME</button>
+                    <button id="pause-back-btn" class="btn-premium">BACK TO MAIN MENU</button>
+                </div>
+
+                <div id="graphics-settings">
+                    <h3>SETTINGS</h3>
+                    <div class="setting-row">
+                        <label for="setting-preset">Graphics Preset</label>
+                        <select id="setting-preset">
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label for="setting-fps">Show FPS</label>
+                        <input type="checkbox" id="setting-fps">
+                    </div>
+                    <div class="setting-row">
+                        <label for="setting-fov">Field of View</label>
+                        <select id="setting-fov">
+                            <option value="50">50 (Narrow)</option>
+                            <option value="60">60 (Standard)</option>
+                            <option value="70">70 (Wide)</option>
+                        </select>
                     </div>
                 </div>
-                <div class="joystick-space"></div>
-                <div id="screen-info" class="cockpit-screen">
-                    <div class="screen-title">UPGRADE TERMINAL</div>
-                    <div id="info-content">
-                        <h2 id="info-title">SELECT AN UPGRADE</h2>
-                        <p id="info-desc">---</p>
-                        <div style="display: flex; align-items: center; gap: 15px; margin-top: auto;">
-                            <button id="buy-btn" class="btn-premium" disabled style="flex: 1;">BUY</button>
+            </div>
+        </div>
+
+        <!-- Game Over overlay -->
+        <div id="game-over">
+            <div>
+                <h1>GAME OVER</h1>
+                <div class="sub">CREDITS <span id="final-credits">0</span></div>
+                <button id="restart-btn" class="btn-premium" style="width: 100%;">RETRY</button>
+                <button id="upgrades-btn" class="btn-premium" style="width: 100%; margin-top: 1.02vh;">UPGRADES</button>
+                <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 1.02vh;">MAIN
+                    MENU</button>
+            </div>
+        </div>
+
+        <!-- Upgrades Menu -->
+        <div id="upgrades-menu" style="display: none;">
+            <button id="upgrades-back-btn" class="btn-premium"
+                style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 100; padding: 2.04vh 2.65vw; font-size: 1.32vw; min-width: 13.23vw;">EXIT</button>
+            <div id="upgrades-bank"
+                style="position: absolute; top: 2.04vh; left: 50%; transform: translateX(-50%); z-index: 100; text-align: center; color: #0ff; font-family: 'Orbitron', sans-serif; font-size: 1.59vw; text-shadow: 0 0 0.66vw #0af;">
+                CREDITS<br /><span id="banked-credits-display">0</span>
+            </div>
+
+            <div class="cockpit-screens">
+                <div class="top-screens">
+                    <div id="screen-active" class="cockpit-screen">
+                        <div class="screen-title">ACTIVE UPGRADES</div>
+                        <div id="active-grid" class="upgrade-grid">
+                            <!-- 5x3 grid cells will be injected here -->
+                        </div>
+                    </div>
+                    <div class="joystick-space"></div>
+                    <div id="screen-info" class="cockpit-screen">
+                        <div class="screen-title">UPGRADE TERMINAL</div>
+                        <div id="info-content">
+                            <h2 id="info-title">SELECT AN UPGRADE</h2>
+                            <p id="info-desc">---</p>
+                            <div style="display: flex; align-items: center; gap: 0.99vw; margin-top: auto;">
+                                <button id="buy-btn" class="btn-premium" disabled style="flex: 1;">BUY</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bottom-screen">
+                    <div id="screen-available" class="cockpit-screen"
+                        style="flex-direction: row; align-items: stretch;">
+                        <div
+                            style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                            <div class="screen-title">ENGINE</div>
+                            <div id="available-list-engine" class="available-list-col"></div>
+                        </div>
+                        <div
+                            style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
+                            <div class="screen-title">ECONOMY</div>
+                            <div id="available-list-economy" class="available-list-col"></div>
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <div class="screen-title">DEFENSE</div>
+                            <div id="available-list-defense" class="available-list-col"></div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="bottom-screen">
-                <div id="screen-available" class="cockpit-screen" style="flex-direction: row; align-items: stretch;">
-                    <div
-                        style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
-                        <div class="screen-title">ENGINE</div>
-                        <div id="available-list-engine" class="available-list-col"></div>
-                    </div>
-                    <div
-                        style="flex: 1; display: flex; flex-direction: column; border-right: 2px solid rgba(0, 170, 255, 0.3);">
-                        <div class="screen-title">ECONOMY</div>
-                        <div id="available-list-economy" class="available-list-col"></div>
-                    </div>
-                    <div style="flex: 1; display: flex; flex-direction: column;">
-                        <div class="screen-title">DEFENSE</div>
-                        <div id="available-list-defense" class="available-list-col"></div>
-                    </div>
-                </div>
-            </div>
         </div>
-    </div>
 
-    <script type="importmap">
+        <script type="importmap">
     { "imports": { 
         "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
         "stats": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/stats.module.js"
     } }
     </script>
-    <div id="startup-fade"></div>
+        <div id="startup-fade"></div>
 
-    <div id="notification-overlay"></div>
+        <div id="notification-overlay"></div>
 
-    <!-- Main Game UI -->
-    <script type="module" src="src/main.js"></script>
+        <!-- Main Game UI -->
+        <script type="module" src="src/main.js"></script>
     </div>
 </body>
 

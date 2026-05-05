@@ -238,8 +238,8 @@ function applyTitleStyle(cfg) {
         textShadow: cfg.titleGlow || 'none', 
         letterSpacing: cfg.titleLetterSpacing || 'normal' 
     };
-    Object.assign(stellar.style, s); stellar.style.fontSize = cfg.stellarSize || '82px';
-    Object.assign(rush.style,    s); rush.style.fontSize    = cfg.rushSize || '82px';
+    Object.assign(stellar.style, s); stellar.style.fontSize = cfg.stellarSize || '5.42vw';
+    Object.assign(rush.style,    s); rush.style.fontSize    = cfg.rushSize || '5.42vw';
 }
 
 /* ═══════════════════════════════════════════════════════════

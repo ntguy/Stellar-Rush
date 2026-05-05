@@ -78,9 +78,9 @@ const stats = new Stats();
 stats.showPanel(0);
 stats.dom.style.display = settings.fpsEnabled ? 'block' : 'none';
 stats.dom.style.position = 'absolute';
-stats.dom.style.right = '70px';
+stats.dom.style.right = '4.63vw';
 stats.dom.style.left = '';
-stats.dom.style.top = '16px';
+stats.dom.style.top = '1.63vh';
 stats.dom.style.bottom = '';
 if (elGameContainer) elGameContainer.appendChild(stats.dom);
 else document.body.appendChild(stats.dom);
@@ -442,7 +442,7 @@ function applyUpgrades() {
     
     effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
     if (elFuelWrap) {
-        elFuelWrap.style.width = (200 * upgFuelTankMult) + 'px';
+        elFuelWrap.style.width = (13.23 * upgFuelTankMult) + 'vw';
     }
 
     if (upgNavSystem && !navBeam) {

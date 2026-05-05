@@ -266,7 +266,7 @@ function renderUpgradesLists() {
             cell.style.display = 'flex';
             cell.style.alignItems = 'center';
             cell.style.justifyContent = 'center';
-            cell.style.fontSize = '24px';
+            cell.style.fontSize = '1.59vw';
             cell.style.background = 'rgba(255, 0, 0, 0.05)';
             cell.style.borderColor = 'rgba(255, 0, 0, 0.2)';
             cell.style.cursor = 'pointer';
@@ -309,8 +309,8 @@ function renderUpgradesLists() {
                         
                         const visualItem = Array.from(gridEl.children).find(c => c.dataset.id === u.id);
                         if (visualItem) {
-                            const CELL_FULL = 64; 
-                            e.dataTransfer.setDragImage(visualItem, dragOffset.x * CELL_FULL + 30, dragOffset.y * CELL_FULL + 30);
+                            const CELL_FULL = window.innerWidth * 0.0397 + window.innerWidth * 0.0026; 
+                            e.dataTransfer.setDragImage(visualItem, dragOffset.x * CELL_FULL + CELL_FULL * 0.47, dragOffset.y * CELL_FULL + CELL_FULL * 0.47);
                         }
                         
                         e.dataTransfer.setData('text/plain', u.id);
@@ -405,7 +405,7 @@ function renderUpgradesLists() {
             else if ((u.w === 3 && u.h === 1) || (u.w === 1 && u.h === 3)) fs = 29; // 1.2x
             else if (u.w === 2 && u.h === 2) fs = 48; // 2.0x
             
-            nameEl.style.fontSize = fs + 'px';
+            nameEl.style.fontSize = (fs / 1512 * 100).toFixed(2) + 'vw';
             nameEl.textContent = u.emoji;
             item.appendChild(nameEl);
             
@@ -470,7 +470,7 @@ function renderUpgradesLists() {
                 else if ((u.w === 3 && u.h === 1) || (u.w === 1 && u.h === 3)) fs = 29; // 1.2x
                 else if (u.w === 2 && u.h === 2) fs = 48; // 2.0x
                 
-                nameEl.style.fontSize = fs + 'px';
+                nameEl.style.fontSize = (fs / 1512 * 100).toFixed(2) + 'vw';
                 nameEl.textContent = u.emoji;
                 item.appendChild(nameEl);
 
@@ -483,7 +483,7 @@ function renderUpgradesLists() {
                     selectUpgrade(u);
                     currentlyDraggingId = u.id;
                     const rect = item.getBoundingClientRect();
-                    const CELL_FULL = 64;
+                    const CELL_FULL = window.innerWidth * 0.0397 + window.innerWidth * 0.0026;
                     dragOffset.x = Math.floor((e.clientX - rect.left) / CELL_FULL);
                     dragOffset.y = Math.floor((e.clientY - rect.top) / CELL_FULL);
                     e.dataTransfer.setData('text/plain', u.id);
