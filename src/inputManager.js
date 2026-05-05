@@ -20,6 +20,7 @@ export class InputManager {
         this.isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
         
         this.joystickPointerId = null;
+        this.boostPointerId = null;
         this.elJoystickZone = document.getElementById('mobile-joystick-zone');
         this.elJoystickStick = document.getElementById('mobile-joystick-stick');
         this.elJoystickBase = document.getElementById('mobile-joystick-base');
@@ -160,9 +161,10 @@ export class InputManager {
         this._fireEvent('onAnyInput');
         if (!this.isMobile) return;
         
-        if (e.target === this.elMobileBoost) {
+        if (e.target === this.elMobileBoost || (this.elMobileBoost && this.elMobileBoost.contains(e.target))) {
             this.actions.boost = true;
             this.elMobileBoost.classList.add('active');
+            this.boostPointerId = e.pointerId;
         } else if (this.joystickPointerId === null && this.elJoystickZone && (this.elJoystickZone.contains(e.target) || e.target === this.elJoystickZone)) {
             this.joystickPointerId = e.pointerId;
             this.elJoystickZone.classList.add('active');
@@ -179,10 +181,13 @@ export class InputManager {
 
     _onPointerUp(e) {
         if (!this.isMobile) return;
-        if (e.target === this.elMobileBoost) {
+        
+        if (e.pointerId === this.boostPointerId || (this.boostPointerId === null && (e.target === this.elMobileBoost || (this.elMobileBoost && this.elMobileBoost.contains(e.target))))) {
             this.actions.boost = false;
             this.elMobileBoost.classList.remove('active');
+            if (e.pointerId === this.boostPointerId) this.boostPointerId = null;
         } 
+        
         if (e.pointerId === this.joystickPointerId) {
             this._resetJoystick();
         }
