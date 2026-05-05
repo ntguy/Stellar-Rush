@@ -21,6 +21,8 @@ export const FORCE_PATTERN = null; // e.g. 'patternNarrow' | null for random ---
 /*  World bounds & spawn lanes  */
 export const BOUNDS_X = 24;       // X limit for player & obstacles
 export const BOUNDS_Y = 16;       // Y limit
+export const PICKUP_EDGE_LOG_THRESHOLD = 4; // Distance from edge to trigger logging
+export const ENABLE_PICKUP_EDGE_LOG = DEVELOPMENT_MODE;   // Toggle for console logging
 export const SPAWN_Z  = -200;     // Z where new objects appear (behind camera)  spawned 2s earlier for longer fade-in
 export const DESPAWN_Z = 25;      // Z where objects are removed (past camera)
 

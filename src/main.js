@@ -8,7 +8,7 @@ import {
     matGlow, matAsteroid, matLine, DEVELOPMENT_MODE, FORCE_MOBILE
 } from './config.js';
 
-import { nextObstacle, resetSequencer } from './patterns.js';
+import { nextObstacle, resetSequencer, currentPatternName } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
 import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
 import {
@@ -1259,6 +1259,7 @@ function animate() {
             if (spawnTimer > currentLevel.obstacleInterval) {
                 spawnTimer -= currentLevel.obstacleInterval;
                 const slots = nextObstacle(scene, obstacles, currentLevel.difficultyParams);
+                slots.forEach(s => s.patternName = currentPatternName);
                 
                 // First, handle slots that have a MANDATORY pickup type (like patternChoice)
                 for (let i = slots.length - 1; i >= 0; i--) {

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import {
     SPAWN_Z, DESPAWN_Z, BOUNDS_X, BOUNDS_Y, PLANE_RADIUS,
     FUEL_MAX, FUEL_PICKUP_VALUE, SHIELD_DURATION, matShield,
-    OBS_FADE_TIME, OBS_TARGET_OPACITY
+    OBS_FADE_TIME, OBS_TARGET_OPACITY,
+    PICKUP_EDGE_LOG_THRESHOLD, ENABLE_PICKUP_EDGE_LOG
 } from './config.js';
 
 import { playCollect1, playCollect2 } from './audio.js';
@@ -39,6 +40,32 @@ function getCollectRadius(aircraftPos) {
     const maxScale = 1.4; 
     const scale = 1 + (maxScale - 1) * Math.min(edgeProximity, 1);
     return base * scale;
+}
+
+function logIfCloseToEdge(pos, type, patternName = 'Unknown') {
+    if (!ENABLE_PICKUP_EDGE_LOG) return;
+    
+    const distLeft   = pos.x - (-BOUNDS_X);
+    const distRight  = BOUNDS_X - pos.x;
+    const distBottom = pos.y - (-BOUNDS_Y);
+    const distTop    = BOUNDS_Y - pos.y;
+
+    const minX = Math.min(distLeft, distRight);
+    const minY = Math.min(distBottom, distTop);
+    const minDist = Math.min(minX, minY);
+
+    if (minDist <= PICKUP_EDGE_LOG_THRESHOLD) {
+        const edge = minX < minY 
+            ? (distLeft < distRight ? 'LEFT' : 'RIGHT')
+            : (distBottom < distTop ? 'BOTTOM' : 'TOP');
+            
+        console.warn(`[Edge Warning] Pickup (${type}) spawned near ${edge} edge!`, {
+            pattern: patternName,
+            position: { x: pos.x.toFixed(2), y: pos.y.toFixed(2) },
+            distanceFromEdge: minDist.toFixed(2),
+            threshold: PICKUP_EDGE_LOG_THRESHOLD
+        });
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -113,6 +140,7 @@ export function spawnFuelPickup(scene, pos) {
     }
     scene.add(m);
     pickups.push({ mesh: m, type: 'fuel', fadeAge: 0, haze });
+    if (pos && pos.patternName) logIfCloseToEdge(m.position, 'fuel', pos.patternName);
 }
 
 export function spawnHighValuePickup(scene, pos) {
@@ -134,6 +162,7 @@ export function spawnHighValuePickup(scene, pos) {
     }
     scene.add(m);
     pickups.push({ mesh: m, type: 'credits_high', fadeAge: 0, haze });
+    if (pos && pos.patternName) logIfCloseToEdge(m.position, 'credits_high', pos.patternName);
 }
 
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
@@ -151,6 +180,9 @@ export function spawnLowValuePickup(scene, wx, wy, wz, formationId = null) {
     if (formationId) m.userData.formationId = formationId;
     scene.add(m);
     pickups.push({ mesh: m, type: 'credits_low', fadeAge: 0 });
+    if (formationId && formationTracker[formationId] && formationTracker[formationId].patternName) {
+        logIfCloseToEdge(m.position, 'credits_low', formationTracker[formationId].patternName);
+    }
 }
 
 export function spawnLowValueFormation(scene, slot) {
@@ -161,7 +193,7 @@ export function spawnLowValueFormation(scene, slot) {
     const Z_STEP = 8;
     
     const fid = ++formationIdCounter;
-    formationTracker[fid] = { total: count, collected: 0 };
+    formationTracker[fid] = { total: count, collected: 0, patternName: slot.patternName || 'Unknown' };
     
     for (let i = 0; i < count; i++) {
         spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP, fid);
@@ -181,6 +213,7 @@ export function spawnShieldPickup(scene, pos) {
     m.add(new THREE.PointLight(0x33aaff, 0, 10));
     scene.add(m);
     pickups.push({ mesh: m, type: 'shield', fadeAge: 0 });
+    if (pos && pos.patternName) logIfCloseToEdge(m.position, 'shield', pos.patternName);
 }
 
 /* ═══════════════════════════════════════════════════════════
