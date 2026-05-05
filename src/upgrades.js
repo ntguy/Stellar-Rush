@@ -11,11 +11,11 @@ let wasHudVisible = false;
 const UPGRADES_DB = [
     // Engine
     { id: 'eng1', category: 'engine', name: '+15% Fuel', emoji: '⛽', w: 1, h: 1, cost: 5000, desc: 'Increases fuel tank capacity by 15%.' },
-    { id: 'eng2', category: 'engine', name: '+10% Accel', emoji: '⚡', w: 1, h: 1, cost: 5000, desc: 'Increases base handling by 10%. ' },
+    { id: 'eng2', category: 'engine', name: '+10% Speed', emoji: '⚡', w: 1, h: 1, cost: 5000, desc: 'Increases top speed by 10%.' },
     { id: 'eng3', category: 'engine', name: '+30% Fuel', emoji: '⛽', w: 1, h: 3, cost: 15000, desc: 'Increases fuel tank capacity by 30%.' },
     { id: 'eng4', category: 'engine', name: 'Eff. Boost', emoji: '🍃', w: 3, h: 1, cost: 15000, desc: 'Boosting uses half the extra fuel.' },
-    { id: 'eng5', category: 'engine', name: '+25% Spd/Acc', emoji: '🚀', w: 2, h: 2, cost: 25000, desc: 'Increases base handling and top speed by 25%.' },
-    { id: 'eng6', category: 'engine', name: 'Boost Power', emoji: '🔥', w: 1, h: 3, cost: 18000, desc: 'Increases boost acceleration and speed by 50%.' },
+    { id: 'eng5', category: 'engine', name: '+25% Speed', emoji: '🚀', w: 2, h: 2, cost: 25000, desc: 'Increases top speed by 25%.' },
+    { id: 'eng6', category: 'engine', name: 'Boost Power', emoji: '🔥', w: 1, h: 3, cost: 18000, desc: 'Increases boost speed bonus by 50%.' },
     
     // Economy
     { id: 'eco1', category: 'economy', name: '+20% Passive Credits', emoji: '📈', w: 1, h: 1, cost: 3000, desc: '+20% credits auto earned per second.' },

@@ -250,7 +250,7 @@ export function patternFourCorners(params = {}) {
     
     const dir = Math.random() < 0.5 ? 1 : -1;
     const dist = params.cornerDist ?? 7.5; 
-    const gapSize = params.gapSize * 1.4 ?? PLANE_RADIUS * 6.5;
+    const gapSize = params.gapSize * 1.5 ?? PLANE_RADIUS * 7;
     
     let cornerSeq = 0;
     for (let i = 0; i < p.count; i++) {

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
+import { inputManager } from './inputManager.js';
 
 /* ═══════════════════════════════════════════════════════════
    SUN  (solid fire core + glowing corona)
@@ -195,10 +196,11 @@ async function loadJetBuffer() {
     if (!_menuAudioCtx) {
         _menuAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
         // Resume on interaction
-        const resume = () => { if (_menuAudioCtx.state === 'suspended') _menuAudioCtx.resume(); };
-        window.addEventListener('mousedown', resume, { once: true });
-        window.addEventListener('keydown', resume, { once: true });
-        window.addEventListener('touchstart', resume, { once: true });
+        inputManager.on('onAnyInput', () => { 
+            if (_menuAudioCtx && _menuAudioCtx.state === 'suspended') {
+                _menuAudioCtx.resume(); 
+            }
+        });
     }
     const res = await fetch('src/audio/fighter-jet-taking-off-trimmed.mp3');
     const raw = await res.arrayBuffer();

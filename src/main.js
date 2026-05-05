@@ -30,6 +30,7 @@ import { settings, saveSettings } from './settings.js';
 
 // ─── Menu animation config ───
 import { getMenuConfig } from './menu-variation-1.js';
+import { inputManager } from './inputManager.js';
 
 /* ═══════════════════════════════════════════════════════════
    GAME STATE  —  'MENU' | 'PLAYING'
@@ -397,7 +398,7 @@ function clearCreditsText(scene) {
 /* ═══════════════════════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════════════════════ */
-let fuel, credits, elapsed, gameOver, boosting;
+let fuel, credits, elapsed, gameOver;
 let fuelOut = false, fuelOutTimer = 0;
 let effectiveFuelMax = FUEL_MAX;
 let boostExtraFuelSpent = 0;
@@ -405,7 +406,6 @@ let boostFadeTimer = 0;
 
 /* ── Upgrades State ───────────────────────────────────────── */
 let upgFuelTankMult = 1.0;
-let upgBaseAccelMult = 1.0;
 let upgTopSpeedMult = 1.0;
 let upgBoostFuelMult = 1.0;
 let upgBoostPowerMult = 1.0;
@@ -426,8 +426,7 @@ function applyUpgrades() {
     const eq = getEquippedUpgrades().map(u => u.id);
     
     upgFuelTankMult = 1.0 + (eq.includes('eng1') ? 0.15 : 0) + (eq.includes('eng3') ? 0.30 : 0);
-    upgBaseAccelMult = 1.0 + (eq.includes('eng2') ? 0.10 : 0) + (eq.includes('eng5') ? 0.25 : 0);
-    upgTopSpeedMult = 1.0 + (eq.includes('eng5') ? 0.25 : 0);
+    upgTopSpeedMult = 1.0 + (eq.includes('eng2') ? 0.10 : 0) + (eq.includes('eng5') ? 0.25 : 0);
     upgBoostFuelMult = eq.includes('eng4') ? 0.5 : 1.0;
     upgBoostPowerMult = eq.includes('eng6') ? 1.5 : 1.0;
     
@@ -520,7 +519,7 @@ let colorShiftTo = null;           // THREE.Color we're transitioning to
    nextObstacle() returns slot arrays; we accumulate them here
    and consume one per pickup-spawn event.                    */
 const pendingPickups = [];
-const mouseNDC = new THREE.Vector2(0, 0);
+
 const target   = new THREE.Vector3();
 const vel      = new THREE.Vector3();
 const tmpV     = new THREE.Vector3();
@@ -572,163 +571,43 @@ let prevFuelLow  = false;
 /* ═══════════════════════════════════════════════════════════
    INPUT
    ═══════════════════════════════════════════════════════════ */
-const isMobile = /Android|webOS|iPhone|iPad|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0) || FORCE_MOBILE;
-if (isMobile) document.body.classList.add('is-mobile');
-
-const elMobileBoost = document.getElementById('mobile-boost-btn');
-const elJoystickZone = document.getElementById('mobile-joystick-zone');
-const elJoystickStick = document.getElementById('mobile-joystick-stick');
-const elJoystickBase = document.getElementById('mobile-joystick-base');
-
-let joystickPointerId = null;
-const joystickVec = new THREE.Vector2(0, 0);
-let controlMode = 'MOUSE'; // 'MOUSE' or 'KEYBOARD'
-
-// Keyboard state
-const keys = {
-    w: false, a: false, s: false, d: false,
-    ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false,
-    " ": false
-};
-
-window.addEventListener('keydown', e => {
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-
-    // Handle menu navigation if not in active gameplay
-    if ((gameState !== 'PLAYING' || paused || gameOver) && !isUpgradesOpen()) {
-        if (handleMenuInput(e.key)) return;
-    }
-
-    if (keys.hasOwnProperty(key)) {
-        keys[key] = true;
-        if (gameState === 'PLAYING') {
-            if (controlMode !== 'KEYBOARD') {
-                controlMode = 'KEYBOARD';
-                showNotification('Keyboard Input');
-            }
-            document.body.style.cursor = 'none';
-        }
-    }
-    if (key === ' ' && gameState === 'PLAYING') boosting = true;
-});
-
-window.addEventListener('keyup', e => {
-    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (keys.hasOwnProperty(key)) keys[key] = false;
-    if (key === ' ') boosting = false;
-});
-
-function updateJoystick(touch) {
-    if (!elJoystickBase) return;
-    const rect = elJoystickBase.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    let dx = touch.clientX - centerX;
-    let dy = touch.clientY - centerY;
-    
-    const maxRadius = rect.width / 2;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    
-    if (dist > maxRadius) {
-        dx = (dx / dist) * maxRadius;
-        dy = (dy / dist) * maxRadius;
-    }
-    
-    if (elJoystickStick) elJoystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
-    joystickVec.x = dx / maxRadius;
-    joystickVec.y = -dy / maxRadius; // Invert Y so up is positive
+const isMobile = inputManager.isMobile || FORCE_MOBILE;
+if (isMobile) {
+    document.body.classList.add('is-mobile');
+    inputManager.isMobile = true;
 }
 
-function resetJoystick() {
-    joystickVec.set(0, 0);
-    if (elJoystickStick) elJoystickStick.style.transform = `translate(0px, 0px)`;
-    if (elJoystickZone) elJoystickZone.classList.remove('active');
-    joystickPointerId = null;
-}
-
-window.addEventListener('mousemove', e => {
-    if (isMobile) return;
-    mouseNDC.x =  ((e.clientX - gameRect.left) / gameRect.width)  * 2 - 1;
-    mouseNDC.y = -((e.clientY - gameRect.top) / gameRect.height) * 2 + 1;
-});
-window.addEventListener('mousedown', e => { 
-    if (isMobile) return;
-    
-    // Clear menu focus and switch mode on click
-    if (gameState !== 'PLAYING' || paused || gameOver) {
-        clearMenuFocus();
-        if (controlMode !== 'MOUSE') {
-            controlMode = 'MOUSE';
-            showNotification('Mouse Input');
-        }
-    }
-
+inputManager.on('onControlModeChange', mode => {
     if (gameState === 'PLAYING') {
-        if (controlMode !== 'MOUSE') {
-            controlMode = 'MOUSE';
+        if (mode === 'KEYBOARD') {
+            showNotification('Keyboard Input');
+            document.body.style.cursor = 'none';
+        } else if (mode === 'MOUSE') {
             showNotification('Mouse Input');
+            document.body.style.cursor = 'crosshair';
         }
-        document.body.style.cursor = 'crosshair';
-    }
-    if (e.button === 0 && gameState === 'PLAYING') boosting = true; 
-});
-window.addEventListener('mouseup',   e => { 
-    if (isMobile) return;
-    if (e.button === 0) boosting = false; 
-});
-
-// Pointer/Touch controls
-window.addEventListener('pointerdown', e => {
-    if (!isMobile || gameState !== 'PLAYING') return;
-    
-    if (e.target === elMobileBoost) {
-        boosting = true;
-        elMobileBoost.classList.add('active');
-    } else if (joystickPointerId === null && elJoystickZone && (elJoystickZone.contains(e.target) || e.target === elJoystickZone)) {
-        joystickPointerId = e.pointerId;
-        elJoystickZone.classList.add('active');
-        updateJoystick(e);
+    } else if ((gameState !== 'PLAYING' || paused || gameOver) && mode === 'MOUSE') {
+        clearMenuFocus();
     }
 });
 
-window.addEventListener('pointermove', e => {
-    if (!isMobile || gameState !== 'PLAYING') return;
-    if (e.pointerId === joystickPointerId) {
-        updateJoystick(e);
+inputManager.on('onMenuAction', key => {
+    if ((gameState !== 'PLAYING' || paused || gameOver) && !isUpgradesOpen()) {
+        handleMenuInput(key);
     }
 });
 
-window.addEventListener('pointerup', e => {
-    if (!isMobile) return;
-    if (e.target === elMobileBoost) {
-        boosting = false;
-        elMobileBoost.classList.remove('active');
-    } 
-    if (e.pointerId === joystickPointerId) {
-        resetJoystick();
-    }
-});
-
-window.addEventListener('pointercancel', e => {
-    if (!isMobile) return;
-    if (e.target === elMobileBoost) {
-        boosting = false;
-        elMobileBoost.classList.remove('active');
-    }
-    if (e.pointerId === joystickPointerId) {
-        resetJoystick();
-    }
-});
-window.addEventListener('contextmenu', e => e.preventDefault());
-window.addEventListener('resize', updateSize);
-
-/* ── Pause / Escape handling ──────────────────────────────── */
-window.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && gameState === 'PLAYING') {
+inputManager.on('onPauseAction', () => {
+    if (gameState === 'PLAYING') {
         togglePause();
     }
 });
+
+inputManager.on('onAnyInput', () => {
+    resumeAudioContext();
+});
+
+window.addEventListener('resize', updateSize);
 
 /* ═══════════════════════════════════════════════════════════
    HUD ELEMENTS
@@ -785,18 +664,18 @@ elMenuBtn.addEventListener('click', () => { if (gameState === 'PLAYING') toggleP
 
 document.getElementById('upgrades-btn').addEventListener('click', () => {
     clearMenuFocus();
-    controlMode = 'MOUSE';
+    inputManager.setControlMode('MOUSE');
     document.body.style.cursor = 'default';
     enterUpgradesMenu(scene, camera, aircraft, () => {
         // Returned from Game Over upgrades
         document.getElementById('game-over').classList.add('show');
-        setupMenuNavigation('game-over', controlMode === 'KEYBOARD' ? 1 : -1);
+        setupMenuNavigation('game-over', inputManager.controlMode === 'KEYBOARD' ? 1 : -1);
     });
 });
 
 document.getElementById('upgrades-menu-btn').addEventListener('click', () => {
     clearMenuFocus();
-    controlMode = 'MOUSE';
+    inputManager.setControlMode('MOUSE');
     document.body.style.cursor = 'default';
     enterUpgradesMenu(scene, camera, aircraft, () => {
         // Returned from Main Menu upgrades
@@ -824,7 +703,7 @@ function init() {
     effectiveFuelMax = FUEL_MAX * upgFuelTankMult;
     fuel = effectiveFuelMax;
     credits = 0; elapsed = 0;
-    gameOver = false; boosting = false;
+    gameOver = false;
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
 
@@ -864,8 +743,7 @@ function init() {
     aircraft.rotation.set(0, 0, 0);
     aircraft.scale.setScalar(1);
     vel.set(0, 0, 0);
-    mouseNDC.set(0, 0); // Reset virtual cursor
-    resetJoystick();
+    inputManager.reset();
     matGlow.color.set(0x00fff7);
 
     // Reset visibility of guide line and nav laser
@@ -951,7 +829,7 @@ function togglePause() {
     if (paused) {
         elPause.classList.add('show');
         document.body.style.cursor = 'default';
-        setupMenuNavigation('pause-menu', controlMode === 'KEYBOARD' ? 0 : -1);
+        setupMenuNavigation('pause-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
         
         // Stop looping sounds so they don't get stuck while paused
         stopBoostHum?.();
@@ -981,15 +859,9 @@ function enterMenu() {
     elHud.classList.add('hidden');
     elMenuBtn.classList.remove('visible');
     document.getElementById('mobile-controls').classList.remove('visible');
-    boosting = false;
-    controlMode = 'MOUSE';
-    document.body.style.cursor = 'default';
-    resetJoystick();
-    for (let key in keys) keys[key] = false;
-    setupMenuNavigation('main-menu', controlMode === 'KEYBOARD' ? 0 : -1);
-    if (isMobile) {
-        if (elMobileBoost) elMobileBoost.classList.remove('active');
-    }
+    inputManager.reset();
+    setupMenuNavigation('main-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+
 
     // Clean up gameplay objects from scene
     for (const o of obstacles) o.parts.forEach(m => scene.remove(m));
@@ -1066,7 +938,7 @@ function endGame() {
 
     elFinalCredits.textContent = Math.floor(credits);
     elOverlay.classList.add('show');
-    setupMenuNavigation('game-over', controlMode === 'KEYBOARD' ? 0 : -1);
+    setupMenuNavigation('game-over', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
     document.body.style.cursor = 'default';
     stopAllAudio();
     document.getElementById('mobile-controls').classList.remove('visible');
@@ -1122,10 +994,16 @@ function _doSpawnEnemy(zOffset = 0) {
 /* ═══════════════════════════════════════════════════════════
    MAIN LOOP
    ═══════════════════════════════════════════════════════════ */
-function loop() {
-    requestAnimationFrame(loop);
+function animate() {
+    requestAnimationFrame(animate);
+    let dt = Math.min(clock.getDelta(), 0.1);
+    let boosting = false;
+
+    if (gameState === 'PLAYING' && !paused && !gameOver) {
+        boosting = inputManager.actions.boost;
+    }
+
     stats.begin();
-    const dt = Math.min(clock.getDelta(), 0.05);
 
     /* ── MENU state ───────────────────────────────────── */
     if (gameState === 'MENU') {
@@ -1219,38 +1097,26 @@ function loop() {
 
 
     /* ── Input Processing ─────────────────────────────── */
-    let inputX = 0;
-    let inputY = 0;
-
-    if (keys.w || keys.ArrowUp) inputY += 1;
-    if (keys.s || keys.ArrowDown) inputY -= 1;
-    if (keys.d || keys.ArrowRight) inputX += 1;
-    if (keys.a || keys.ArrowLeft) inputX -= 1;
-
-    inputX += joystickVec.x;
-    inputY += joystickVec.y;
+    let inputX = inputManager.actions.moveX;
+    let inputY = inputManager.actions.moveY;
 
     const inputMag = Math.sqrt(inputX * inputX + inputY * inputY);
-    if (inputMag > 1) {
-        inputX /= inputMag;
-        inputY /= inputMag;
-    }
 
-    const topSpeedBoost = 40 * upgBoostPowerMult;
-    const accelBoost    = 60 * upgBoostPowerMult;
     
-    const kbMult = (controlMode === 'KEYBOARD') ? 0.8 : 1.0;
-    const maxSpd = (boosting ? 20 + topSpeedBoost : 20) * upgTopSpeedMult * kbMult;
-    const accel  = (boosting ? 40 + accelBoost    : 40) * upgBaseAccelMult * kbMult;
+    const defaultMaxSpd = 15;
+    const topSpeedBoost = defaultMaxSpd * upgBoostPowerMult;
+    const maxSpd = (boosting ? defaultMaxSpd + topSpeedBoost : defaultMaxSpd) * upgTopSpeedMult;
+    
+    const targetVel = new THREE.Vector3();
 
-    if (controlMode === 'KEYBOARD' || (isMobile && inputMag > 0)) {
+    if (inputManager.controlMode === 'KEYBOARD' || (isMobile && inputMag > 0)) {
         // ── Direct Steering (Keys / Joystick) ──
-        const targetVel = new THREE.Vector3(inputX * maxSpd, inputY * maxSpd, 0);
-        vel.lerp(targetVel, 8 * dt);
+        targetVel.set(inputX * maxSpd, inputY * maxSpd, 0);
         guideLine.visible = false;
-    } else if (controlMode === 'MOUSE' && !isMobile) {
+    } else if (inputManager.controlMode === 'MOUSE' && !isMobile) {
         // ── Seek Mode (Mouse) ──
         guideLine.visible = true;
+        const mouseNDC = inputManager.getMouseNDC(gameRect);
         raycaster.setFromCamera(mouseNDC, camera);
         raycaster.ray.intersectPlane(zPlane, target);
         target.x = THREE.MathUtils.clamp(target.x, -BOUNDS_X, BOUNDS_X);
@@ -1260,19 +1126,25 @@ function loop() {
         tmpV.subVectors(target, aircraft.position);
         const dist = tmpV.length();
 
-        if (dist > 0.05) {
-            const desiredSpd = Math.min(dist * 4, maxSpd);
-            tmpV.normalize().multiplyScalar(desiredSpd).sub(vel);
-            if (tmpV.length() > accel * dt) tmpV.setLength(accel * dt);
-            vel.add(tmpV);
+        if (dist > 0.01) {
+            // Cap speed right at the end to physically prevent overshooting the cursor in one frame.
+            // For 95% of the distance, this equals maxSpd. Only slows down in the last ~1.5 units.
+            const maxSafeSpd = (dist / dt) * 0.4; 
+            const desiredSpd = Math.min(maxSpd, maxSafeSpd);
+            targetVel.copy(tmpV).setLength(desiredSpd);
         } else {
-            vel.multiplyScalar(1 - 5 * dt);
+            // Absolute hard stop to kill all jiggle
+            targetVel.set(0, 0, 0);
+            vel.set(0, 0, 0); 
         }
     } else {
-        // ── Damping (Mobile idle) ──
+        // ── Idle Damping ──
         guideLine.visible = false;
-        vel.multiplyScalar(1 - 5 * dt);
+        targetVel.set(0, 0, 0);
     }
+
+    // Since acceleration has been removed, instantly apply target velocity
+    vel.copy(targetVel);
 
     aircraft.position.addScaledVector(vel, dt);
     aircraft.position.x = THREE.MathUtils.clamp(aircraft.position.x, -BOUNDS_X, BOUNDS_X);
@@ -1777,4 +1649,4 @@ function loop() {
     stats.end();
 }
 
-loop();
+animate();
