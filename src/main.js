@@ -1176,6 +1176,10 @@ function animate() {
     const boostSpeedInc = (BOOST_SPEED_MULT - 1) * upgBoostPowerMult;
     let speed = (boosting ? baseSpeed * (1 + boostSpeedInc) : baseSpeed) * upgTopSpeedMult;
     
+    // TEMPORARY: 20% speed boost for World 2 to increase difficulty while we use World 1 patterns.
+    // TODO: Remove this once custom World 2 patterns/balancing are implemented.
+    if (currentWorldIdx === 1) speed *= 1.3;
+    
     // Out of fuel slowdown
     if (fuelOut) {
         fuelOutTimer += dt;

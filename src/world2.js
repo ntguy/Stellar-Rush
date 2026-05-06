@@ -217,7 +217,7 @@ let _oceanMesh = null;
 const oceanSpeedSlowdown = 1.5;
 
 function _buildOcean(scene) {
-    const size = 1500;
+    const size = 2000;
     const geo = new THREE.PlaneGeometry(size, size, 1, 1);
     const mat = new THREE.ShaderMaterial({
         uniforms: {
