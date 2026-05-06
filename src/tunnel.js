@@ -93,10 +93,18 @@ function buildTunnelEffect(scene) {
         return railMat.uniforms.uColor.value;
     }
 
+    function setOpacity(opacity) {
+        railMat.uniforms.uOpacity.value = opacity;
+    }
+
+    function getOpacity() {
+        return railMat.uniforms.uOpacity.value;
+    }
+
     function dispose() {
         scene.remove(railMesh);  railGeo.dispose();  railMat.dispose();
     }
-    return { update, dispose, setColor, getColor };
+    return { update, dispose, setColor, getColor, setOpacity, getOpacity };
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -128,4 +136,12 @@ export function clearTunnel(scene) {
         _tunnel.dispose();
         _tunnel = null;
     }
+}
+
+export function setTunnelOpacity(opacity) {
+    _tunnel?.setOpacity(opacity);
+}
+
+export function getTunnelOpacity() {
+    return _tunnel?.getOpacity() ?? 0.2;
 }

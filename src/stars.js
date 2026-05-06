@@ -29,8 +29,10 @@ export function buildStarField(count = 3000, spread = { x: 700, y: 350, z: 480 }
             pos[i * 3 + 2] = r * Math.cos(phi);
         } else {
             pos[i * 3]     = (Math.random() - 0.5) * spread.x;
-            pos[i * 3 + 1] = (Math.random() - 0.5) * spread.y;
-            pos[i * 3 + 2] = -Math.random() * spread.z;
+            // Increased Y spread and shifted downward to fill the bottom of the screen better
+            pos[i * 3 + 1] = (Math.random() - 0.5) * (spread.y + 200) - 50;
+            // Enforce minimum distance of 250 to prevent excessive parallax
+            pos[i * 3 + 2] = -250 - Math.random() * (spread.z - 250);
         }
         phase[i] = Math.random() * Math.PI * 2;
         size[i]  = moveWithCamera ? (1.5 + Math.random() * 4) : (1 + Math.random() * 3);

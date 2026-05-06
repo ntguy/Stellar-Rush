@@ -18,7 +18,7 @@ import {
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel, stopOutOfFuel,
     startMenuMusic, stopMenuMusic
 } from './audio.js';
-import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor } from './tunnel.js';
+import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor, setTunnelOpacity } from './tunnel.js';
 import { LEVELS, WORLD_2_LEVELS, WORLDS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
 import {
     createTransitionPlanet, updateTransitionPlanet, clearTransitionPlanet,
@@ -55,6 +55,7 @@ let activeLevels = LEVELS;        // reference to active world's level array
 // World transition state
 let worldTransitionState = 'NONE'; // 'NONE' | 'PLANET' | 'FOG_IN' | 'SWAP' | 'FOG_OUT'
 let worldTransitionTimer = 0;
+let asteroidGlobalOpacity = 1.0; // Fades to 0 during World 1 -> World 2 transition
 
 /** Persistence: max world unlocked (1-indexed for display, 0-indexed internally) */
 function getMaxWorldUnlocked() {
@@ -748,6 +749,8 @@ function init() {
     colorShiftTo = null;
     worldTransitionState = 'NONE';
     worldTransitionTimer = 0;
+    asteroidGlobalOpacity = 1.0;
+    setTunnelOpacity(0.2); // Reset tunnel to default opacity
 
     spawnTimer = 0; asteroidTimer = 0; enemyTimer = 0;
     // Initialise pickup timers as objects with value and threshold
@@ -1484,8 +1487,15 @@ function animate() {
         worldTransitionTimer += dt;
 
         if (worldTransitionState === 'PLANET') {
-            // Phase 1 (0-4s): Planet grows, pickup formation spawns
+            // Phase 1: Planet grows, pickup formation spawns
             updateTransitionPlanet(dt);
+            
+            // Fade out existing asteroids over the first 3 seconds of the transition
+            asteroidGlobalOpacity = Math.max(0, 1.0 - worldTransitionTimer / 3.0);
+            
+            // Fade out the hyperspace tunnel over the first 8 seconds
+            const tunnelFade = Math.max(0, 1.0 - worldTransitionTimer / 8.0);
+            setTunnelOpacity(0.2 * tunnelFade);
 
             if (!formationSpawned && worldTransitionTimer >= 1.0) {
                 const depthInfo = spawnInterLevelFormation(scene);
@@ -1493,18 +1503,24 @@ function animate() {
                 formationSpawned = true;
             }
 
-            if (worldTransitionTimer >= 4.0) {
+            // Wait until planet has grown and pickup formation has passed
+            // Padding of 15 units ensures the last fuel gem is fully collected
+            const distanceToCover = DESPAWN_Z - (SPAWN_Z - (transitionFormationDepth || 0)) + 15;
+            const timeToClearFormation = (distanceToCover / speed);
+
+            if (worldTransitionTimer >= Math.max(12.0, timeToClearFormation)) {
                 worldTransitionState = 'FOG_IN';
                 worldTransitionTimer = 0;
             }
         } else if (worldTransitionState === 'FOG_IN') {
-            // Phase 2 (4-6s): Fog ramps up to white-out
-            const fogT = Math.min(worldTransitionTimer / 2.0, 1.0);
+            // Phase 2: Fog ramps up to white-out (reduced to 3s for tighter feel)
+            const flashDuration = 2.5;
+            const fogT = Math.min(worldTransitionTimer / flashDuration, 1.0);
             setFogOverlayOpacity(fogT);
 
             updateTransitionPlanet(dt);
 
-            if (worldTransitionTimer >= 2.0) {
+            if (worldTransitionTimer >= flashDuration) {
                 worldTransitionState = 'SWAP';
                 worldTransitionTimer = 0;
             }
@@ -1545,11 +1561,12 @@ function animate() {
             worldTransitionState = 'FOG_OUT';
             worldTransitionTimer = 0;
         } else if (worldTransitionState === 'FOG_OUT') {
-            // Phase 4 (6-8s): Fog clears, revealing Cloud Kingdom
-            const fogT = 1.0 - Math.min(worldTransitionTimer / 2.0, 1.0);
+            // Phase 4: Fog clears, revealing Cloud Kingdom (reduced to 1.5s)
+            const revealDuration = 1.5;
+            const fogT = 1.0 - Math.min(worldTransitionTimer / revealDuration, 1.0);
             setFogOverlayOpacity(fogT);
 
-            if (worldTransitionTimer >= 2.0) {
+            if (worldTransitionTimer >= revealDuration) {
                 clearFogOverlay(scene);
                 levelState = 'PLAYING';
                 worldTransitionState = 'NONE';
@@ -1600,9 +1617,9 @@ function animate() {
             a.mesh.position.z += speed * 0.32 * dt;
             a.mesh.rotation.x += a.rotVel.x * dt;
             a.mesh.rotation.y += a.rotVel.y * dt;
-            // Fade in over 1.5 seconds
+            // Fade in over 1.5 seconds, then apply global transition multiplier
             a.fadeAge = Math.min(a.fadeAge + dt, 1.5);
-            a.mesh.material.opacity = a.fadeAge / 1.5;
+            a.mesh.material.opacity = (a.fadeAge / 1.5) * asteroidGlobalOpacity;
             if (a.mesh.position.z > DESPAWN_Z + 20) {
                 scene.remove(a.mesh);
                 a.mesh.material.dispose();

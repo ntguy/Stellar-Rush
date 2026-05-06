@@ -11,6 +11,8 @@ import * as THREE from 'three';
 /* ═══════════════════════════════════════════════════════════
    LEVEL DEFINITIONS — Level Scaling
    ═══════════════════════════════════════════════════════════ */
+export const DEBUG_SKIP_W1 = false; // Set to true to skip to the end of Level 3 for rapid testing
+
 export const LEVELS = [
     {
         /* Level 1 — Blue */
@@ -71,6 +73,17 @@ export const LEVELS = [
         },
     },
 ];
+
+// Debug logic: skip to the end of level 3
+if (DEBUG_SKIP_W1) {
+    // Only keep level 3 and make it very short
+    const lvl3 = LEVELS.find(l => l.level === 3);
+    if (lvl3) {
+        lvl3.duration = 4; // 4 seconds of level 3 then transition
+        LEVELS.length = 0;
+        LEVELS.push(lvl3);
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════
    WORLD 2 LEVELS  —  "The Cloud Kingdom"

@@ -50,7 +50,7 @@ export function createTransitionPlanet(scene) {
     const mat = new THREE.ShaderMaterial({
         uniforms: {
             uTime:  { value: 0 },
-            uScale: { value: 0.01 },  // grows from tiny → full
+            uOpacity: { value: 0 },
         },
         vertexShader: `
             varying vec3 vNormal, vPos, vViewDir;
@@ -62,7 +62,7 @@ export function createTransitionPlanet(scene) {
                 gl_Position = projectionMatrix * mv;
             }`,
         fragmentShader: `
-            uniform float uTime, uScale;
+            uniform float uTime, uOpacity;
             varying vec3 vNormal, vPos, vViewDir;
             ${GLSL_NOISE}
             void main(){
@@ -88,9 +88,9 @@ export function createTransitionPlanet(scene) {
                 // Slight emissive so it glows against black space
                 col += vec3(0.02, 0.05, 0.12);
 
-                gl_FragColor = vec4(col, 1.0);
+                gl_FragColor = vec4(col, uOpacity);
             }`,
-        transparent: false,
+        transparent: true,
         depthWrite: true,
     });
 
@@ -105,6 +105,7 @@ export function createTransitionPlanet(scene) {
         uniforms: {
             uColor: { value: new THREE.Color(0.3, 0.6, 1.0) },
             uTime:  { value: 0 },
+            uOpacity: { value: 0 },
         },
         vertexShader: `
             varying vec3 vNormal, vViewDir;
@@ -116,13 +117,13 @@ export function createTransitionPlanet(scene) {
             }`,
         fragmentShader: `
             uniform vec3 uColor;
-            uniform float uTime;
+            uniform float uTime, uOpacity;
             varying vec3 vNormal, vViewDir;
             void main(){
                 float f = 1.0 - abs(dot(vNormal, vViewDir));
                 f = pow(f, 3.0);
                 float pulse = 0.85 + 0.15 * sin(uTime * 1.2);
-                gl_FragColor = vec4(uColor * 2.0 * pulse, f * 0.7);
+                gl_FragColor = vec4(uColor * 2.0 * pulse, f * 0.7 * uOpacity);
             }`,
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -151,13 +152,18 @@ export function updateTransitionPlanet(dt) {
     _tPlanet.mat.uniforms.uTime.value = t;
     _tPlanet.glowMat.uniforms.uTime.value = t;
 
-    // Grow in over 4 seconds — exponential ease-out
-    const growT = Math.min(t / 4.0, 1.0);
-    const scale = growT * growT * (3 - 2 * growT);  // smoothstep
+    // Fade in over 6 seconds
+    const opacity = Math.min(t / 2.0, 1.0);
+    _tPlanet.mat.uniforms.uOpacity.value = opacity;
+    _tPlanet.glowMat.uniforms.uOpacity.value = opacity;
+
+    // Accelerating growth — starts slow, ends fast
+    // t^2.6 provides a nice punchy acceleration towards the player
+    const scale = Math.pow(t, 2.6) * 0.008;
     _tPlanet.mesh.scale.setScalar(scale);
 
     // Slow rotation
-    _tPlanet.mesh.rotation.y += dt * 0.06;
+    _tPlanet.mesh.rotation.y += dt * 0.08;
 
     return t;
 }
@@ -183,34 +189,21 @@ export function clearTransitionPlanet(scene) {
 let _fogOverlay = null;
 
 export function createFogOverlay(scene, camera) {
-    if (_fogOverlay) clearFogOverlay(scene);
-
-    const geo = new THREE.SphereGeometry(2, 16, 12);
-    const mat = new THREE.MeshBasicMaterial({
-        color: 0xddeeff,
-        transparent: true,
-        opacity: 0,
-        side: THREE.BackSide,
-        depthWrite: false,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    camera.add(mesh);
-    if (!camera.parent) scene.add(camera);
-
-    _fogOverlay = { mesh, mat };
+    // We now use a CSS-based flash overlay for perfect smoothness/no flickering
+    const flash = document.getElementById('world-transition-flash');
+    if (flash) flash.style.opacity = '0';
+    _fogOverlay = { active: true };
 }
 
 export function setFogOverlayOpacity(opacity) {
-    if (_fogOverlay) _fogOverlay.mat.opacity = Math.max(0, Math.min(1, opacity));
+    const flash = document.getElementById('world-transition-flash');
+    if (flash) flash.style.opacity = Math.max(0, Math.min(1, opacity)).toString();
 }
 
 export function clearFogOverlay(scene) {
-    if (_fogOverlay) {
-        if (_fogOverlay.mesh.parent) _fogOverlay.mesh.parent.remove(_fogOverlay.mesh);
-        _fogOverlay.mesh.geometry.dispose();
-        _fogOverlay.mat.dispose();
-        _fogOverlay = null;
-    }
+    const flash = document.getElementById('world-transition-flash');
+    if (flash) flash.style.opacity = '0';
+    _fogOverlay = null;
 }
 
 

@@ -39,6 +39,15 @@
             transition: opacity 0.5s ease-out;
         }
 
+        #world-transition-flash {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0;
+        }
+
         /* ── HUD ─────────────────────────────────────────── */
         #hud {
             position: absolute;
@@ -1211,7 +1220,7 @@
                     </button>
                     <button class="world-btn btn-premium" data-world="2" disabled>
                         <span class="world-name">WORLD 3</span>
-                        <span class="world-sub">???</span>
+                        <span class="world-sub">Not Yet Developed</span>
                         <span class="lock-icon">🔒</span>
                     </button>
                 </div>
@@ -1324,6 +1333,7 @@
     } }
     </script>
         <div id="startup-fade"></div>
+    <div id="world-transition-flash"></div>
 
         <div id="notification-overlay"></div>
 
