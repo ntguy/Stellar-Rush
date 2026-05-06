@@ -221,6 +221,7 @@ const _tracked = [];  // all Three.js objects to dispose
 
 /* ── Ocean ─────────────────────────────────────────────── */
 let _oceanMesh = null;
+const oceanSpeedSlowdown = 1.5;
 
 function _buildOcean(scene) {
     const size = 1500;
@@ -228,6 +229,7 @@ function _buildOcean(scene) {
     const mat = new THREE.ShaderMaterial({
         uniforms: {
             uTime:    { value: 0 },
+            uOffset:  { value: 0 },
             uSunDir:  { value: new THREE.Vector3(0.3, 0.8, -0.5).normalize() },
         },
         vertexShader: `
@@ -241,12 +243,14 @@ function _buildOcean(scene) {
             }`,
         fragmentShader: `
             uniform float uTime;
+            uniform float uOffset;
             uniform vec3 uSunDir;
             varying vec2 vUv;
             varying vec3 vWorldPos;
             ${GLSL_NOISE}
             void main(){
                 vec2 uv = vUv * 40.0;
+                uv.y += (uOffset / float(${oceanSpeedSlowdown})); // Scroll ocean past the camera
                 float n1 = noise(vec3(uv + uTime * 0.04, uTime * 0.02));
                 float n2 = noise(vec3(uv * 2.3 + uTime * 0.02, uTime * 0.04 + 5.0));
                 float wave = n1 * 0.6 + n2 * 0.4;
@@ -354,32 +358,36 @@ function _buildClouds(scene) {
 const _birds = [];
 const MAX_BIRDS = 18;
 let _birdSpawnTimer = 0;
-const BIRD_SPAWN_INTERVAL = 4;  // seconds between flock spawns
+const BIRD_SPAWN_INTERVAL = 6;  // seconds between flock spawns
 
-// Simple low-poly bird geometry (two triangle wings + body)
-let _birdGeo = null;
+// 3D Bird geometry (Body + Wings for flapping)
+let _birdBodyGeo = null;
+let _birdWingGeo = null;
 const _birdMat = new THREE.MeshPhongMaterial({
     color: 0x000000,
     flatShading: true,
     side: THREE.DoubleSide,
 });
 
-function _getBirdGeo() {
-    if (_birdGeo) return _birdGeo;
-    // Create a simple bird shape: two triangular wings
+function _getBirdBodyGeo() {
+    if (_birdBodyGeo) return _birdBodyGeo;
+    _birdBodyGeo = new THREE.ConeGeometry(0.15, 0.8, 4);
+    _birdBodyGeo.rotateX(-Math.PI / 2); // point forward
+    return _birdBodyGeo;
+}
+
+function _getBirdWingGeo() {
+    if (_birdWingGeo) return _birdWingGeo;
     const shape = new THREE.BufferGeometry();
     const verts = new Float32Array([
-        // Left wing
-        0, 0, 0.3,     -1.2, 0, -0.2,    0, 0, -0.3,
-        // Right wing
-        0, 0, 0.3,      0, 0, -0.3,       1.2, 0, -0.2,
-        // Body (small triangle)
-        -0.1, 0.05, 0.4,  0.1, 0.05, 0.4,  0, -0.05, -0.3,
+        0, 0, 0.3,
+        1.5, 0, -0.1,
+        0, 0, -0.3
     ]);
     shape.setAttribute('position', new THREE.BufferAttribute(verts, 3));
     shape.computeVertexNormals();
-    _birdGeo = shape;
-    return _birdGeo;
+    _birdWingGeo = shape;
+    return _birdWingGeo;
 }
 
 function _spawnBirdFlock(scene) {
@@ -397,10 +405,23 @@ function _spawnBirdFlock(scene) {
     const baseSpeed = 0.4 + Math.random() * 0.2;  // relative to obstacle speed
 
     for (let i = 0; i < count && _birds.length < MAX_BIRDS; i++) {
-        const mesh = new THREE.Mesh(_getBirdGeo(), _birdMat.clone());
-        mesh.material.color.setHex(0x000000);
+        const group = new THREE.Group();
+        
+        const body = new THREE.Mesh(_getBirdBodyGeo(), _birdMat.clone());
+        body.material.color.setHex(0x000000);
+        group.add(body);
+        
+        const leftWing = new THREE.Mesh(_getBirdWingGeo(), _birdMat.clone());
+        leftWing.material.color.setHex(0x000000);
+        leftWing.scale.x = -1; // Mirror for left wing
+        group.add(leftWing);
+        
+        const rightWing = new THREE.Mesh(_getBirdWingGeo(), _birdMat.clone());
+        rightWing.material.color.setHex(0x000000);
+        group.add(rightWing);
+
         const scale = 0.8 + Math.random() * 0.5;
-        mesh.scale.setScalar(scale);
+        group.scale.setScalar(scale);
 
         let offX, offZ;
         if (isV) {
@@ -415,16 +436,16 @@ function _spawnBirdFlock(scene) {
             offZ = (Math.random() - 0.5) * 10;
         }
 
-        mesh.position.set(
+        group.position.set(
             centerX + offX,
             centerY + (Math.random() - 0.5) * 2,
             SPAWN_Z + offZ
         );
-        mesh.rotation.y = Math.PI; // Face +Z (direction of travel)
+        group.rotation.y = Math.PI; // Face +Z (direction of travel)
 
-        scene.add(mesh);
+        scene.add(group);
         _birds.push({
-            mesh,
+            group,
             speedMult: baseSpeed + (Math.random() - 0.5) * 0.08,
             flapPhase: Math.random() * Math.PI * 2,
             flapSpeed: 4 + Math.random() * 2,
@@ -442,17 +463,23 @@ function _updateBirds(dt, speed) {
     for (let i = _birds.length - 1; i >= 0; i--) {
         const b = _birds[i];
         // Birds move at a fraction of obstacle speed (player overtakes them)
-        b.mesh.position.z += speed * b.speedMult * dt;
+        b.group.position.z += speed * b.speedMult * dt;
 
-        // Flapping: oscillate Y position and tilt wings
+        // Flapping: oscillate Y position and tilt wings relative to body
         b.flapPhase += b.flapSpeed * dt;
-        b.mesh.position.y += Math.sin(b.flapPhase) * 0.3 * dt;
-        b.mesh.rotation.z = Math.sin(b.flapPhase) * 0.3;
+        b.group.position.y += Math.sin(b.flapPhase) * 0.3 * dt;
+        
+        const flapAngle = Math.sin(b.flapPhase) * 0.6;
+        b.group.children[1].rotation.z = -flapAngle; // Left wing
+        b.group.children[2].rotation.z = flapAngle;  // Right wing
 
         // Remove if past camera
-        if (b.mesh.position.z > DESPAWN_Z + 30) {
-            _scene.remove(b.mesh);
-            b.mesh.material.dispose();
+        if (b.group.position.z > DESPAWN_Z + 30) {
+            _scene.remove(b.group);
+            b.group.children.forEach(c => {
+                if (c.geometry && c.geometry !== _birdBodyGeo && c.geometry !== _birdWingGeo) c.geometry.dispose();
+                if (c.material) c.material.dispose();
+            });
             _birds.splice(i, 1);
         }
     }
@@ -460,8 +487,11 @@ function _updateBirds(dt, speed) {
 
 function _clearBirds(scene) {
     for (const b of _birds) {
-        scene.remove(b.mesh);
-        b.mesh.material.dispose();
+        scene.remove(b.group);
+        b.group.children.forEach(c => {
+            if (c.geometry && c.geometry !== _birdBodyGeo && c.geometry !== _birdWingGeo) c.geometry.dispose();
+            if (c.material) c.material.dispose();
+        });
     }
     _birds.length = 0;
     _birdSpawnTimer = 0;
@@ -470,27 +500,116 @@ function _clearBirds(scene) {
 /* ── Islands ───────────────────────────────────────────── */
 const _islands = [];
 const _islandGeoBase = new THREE.DodecahedronGeometry(1, 1);
-const _islandMat = new THREE.MeshPhongMaterial({ color: 0xd2b48c, flatShading: true, transparent: true, opacity: 0 }); // Sandy beige
+const _islandSandMat = new THREE.MeshPhongMaterial({ color: 0x9b8c75, flatShading: true, transparent: true, opacity: 0 }); // Hazy sand
+const _islandGrassMat = new THREE.MeshPhongMaterial({ color: 0x5a6b52, flatShading: true, transparent: true, opacity: 0 }); // Hazy grass
 
-function _spawnIsland() {
-    if (_islands.length > 10) return;
-    const mesh = new THREE.Mesh(_islandGeoBase, _islandMat.clone());
+let _treeGeoBase = null;
+function _getTreeGeo() {
+    if (_treeGeoBase) return _treeGeoBase;
+    _treeGeoBase = new THREE.ConeGeometry(0.5, 2.0, 4);
+    _treeGeoBase.translate(0, 1.0, 0); // Put origin at bottom
+    return _treeGeoBase;
+}
+const _treeMat = new THREE.MeshPhongMaterial({ color: 0x3a4b42, flatShading: true, transparent: true, opacity: 0 }); // Dark hazy green
+
+function _spawnIsland(isInitial = false, zPos = null) {
+    if (_islands.length > 8) return;
     
-    // Tiny varied islands
-    const sx = 5 + Math.random() * 20;
-    const sz = 5 + Math.random() * 20;
-    const sy = 1 + Math.random() * 5;
-    mesh.scale.set(sx, sy, sz);
+    const group = new THREE.Group();
+    
+    const sandMatInst = _islandSandMat.clone();
+    const grassMatInst = _islandGrassMat.clone();
+    const treeMatInst = _treeMat.clone();
+    
+    // Overall island scale bounds (elliptical)
+    const sxMain = 10 + Math.random() * 25;
+    const szMain = 5 + Math.random() * 15;
+    const syMain = 0.5 + Math.random(); // Much flatter
+    
+    const blobs = [];
+    const numBlobs = 1 + Math.floor(Math.random() * 2); // 1 to 3 blobs for ragged shape
+    
+    for (let j = 0; j < numBlobs; j++) {
+        const sx = sxMain * (0.5 + Math.random() * 0.7);
+        const sz = szMain * (0.5 + Math.random() * 0.7);
+        const sy = syMain * (0.6 + Math.random() * 0.6);
+        
+        // Offset from center to create a more cohesive ragged cluster
+        const ox = (j === 0) ? 0 : (Math.random() - 0.5) * sxMain * 0.7;
+        const oz = (j === 0) ? 0 : (Math.random() - 0.5) * szMain * 0.7;
+        
+        // Sand base
+        const sandMesh = new THREE.Mesh(_islandGeoBase, sandMatInst);
+        sandMesh.scale.set(sx, sy, sz);
+        sandMesh.position.set(ox, 0, oz);
+        sandMesh.rotation.y = Math.random() * Math.PI;
+        group.add(sandMesh);
+        
+        // Grass cap (covers almost the entire top)
+        const grassMesh = new THREE.Mesh(_islandGeoBase, grassMatInst);
+        grassMesh.scale.set(sx * 0.9, sy * 0.4, sz * 0.9);
+        const gy = sy * 0.65; // Shift up to rest on sand
+        grassMesh.position.set(ox, gy, oz);
+        grassMesh.rotation.y = sandMesh.rotation.y;
+        group.add(grassMesh);
+        
+        const gh = sy * 0.4 * 0.85; // Peak height of the grass cap
+        blobs.push({sx, sz, ox, oz, gy, gh});
+    }
+    
+    // Add tiny trees on top using InstancedMesh
+    const treesInfo = [];
+    for (const b of blobs) {
+        const numTreesBlob = 4 + Math.floor(Math.random() * 20);
+        for (let i = 0; i < numTreesBlob; i++) {
+            // Local offset on this blob
+            const lx = (Math.random() - 0.5) * b.sx * 0.85; 
+            const lz = (Math.random() - 0.5) * b.sz * 0.85;
+            
+            // Check elliptical bounds (staying further from the edges to avoid ocean clipping)
+            const distSq = (lx*lx)/(b.sx*b.sx*0.1) + (lz*lz)/(b.sz*b.sz*0.1); 
+            if (distSq > 1.0) continue; 
+            
+            const tx = b.ox + lx;
+            const tz = b.oz + lz;
+            const ty = b.gy + b.gh * Math.max(0.1, 1.0 - distSq); // Ensure base is slightly elevated
+            
+            treesInfo.push({tx, ty, tz});
+        }
+    }
+    
+    if (treesInfo.length > 0) {
+        const treeInstMesh = new THREE.InstancedMesh(_getTreeGeo(), treeMatInst, treesInfo.length);
+        const dummy = new THREE.Object3D();
+        
+        for (let i = 0; i < treesInfo.length; i++) {
+            const t = treesInfo[i];
+            dummy.position.set(t.tx, t.ty, t.tz);
+            const treeScale = 0.6 + Math.random() * 0.6;
+            dummy.scale.set(treeScale, treeScale, treeScale);
+            dummy.rotation.y = Math.random() * Math.PI;
+            dummy.updateMatrix();
+            treeInstMesh.setMatrixAt(i, dummy.matrix);
+        }
+        treeInstMesh.instanceMatrix.needsUpdate = true;
+        group.add(treeInstMesh);
+    }
+    
+    const mats = [sandMatInst, grassMatInst, treeMatInst];
     
     // Spawn left or right far away
     const isRight = Math.random() > 0.5;
-    const posX = isRight ? 30 + Math.random() * 120 : -30 - Math.random() * 120;
+    const posX = isRight ? 70 + Math.random() * 120 : -70 - Math.random() * 120;
     
-    mesh.position.set(posX, -90 + sy * 0.4, SPAWN_Z - 500);
-    mesh.rotation.y = Math.random() * Math.PI * 2;
+    const z = zPos !== null ? zPos : SPAWN_Z - 500;
     
-    _scene.add(mesh);
-    _islands.push({ mesh, fadeAge: 0 });
+    // Sink it so the bottom half is under the ocean (-90)
+    group.position.set(posX, -90, z);
+    group.rotation.y = Math.random() * Math.PI * 2;
+    
+    _scene.add(group);
+    
+    _islands.push({ group, mats, fadeAge: isInitial ? 4.0 : 0 });
 }
 
 function _updateIslands(dt, speed) {
@@ -498,11 +617,16 @@ function _updateIslands(dt, speed) {
     for (let i = _islands.length - 1; i >= 0; i--) {
         const island = _islands[i];
         island.fadeAge += dt;
-        island.mesh.material.opacity = Math.min(1, island.fadeAge / 4.0);
-        island.mesh.position.z += (speed / 4.0) * dt; // move in same direction as plane (slower relative pass)
-        if (island.mesh.position.z > DESPAWN_Z + 100) {
-            _scene.remove(island.mesh);
-            island.mesh.material.dispose();
+        const alpha = Math.min(1, island.fadeAge / 4.0);
+        island.mats.forEach(mat => mat.opacity = alpha);
+        
+        island.group.position.z += (speed / oceanSpeedSlowdown) * dt; 
+        if (island.group.position.z > DESPAWN_Z + 100) {
+            _scene.remove(island.group);
+            island.mats.forEach(mat => mat.dispose());
+            island.group.children.forEach(c => {
+                if (c.isInstancedMesh) c.dispose();
+            });
             _islands.splice(i, 1);
         }
     }
@@ -510,8 +634,11 @@ function _updateIslands(dt, speed) {
 
 function _clearIslands(scene) {
     for (const island of _islands) {
-        scene.remove(island.mesh);
-        island.mesh.material.dispose();
+        scene.remove(island.group);
+        island.mats.forEach(mat => mat.dispose());
+        island.group.children.forEach(c => {
+            if (c.isInstancedMesh) c.dispose();
+        });
     }
     _islands.length = 0;
 }
@@ -526,7 +653,7 @@ const _physicalCloudMat = new THREE.MeshPhongMaterial({
 });
 
 function _spawnPhysicalCloud() {
-    if (_physicalClouds.length > 6) return;
+    if (_physicalClouds.length > 10) return;
     
     const cloudGroup = new THREE.Group();
     const numPuffs = 5 + Math.floor(Math.random() * 6);
@@ -571,11 +698,11 @@ function _spawnPhysicalCloud() {
 }
 
 function _updatePhysicalClouds(dt, speed) {
-    if (Math.random() < 0.008) _spawnPhysicalCloud(); // Spawn less frequently
+    if (Math.random() < 0.01) _spawnPhysicalCloud(); // Spawn less frequently
     for (let i = _physicalClouds.length - 1; i >= 0; i--) {
         const cloud = _physicalClouds[i];
         cloud.fadeAge += dt;
-        const alpha = Math.min(0.85, (cloud.fadeAge / 2.0) * 0.85);
+        const alpha = Math.min(0.87, (cloud.fadeAge / 3.0) * 0.87);
         for(let m of cloud.mats) m.opacity = alpha;
 
         // Move slightly slower than ground to give parallax
@@ -653,6 +780,12 @@ export function initWorld2(scene, camera) {
     _buildLighting(scene);
     // Seed a first flock immediately
     _spawnBirdFlock(scene);
+
+    // Initial islands scattered across the view
+    for (let i = 0; i < 5; i++) {
+        // Varying Z from right in front of camera (-100) backwards
+        _spawnIsland(true, -100 - i * 120);
+    }
 }
 
 export function updateWorld2(dt, speed, elapsed) {
@@ -661,6 +794,7 @@ export function updateWorld2(dt, speed, elapsed) {
     // Ocean
     if (_oceanMesh) {
         _oceanMesh.material.uniforms.uTime.value = elapsed;
+        _oceanMesh.material.uniforms.uOffset.value += (speed * dt) / (1500.0 / 40.0); // 1500 is mesh size
     }
 
     // Clouds
