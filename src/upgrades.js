@@ -38,6 +38,8 @@ let equippedUpgrades = []; // { id, x, y }
 let unlockedCellIndices = [];
 let currentlyDraggingId = null;
 let dragOffset = { x: 0, y: 0 };
+let touchGhost = null;
+let touchDragOrigin = null; // { id, x, y, isFromGrid }
 const layoutCache = {};
 
 function getCategoryLayout(cat) {
@@ -384,6 +386,22 @@ function renderUpgradesLists() {
             };
         }
         
+        // Touch Support
+        cell.ontouchstart = (e) => {
+            const eq = equippedUpgrades.find(e => {
+                const def = UPGRADES_DB.find(upg => upg.id === e.id);
+                if (!def) return false;
+                const cells = getOccupiedCells(e.id, e.x, e.y, def.w, def.h);
+                return cells.includes(i);
+            });
+            if (eq) {
+                const u = UPGRADES_DB.find(upg => upg.id === eq.id);
+                if (u) {
+                    handleTouchStart(e, u, true, i, eq);
+                }
+            }
+        };
+
         gridEl.appendChild(cell);
     }
 
@@ -494,6 +512,13 @@ function renderUpgradesLists() {
                     Array.from(gridEl.children).forEach(c => c.classList.remove('drag-over', 'drag-invalid'));
                 });
 
+                // Touch Support
+                item.ontouchstart = (e) => {
+                    if (isOwned) {
+                        handleTouchStart(e, u, false);
+                    }
+                };
+
                 item.style.position = 'relative';
                 item.style.width = '100%';
                 item.style.height = '100%';
@@ -512,6 +537,12 @@ function renderUpgradesLists() {
             colEl.appendChild(container);
         });
     });
+
+    // Attach global touch move/end for dragging
+    document.removeEventListener('touchmove', handleTouchMove);
+    document.removeEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
 
     if (selectedUpgrade) {
         const u = selectedUpgrade;
@@ -733,4 +764,147 @@ function selectUpgrade(u) {
             renderUpgradesLists();
         }
     };
+}
+
+function handleTouchStart(e, u, isFromGrid, cellIndex = -1, eqInfo = null) {
+    if (touchGhost) return;
+    
+    selectUpgrade(u);
+    currentlyDraggingId = u.id;
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const CELL_FULL = window.innerWidth * 0.0397 + window.innerWidth * 0.0026;
+
+    if (isFromGrid) {
+        const clickX = cellIndex % 6;
+        const clickY = Math.floor(cellIndex / 6);
+        dragOffset.x = clickX - eqInfo.x;
+        dragOffset.y = clickY - eqInfo.y;
+    } else {
+        dragOffset.x = Math.floor((touch.clientX - rect.left) / CELL_FULL);
+        dragOffset.y = Math.floor((touch.clientY - rect.top) / CELL_FULL);
+    }
+
+    touchDragOrigin = { id: u.id, isFromGrid, cellIndex };
+
+    // Create ghost
+    touchGhost = document.createElement('div');
+    touchGhost.className = `upgrade-item owned ${u.category}`;
+    touchGhost.style.position = 'fixed';
+    touchGhost.style.width = (u.w * CELL_FULL - window.innerWidth * 0.0026) + 'px';
+    touchGhost.style.height = (u.h * CELL_FULL - window.innerWidth * 0.0026) + 'px';
+    touchGhost.style.zIndex = '10000';
+    touchGhost.style.pointerEvents = 'none';
+    touchGhost.style.opacity = '0.8';
+    touchGhost.style.left = (touch.clientX - dragOffset.x * CELL_FULL - CELL_FULL * 0.5) + 'px';
+    touchGhost.style.top = (touch.clientY - dragOffset.y * CELL_FULL - CELL_FULL * 0.5) + 'px';
+    
+    const nameEl = document.createElement('div');
+    nameEl.className = 'upgrade-name';
+    let fs = 24;
+    if (u.w === 1 && u.h === 1) fs = 20;
+    else if ((u.w === 3 && u.h === 1) || (u.w === 1 && u.h === 3)) fs = 29;
+    else if (u.w === 2 && u.h === 2) fs = 48;
+    nameEl.style.fontSize = (fs / 1512 * 100).toFixed(2) + 'vw';
+    nameEl.textContent = u.emoji;
+    touchGhost.appendChild(nameEl);
+    
+    document.body.appendChild(touchGhost);
+    
+    // Prevent scrolling
+    if (e.cancelable) e.preventDefault();
+}
+
+function handleTouchMove(e) {
+    if (!touchGhost || !currentlyDraggingId) return;
+    
+    const touch = e.touches[0];
+    const u = UPGRADES_DB.find(upg => upg.id === currentlyDraggingId);
+    if (!u) return;
+
+    const CELL_FULL = window.innerWidth * 0.0397 + window.innerWidth * 0.0026;
+    touchGhost.style.left = (touch.clientX - (dragOffset.x + 0.5) * CELL_FULL) + 'px';
+    touchGhost.style.top = (touch.clientY - (dragOffset.y + 0.5) * CELL_FULL) + 'px';
+
+    // Visual feedback on grid
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const gridCell = target ? target.closest('.grid-cell') : null;
+    const gridEl = document.getElementById('active-grid');
+    
+    // Clear old
+    Array.from(gridEl.children).forEach(c => c.classList.remove('drag-over', 'drag-invalid'));
+
+    if (gridCell) {
+        const cellIndex = parseInt(gridCell.dataset.index);
+        const gridX = cellIndex % 6;
+        const gridY = Math.floor(cellIndex / 6);
+        const targetX = gridX - dragOffset.x;
+        const targetY = gridY - dragOffset.y;
+        
+        const isBoundsValid = (targetX >= 0 && targetY >= 0 && targetX + u.w <= 6 && targetY + u.h <= 3);
+        let hasLocked = false;
+        
+        if (isBoundsValid) {
+            for(let cy=targetY; cy<targetY+u.h; cy++){
+                for(let cx=targetX; cx<targetX+u.w; cx++){
+                    const tIdx = cy * 6 + cx;
+                    if (cx >= 3 && !unlockedCellIndices.includes(tIdx)) hasLocked = true;
+                }
+            }
+        }
+
+        if (isBoundsValid) {
+            for(let cy=targetY; cy<targetY+u.h; cy++){
+                for(let cx=targetX; cx<targetX+u.w; cx++){
+                    const targetIdx = cy * 6 + cx;
+                    const cell = gridEl.children[targetIdx];
+                    if (cell && cell.classList.contains('grid-cell')) {
+                        cell.classList.add(hasLocked ? 'drag-invalid' : 'drag-over');
+                    }
+                }
+            }
+        }
+    }
+
+    if (e.cancelable) e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    if (!touchGhost || !currentlyDraggingId) return;
+    
+    const touch = e.changedTouches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    // Find drop target
+    const gridCell = target ? target.closest('.grid-cell') : null;
+    const availableArea = target ? target.closest('#screen-available') : null;
+
+    if (gridCell) {
+        const cellIndex = parseInt(gridCell.dataset.index);
+        // Simulate drop event for handleDrop
+        const fakeEvent = {
+            preventDefault: () => {},
+            dataTransfer: {
+                getData: () => currentlyDraggingId
+            }
+        };
+        handleDrop(fakeEvent, cellIndex);
+    } else if (availableArea) {
+        // Unequip
+        equippedUpgrades = equippedUpgrades.filter(eq => eq.id !== currentlyDraggingId);
+        saveProgress();
+        renderUpgradesLists();
+    } else {
+        // Just refresh to clear visual state if dropped in no-man's land
+        renderUpgradesLists();
+    }
+
+    // Cleanup
+    if (touchGhost) {
+        document.body.removeChild(touchGhost);
+        touchGhost = null;
+    }
+    currentlyDraggingId = null;
+    touchDragOrigin = null;
 }
