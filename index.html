@@ -728,6 +728,75 @@
             color: rgba(255, 255, 255, 1);
         }
 
+        /* ── World Select overlay ────────────────────────── */
+        #world-select {
+            position: absolute;
+            inset: 0;
+            display: none;
+            background: rgba(0, 0, 5, 0.88);
+            z-index: 60;
+            font-family: 'Orbitron', sans-serif;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .world-select-inner {
+            text-align: center;
+        }
+
+        .world-select-title {
+            font-size: 2.4vw;
+            color: #fff;
+            letter-spacing: 0.5vw;
+            text-shadow: 0 0 1.5vw rgba(0, 170, 255, 0.5);
+            margin-bottom: 4vh;
+        }
+
+        .world-btn-row {
+            display: flex;
+            gap: 2vw;
+            justify-content: center;
+        }
+
+        .world-btn {
+            width: 16vw;
+            padding: 3vh 1.5vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1vh;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .world-btn .world-name {
+            font-size: 1.3vw;
+            font-weight: 700;
+            letter-spacing: 0.3vw;
+        }
+
+        .world-btn .world-sub {
+            font-size: 0.75vw;
+            color: rgba(170, 200, 255, 0.7);
+            letter-spacing: 0.15vw;
+            text-transform: uppercase;
+        }
+
+        .world-btn .lock-icon {
+            font-size: 1.6vw;
+            filter: grayscale(1) brightness(0.6);
+        }
+
+        .world-btn.locked {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .world-btn:not(.locked):hover .world-sub {
+            color: #fff;
+        }
+
         /* ── Upgrades Menu ────────────────────────────────── */
         #upgrades-menu {
             position: absolute;
@@ -1123,6 +1192,31 @@
             </div>
 
             <div id="skip-intro">Click to Skip</div>
+        </div>
+
+        <!-- World Select overlay (shown after clicking PLAY) -->
+        <div id="world-select">
+            <div class="world-select-inner">
+                <h2 class="world-select-title">SELECT WORLD</h2>
+                <div class="world-btn-row">
+                    <button class="world-btn btn-premium" data-world="0">
+                        <span class="world-name">WORLD 1</span>
+                        <span class="world-sub">Deep Space</span>
+                        <span class="lock-icon" style="display:none;">🔒</span>
+                    </button>
+                    <button class="world-btn btn-premium" data-world="1">
+                        <span class="world-name">WORLD 2</span>
+                        <span class="world-sub">Cloud Kingdom</span>
+                        <span class="lock-icon" style="display:none;">🔒</span>
+                    </button>
+                    <button class="world-btn btn-premium" data-world="2" disabled>
+                        <span class="world-name">WORLD 3</span>
+                        <span class="world-sub">???</span>
+                        <span class="lock-icon">🔒</span>
+                    </button>
+                </div>
+                <button id="world-select-back" class="btn-premium" style="margin-top: 3vh; font-size: 0.9vw; padding: 1vh 2vw;">BACK</button>
+            </div>
         </div>
 
         <!-- Pause overlay -->

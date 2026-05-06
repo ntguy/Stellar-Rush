@@ -7,7 +7,7 @@
     */
 import * as THREE from 'three';
 export const DEVELOPMENT_MODE = false;
-export const FORCE_MOBILE = true;
+export const FORCE_MOBILE = false;
 
 /* ── Testing control ────────────────────────────────────────
    Set to a pattern name to lock the game to only that pattern.

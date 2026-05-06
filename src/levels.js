@@ -54,9 +54,9 @@ export const LEVELS = [
         },
     },
     {
-        /* Level 3 — Red (final, infinite) */
+        /* Level 3 — Red (final level of World 1) */
         level: 3,
-        duration: Infinity,           // lasts forever
+        duration: 60,                 // 60 seconds, then world transition
         speedMultiplier: 1.25,        // +25%
         tunnelColor: new THREE.Color(0xff3333),  // red
         obstacleInterval: 1.4,        // tight obstacle spawn
@@ -69,9 +69,75 @@ export const LEVELS = [
             gapSize: PLANE_RADIUS * 4,
             gapOffset: 5,
         },
-        // minor speed ramp only on the final level
-        speedRampPerSecond: 0.3,
     },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   WORLD 2 LEVELS  —  "The Cloud Kingdom"
+   Re-uses World 1 difficulty params for now. Levels 4-6
+   will get unique patterns in a future update.
+   ═══════════════════════════════════════════════════════════ */
+export const WORLD_2_LEVELS = [
+    {
+        /* Level 4 (= World 2, Stage 1) — Sky Blue */
+        level: 1,
+        duration: 40,
+        speedMultiplier: 1.0,
+        tunnelColor: new THREE.Color(0x4488ff),  // re-used for HUD tinting
+        obstacleInterval: 1.6,
+        enemyInterval: 9,
+        enemyMaxCount: 1,
+        difficultyParams: {
+            level: 1,
+            count: 2,
+            wallSize: 0.8,
+            gapSize: PLANE_RADIUS * 5.5,
+            gapOffset: 3,
+        },
+    },
+    {
+        /* Level 5 (= World 2, Stage 2) — Sunset Orange */
+        level: 2,
+        duration: 50,
+        speedMultiplier: 1.10,
+        tunnelColor: new THREE.Color(0xff8844),
+        obstacleInterval: 1.5,
+        enemyInterval: 7,
+        enemyMaxCount: 2,
+        difficultyParams: {
+            level: 2,
+            count: 3,
+            wallSize: 1,
+            gapSize: PLANE_RADIUS * 4.6,
+            gapOffset: 4,
+        },
+    },
+    {
+        /* Level 6 (= World 2, Stage 3) — Storm Purple */
+        level: 3,
+        duration: 60,
+        speedMultiplier: 1.25,
+        tunnelColor: new THREE.Color(0xaa44ff),
+        obstacleInterval: 1.4,
+        enemyInterval: 5,
+        enemyMaxCount: 3,
+        difficultyParams: {
+            level: 3,
+            count: 3,
+            wallSize: 1.2,
+            gapSize: PLANE_RADIUS * 4,
+            gapOffset: 5,
+        },
+    },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   WORLDS  —  Top-level structure referencing level arrays.
+   ═══════════════════════════════════════════════════════════ */
+export const WORLDS = [
+    { name: 'WORLD 1',  subtitle: 'Deep Space',      levels: LEVELS,        unlocked: true },
+    { name: 'WORLD 2',  subtitle: 'Cloud Kingdom',   levels: WORLD_2_LEVELS, unlocked: false },
+    { name: 'WORLD 3',  subtitle: '???',             levels: null,          unlocked: false },
 ];
 
 /* ═══════════════════════════════════════════════════════════

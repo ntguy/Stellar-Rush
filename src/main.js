@@ -19,7 +19,12 @@ import {
     startMenuMusic, stopMenuMusic
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor } from './tunnel.js';
-import { LEVELS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
+import { LEVELS, WORLD_2_LEVELS, WORLDS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
+import {
+    createTransitionPlanet, updateTransitionPlanet, clearTransitionPlanet,
+    createFogOverlay, setFogOverlayOpacity, clearFogOverlay,
+    initWorld2, updateWorld2, clearWorld2, isWorld2Active
+} from './world2.js';
 import { setupMenuNavigation, handleMenuInput, clearMenuFocus } from './keyboardMenus.js';
 import { makeAircraft } from './aircraft.js';
 import { buildStarField } from './stars.js';
@@ -41,6 +46,23 @@ let menuController = null;
 let currentScore = 0;
 let distanceTraveled = 0;
 let hasPlayedBefore = false;
+
+/* ── World tracking ──────────────────────────────────────── */
+let currentWorldIdx = 0;          // 0 = World 1 (space), 1 = World 2 (clouds)
+let selectedWorldIdx = 0;         // which world the player selected from menu
+let activeLevels = LEVELS;        // reference to active world's level array
+
+// World transition state
+let worldTransitionState = 'NONE'; // 'NONE' | 'PLANET' | 'FOG_IN' | 'SWAP' | 'FOG_OUT'
+let worldTransitionTimer = 0;
+
+/** Persistence: max world unlocked (1-indexed for display, 0-indexed internally) */
+function getMaxWorldUnlocked() {
+    return parseInt(localStorage.getItem('maxWorldUnlocked') || '1', 10);
+}
+function setMaxWorldUnlocked(v) {
+    localStorage.setItem('maxWorldUnlocked', v.toString());
+}
 
 // Remove startup fade
 window.addEventListener('DOMContentLoaded', () => {
@@ -350,6 +372,7 @@ function spawnCreditsText(scene, pos, points) {
     const ctx = canvas.getContext('2d');
     
     // Clear and draw text
+    ctx.clearRect(0, 0, 256, 128);
     ctx.fillStyle = '#ffff88';
     ctx.font = 'bold 60px monospace';
     ctx.textAlign = 'center';
@@ -358,7 +381,7 @@ function spawnCreditsText(scene, pos, points) {
     
     // Create texture and sprite
     const texture = new THREE.CanvasTexture(canvas);
-    const spriteMat = new THREE.SpriteMaterial({ map: texture });
+    const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
     const sprite = new THREE.Sprite(spriteMat);
     sprite.position.copy(pos);
     sprite.scale.set(8, 4, 1);  // scale to be readable
@@ -503,10 +526,11 @@ const explosionParts = [];
 const obstacles = [];
 
 /* ── Level Scaling — level system state ──────────────────── */
-let currentLevelIdx = 0;        // index into LEVELS[]
+let currentLevelIdx = 0;        // index into activeLevels[]
 let targetLevelIdx = 0;         // next level to transition to
 let levelTimer = 0;             // seconds elapsed within current level
 // 'PLAYING' = normal gameplay, 'TRANSITION' = inter-level pickup formation & color shift
+// 'WORLD_TRANSITION' = transitioning between worlds
 let levelState = 'PLAYING';
 let transitionFormationDepth = 0;  // Z-depth of spawned inter-level formation
 let transitionWaitTimer = 0;       // counts up while waiting for formation to pass
@@ -707,6 +731,10 @@ function init() {
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
 
+    // World system — set the active level array based on selected world
+    currentWorldIdx = selectedWorldIdx;
+    activeLevels = currentWorldIdx === 0 ? LEVELS : WORLD_2_LEVELS;
+
     // Level Scaling — reset level state
     currentLevelIdx = 0;
     targetLevelIdx = 0;
@@ -718,6 +746,8 @@ function init() {
     colorShiftTimer = 0;
     colorShiftFrom = null;
     colorShiftTo = null;
+    worldTransitionState = 'NONE';
+    worldTransitionTimer = 0;
 
     spawnTimer = 0; asteroidTimer = 0; enemyTimer = 0;
     // Initialise pickup timers as objects with value and threshold
@@ -773,35 +803,47 @@ function init() {
     explosionParts.length = 0;
     exploding = false; explodeTimer = 0;
     aircraft.visible = true;
+    clearTransitionPlanet(scene);
+    clearFogOverlay(scene);
+    clearWorld2(scene, camera);
 
     // Make sure aircraft is in the scene (menu may have removed it)
     if (!aircraft.parent) scene.add(aircraft);
-    // Make sure star field is in the scene
-    if (scene.userData.starField && !scene.userData.starField.parent) {
-        scene.add(scene.userData.starField);
+
+    // Restore default scene background and fog for World 1
+    scene.background = new THREE.Color(0x000005);
+    scene.fog = new THREE.FogExp2(0x000005, 0.0015);
+
+    if (currentWorldIdx === 0) {
+        // World 1 init — space environment
+        // Make sure star field is in the scene
+        if (scene.userData.starField && !scene.userData.starField.parent) {
+            scene.add(scene.userData.starField);
+        }
+        initTunnel(scene);
+        setTunnelColor(activeLevels[0].tunnelColor);
+        if (planetMesh) {
+            scene.remove(planetMesh);
+            planetMesh.geometry.dispose();
+            planetMesh.material.dispose();
+            planetMesh = null;
+        }
+        planetSpawnTimer = -30;
+        // Seed initial asteroids
+        for (let i = 0; i < 30; i++) {
+            spawnAsteroid(SPAWN_Z + Math.random() * (DESPAWN_Z - SPAWN_Z));
+        }
+        scene.userData.starField.material.uniforms.uTime.value = 0;
+    } else if (currentWorldIdx === 1) {
+        // World 2 init — cloud kingdom
+        initWorld2(scene, camera);
     }
 
     resetSequencer();
     pendingPickups.length = 0;
-    initTunnel(scene);
-    // Level Scaling — set initial tunnel colour to level 1
-    setTunnelColor(LEVELS[0].tunnelColor);
-    if (planetMesh) {
-        scene.remove(planetMesh);
-        planetMesh.geometry.dispose();
-        planetMesh.material.dispose();
-        planetMesh = null;
-    }
-    planetSpawnTimer = -30;  // first planet at t=30s, then every 60s
 
     startBaseEngine();
 
-    // Seed initial asteroids
-    for (let i = 0; i < 30; i++) {
-        spawnAsteroid(SPAWN_Z + Math.random() * (DESPAWN_Z - SPAWN_Z));
-    }
-
-    scene.userData.starField.material.uniforms.uTime.value = 0;
     elOverlay.classList.remove('show');
     elPause.classList.remove('show');
     clearMenuFocus();
@@ -848,6 +890,8 @@ function backToMainMenu() {
     paused = false;
     elPause.classList.remove('show');
     elOverlay.classList.remove('show');
+    const ws = document.getElementById('world-select');
+    if (ws) ws.style.display = 'none';
     stopAllAudio();
     document.body.style.cursor = 'default';
     enterMenu();
@@ -888,10 +932,16 @@ function enterMenu() {
         planetMesh.material.dispose();
         planetMesh = null;
     }
+    clearTransitionPlanet(scene);
+    clearFogOverlay(scene);
+    clearWorld2(scene, camera);
     aircraft.visible = false;
     if (scene.userData.starField) scene.remove(scene.userData.starField);
     clearTunnel(scene);
     cleanupNavBeam();
+    // Restore default scene state
+    scene.background = new THREE.Color(0x000005);
+    scene.fog = new THREE.FogExp2(0x000005, 0.0015);
     // Remove gameplay lights (menu adds its own)
     scene.children
         .filter(c => c.isLight || c === guideLine)
@@ -903,22 +953,78 @@ function enterMenu() {
     hasPlayedBefore = true;
     menuController.onReady(startMenuMusic);
     menuController.onPlay(() => {
-        menuController.dispose();
-        menuController = null;
-        // Re-add gameplay lights
-        scene.add(new THREE.AmbientLight(0x224466, 1.0));
-        const s = new THREE.DirectionalLight(0xffffff, 1.5);
-        s.position.set(4, 12, 8);
-        scene.add(s);
-        const r = new THREE.DirectionalLight(0x4488ff, 0.6);
-        r.position.set(-3, -4, -6);
-        scene.add(r);
-        scene.add(guideLine);
-        document.body.style.cursor = 'crosshair';
-        init();
+        // Show world select instead of going straight to gameplay
+        showWorldSelect();
     });
     clock.getDelta();
 }
+
+/* ═══════════════════════════════════════════════════════════
+   WORLD SELECT  — shown after clicking PLAY
+   ═══════════════════════════════════════════════════════════ */
+function showWorldSelect() {
+    const el = document.getElementById('world-select');
+    if (!el) { startWithWorld(0); return; }  // fallback
+
+    const maxUnlocked = getMaxWorldUnlocked();
+    const btns = el.querySelectorAll('.world-btn');
+    btns.forEach((btn, i) => {
+        const locked = (i + 1) > maxUnlocked;
+        // World 3 is always locked (no levels yet)
+        const noLevels = i === 2;
+        btn.classList.toggle('locked', locked || noLevels);
+        btn.disabled = locked || noLevels;
+        const lockIcon = btn.querySelector('.lock-icon');
+        if (lockIcon) lockIcon.style.display = (locked || noLevels) ? 'inline' : 'none';
+    });
+
+    el.style.display = 'flex';
+    setupMenuNavigation('world-select', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+}
+
+function startWithWorld(worldIdx) {
+    const el = document.getElementById('world-select');
+    if (el) el.style.display = 'none';
+
+    if (menuController) {
+        menuController.dispose();
+        menuController = null;
+    }
+    document.getElementById('main-menu').style.display = 'none';
+
+    // Re-add gameplay lights
+    scene.add(new THREE.AmbientLight(0x224466, 1.0));
+    const s = new THREE.DirectionalLight(0xffffff, 1.5);
+    s.position.set(4, 12, 8);
+    scene.add(s);
+    const r = new THREE.DirectionalLight(0x4488ff, 0.6);
+    r.position.set(-3, -4, -6);
+    scene.add(r);
+    scene.add(guideLine);
+    document.body.style.cursor = 'crosshair';
+
+    selectedWorldIdx = worldIdx;
+    init();
+}
+
+// Wire up world-select buttons (bound once at load)
+(function _bindWorldSelect() {
+    const el = document.getElementById('world-select');
+    if (!el) return;
+    el.querySelectorAll('.world-btn').forEach((btn, i) => {
+        btn.addEventListener('click', () => {
+            if (!btn.disabled) startWithWorld(i);
+        });
+    });
+    const backBtn = document.getElementById('world-select-back');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            el.style.display = 'none';
+            document.getElementById('main-menu').style.display = 'flex';
+            setupMenuNavigation('main-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+        });
+    }
+})();
 
 /* ── Startup ──────────────────────────────────────────────── */
 if (DEVELOPMENT_MODE) {
@@ -1055,11 +1161,10 @@ function animate() {
         shieldTimer -= dt;
     }
 
-    // Level Scaling — speed is set per level, with optional ramp only on final level
-    const currentLevel = LEVELS[currentLevelIdx];
+    // Level Scaling — speed is set per level
+    const currentLevel = activeLevels[currentLevelIdx];
     let levelSpeedRamp = 0;
     if (currentLevel.speedRampPerSecond) {
-        // Level Scaling — minor speed increase over time only on final level
         levelSpeedRamp = levelTimer * currentLevel.speedRampPerSecond;
     }
     const baseSpeed = (OBS_BASE_SPEED + levelSpeedRamp) * currentLevel.speedMultiplier;
@@ -1244,10 +1349,19 @@ function animate() {
         levelTimer += dt;
 
         if (levelTimer >= currentLevel.duration) {
-            if (currentLevelIdx < LEVELS.length - 1) {
+            if (currentLevelIdx < activeLevels.length - 1) {
+                // Normal inter-level transition within same world
                 targetLevelIdx = currentLevelIdx + 1;
                 levelState = 'TRANSITION';
+            } else if (currentWorldIdx === 0) {
+                // End of World 1 — trigger world transition to World 2
+                levelState = 'WORLD_TRANSITION';
+                worldTransitionState = 'PLANET';
+                worldTransitionTimer = 0;
+                createTransitionPlanet(scene);
+                createFogOverlay(scene, camera);
             } else {
+                // End of last level in World 2+ — loop (for now)
                 levelTimer = 0;
             }
             transitionWaitTimer = 0;
@@ -1341,7 +1455,7 @@ function animate() {
 
             // Level Scaling — capture color shift start state now that obstacles have cleared
             colorShiftFrom = getTunnelColor().clone();
-            colorShiftTo = LEVELS[targetLevelIdx].tunnelColor;
+            colorShiftTo = activeLevels[targetLevelIdx].tunnelColor;
             colorShiftTimer = 0;
         }
         
@@ -1363,6 +1477,83 @@ function animate() {
                 currentLevelIdx = targetLevelIdx;
                 levelState = 'PLAYING';
                 levelTimer = 0;
+            }
+        }
+    } else if (levelState === 'WORLD_TRANSITION') {
+        /* ── World Transition State Machine ──────────────── */
+        worldTransitionTimer += dt;
+
+        if (worldTransitionState === 'PLANET') {
+            // Phase 1 (0-4s): Planet grows, pickup formation spawns
+            updateTransitionPlanet(dt);
+
+            if (!formationSpawned && worldTransitionTimer >= 1.0) {
+                const depthInfo = spawnInterLevelFormation(scene);
+                transitionFormationDepth = depthInfo.totalDepth;
+                formationSpawned = true;
+            }
+
+            if (worldTransitionTimer >= 4.0) {
+                worldTransitionState = 'FOG_IN';
+                worldTransitionTimer = 0;
+            }
+        } else if (worldTransitionState === 'FOG_IN') {
+            // Phase 2 (4-6s): Fog ramps up to white-out
+            const fogT = Math.min(worldTransitionTimer / 2.0, 1.0);
+            setFogOverlayOpacity(fogT);
+
+            updateTransitionPlanet(dt);
+
+            if (worldTransitionTimer >= 2.0) {
+                worldTransitionState = 'SWAP';
+                worldTransitionTimer = 0;
+            }
+        } else if (worldTransitionState === 'SWAP') {
+            // Phase 3: Instantaneous environment swap
+            // Clean up World 1
+            clearTransitionPlanet(scene);
+            clearTunnel(scene);
+            for (const a of asteroids) {
+                scene.remove(a.mesh);
+                a.mesh.material.dispose();
+            }
+            asteroids.length = 0;
+            if (scene.userData.starField) scene.remove(scene.userData.starField);
+            if (planetMesh) {
+                scene.remove(planetMesh);
+                planetMesh.geometry.dispose();
+                planetMesh.material.dispose();
+                planetMesh = null;
+            }
+            clearEnemies(scene);
+            for (const o of obstacles) o.parts.forEach(m => { m.geometry?.dispose(); m.material?.dispose(); scene.remove(m); });
+            obstacles.length = 0;
+            clearPickups(scene);
+
+            // Switch to World 2
+            currentWorldIdx = 1;
+            activeLevels = WORLD_2_LEVELS;
+            currentLevelIdx = 0;
+            levelTimer = 0;
+            resetSequencer();
+            pendingPickups.length = 0;
+            initWorld2(scene, camera);
+
+            // Unlock World 2 in persistence
+            if (getMaxWorldUnlocked() < 2) setMaxWorldUnlocked(2);
+
+            worldTransitionState = 'FOG_OUT';
+            worldTransitionTimer = 0;
+        } else if (worldTransitionState === 'FOG_OUT') {
+            // Phase 4 (6-8s): Fog clears, revealing Cloud Kingdom
+            const fogT = 1.0 - Math.min(worldTransitionTimer / 2.0, 1.0);
+            setFogOverlayOpacity(fogT);
+
+            if (worldTransitionTimer >= 2.0) {
+                clearFogOverlay(scene);
+                levelState = 'PLAYING';
+                worldTransitionState = 'NONE';
+                formationSpawned = false;
             }
         }
     }
@@ -1394,31 +1585,39 @@ function animate() {
         }
     }
 
-    /* ── Stars ────────────────────────────────────────── */
-    scene.userData.starField.material.uniforms.uTime.value = elapsed;
-
-    /* ── Asteroids ────────────────────────────────────── */
-    asteroidTimer += dt;
-    if (asteroidTimer > 1.3) { asteroidTimer = 0; spawnAsteroid(); }
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-        const a = asteroids[i];
-        a.mesh.position.z += speed * 0.32 * dt;
-        a.mesh.rotation.x += a.rotVel.x * dt;
-        a.mesh.rotation.y += a.rotVel.y * dt;
-        // Fade in over 1.5 seconds
-        a.fadeAge = Math.min(a.fadeAge + dt, 1.5);
-        a.mesh.material.opacity = a.fadeAge / 1.5;
-        if (a.mesh.position.z > DESPAWN_Z + 20) {
-            scene.remove(a.mesh);
-            a.mesh.material.dispose();
-            asteroids.splice(i, 1);
+    /* ── World-specific environment updates ────────────── */
+    if (currentWorldIdx === 0) {
+        /* ── Stars ────────────────────────────────────────── */
+        if (scene.userData.starField && scene.userData.starField.parent) {
+            scene.userData.starField.material.uniforms.uTime.value = elapsed;
         }
-    }
 
-    /* ── Ambient planet ───────────────────────────────── */
-    planetSpawnTimer += dt;
-    if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
-    updatePlanet(dt, speed);
+        /* ── Asteroids ────────────────────────────────────── */
+        asteroidTimer += dt;
+        if (asteroidTimer > 1.3) { asteroidTimer = 0; spawnAsteroid(); }
+        for (let i = asteroids.length - 1; i >= 0; i--) {
+            const a = asteroids[i];
+            a.mesh.position.z += speed * 0.32 * dt;
+            a.mesh.rotation.x += a.rotVel.x * dt;
+            a.mesh.rotation.y += a.rotVel.y * dt;
+            // Fade in over 1.5 seconds
+            a.fadeAge = Math.min(a.fadeAge + dt, 1.5);
+            a.mesh.material.opacity = a.fadeAge / 1.5;
+            if (a.mesh.position.z > DESPAWN_Z + 20) {
+                scene.remove(a.mesh);
+                a.mesh.material.dispose();
+                asteroids.splice(i, 1);
+            }
+        }
+
+        /* ── Ambient planet ───────────────────────────────── */
+        planetSpawnTimer += dt;
+        if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
+        updatePlanet(dt, speed);
+    } else if (currentWorldIdx === 1) {
+        /* ── World 2 environment ──────────────────────────── */
+        updateWorld2(dt, speed, elapsed);
+    }
 
     /* ── Update pickups ───────────────────────────────── */
     const puResult = updatePickups(scene, dt, speed, aircraft.position, upgMagnetStrength); // Upgrade Logic: Magnet
@@ -1646,8 +1845,8 @@ function animate() {
     for (let i = 0; i < emitCount; i++) emitExhaust(boosting);
     updateExhaust(dt);
 
-    /* ── Hyperspace tunnel ────────────────────────────── */
-    updateTunnel(dt, speed, elapsed);
+    /* ── Hyperspace tunnel (World 1 only) ─────────────── */
+    if (currentWorldIdx === 0) updateTunnel(dt, speed, elapsed);
 
     renderer.render(scene, camera);
     stats.end();
