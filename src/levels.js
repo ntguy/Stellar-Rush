@@ -11,7 +11,7 @@ import * as THREE from 'three';
 /* ═══════════════════════════════════════════════════════════
    LEVEL DEFINITIONS — Level Scaling
    ═══════════════════════════════════════════════════════════ */
-export const DEBUG_SKIP_W1 = false; // Set to true to skip to the end of Level 3 for rapid testing
+export const DEBUG_SKIP_W1 = true; // Set to true to skip to the end of Level 3 for rapid testing
 
 export const LEVELS = [
     {

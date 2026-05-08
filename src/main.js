@@ -16,7 +16,8 @@ import {
     startShieldHum, startBoostHum, startFuelLowBeep,
     initAudio, resumeAudioContext, stopAllAudio, startBaseEngine,
     setLowFuelVolume, stopFuelLowBeep, playOutOfFuel, stopOutOfFuel,
-    startMenuMusic, stopMenuMusic
+    startMenuMusic, stopMenuMusic, setMasterAudioVolume, setMasterMusicVolume, 
+    crossfadeMusicTheme, stopGameplayMusic
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor, setTunnelOpacity } from './tunnel.js';
 import { LEVELS, WORLD_2_LEVELS, WORLDS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
@@ -473,6 +474,7 @@ function applyUpgrades() {
         const beamGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
         const beamMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
         navBeam = new THREE.Line(beamGeo, beamMat);
+        navBeam.frustumCulled = false;
         scene.add(navBeam);
 
         const dotGeo = new THREE.SphereGeometry(0.15, 8, 8);
@@ -652,11 +654,19 @@ const elResume  = document.getElementById('pause-resume-btn');
 const elSettingPreset = document.getElementById('setting-preset');
 const elSettingFps = document.getElementById('setting-fps');
 const elSettingFov = document.getElementById('setting-fov');
+const elSettingAudioVol = document.getElementById('setting-audio-vol');
+const elSettingMusicVol = document.getElementById('setting-music-vol');
 
 // Init UI from settings
 if (elSettingPreset) elSettingPreset.value = settings.preset;
 if (elSettingFps) elSettingFps.checked = settings.fpsEnabled;
 if (elSettingFov) elSettingFov.value = settings.fov;
+if (elSettingAudioVol) elSettingAudioVol.value = settings.audioVol !== undefined ? settings.audioVol : 1.0;
+if (elSettingMusicVol) elSettingMusicVol.value = settings.musicVol !== undefined ? settings.musicVol : 1.0;
+
+// Apply volume immediately
+setMasterAudioVolume(settings.audioVol !== undefined ? settings.audioVol : 1.0);
+setMasterMusicVolume(settings.musicVol !== undefined ? settings.musicVol : 1.0);
 
 if (elSettingPreset) {
     elSettingPreset.addEventListener('change', (e) => {
@@ -678,6 +688,20 @@ if (elSettingFov) {
         saveSettings();
         camera.fov = settings.fov;
         camera.updateProjectionMatrix();
+    });
+}
+if (elSettingAudioVol) {
+    elSettingAudioVol.addEventListener('input', (e) => {
+        settings.audioVol = parseFloat(e.target.value);
+        setMasterAudioVolume(settings.audioVol);
+        saveSettings();
+    });
+}
+if (elSettingMusicVol) {
+    elSettingMusicVol.addEventListener('input', (e) => {
+        settings.musicVol = parseFloat(e.target.value);
+        setMasterMusicVolume(settings.musicVol);
+        saveSettings();
     });
 }
 
@@ -819,6 +843,7 @@ function init() {
 
     if (currentWorldIdx === 0) {
         // World 1 init — space environment
+        crossfadeMusicTheme('world1');
         // Make sure star field is in the scene
         if (scene.userData.starField && !scene.userData.starField.parent) {
             scene.add(scene.userData.starField);
@@ -840,6 +865,7 @@ function init() {
     } else if (currentWorldIdx === 1) {
         // World 2 init — cloud kingdom
         initWorld2(scene, camera);
+        crossfadeMusicTheme('world2');
     }
 
     resetSequencer();
@@ -1293,7 +1319,7 @@ function animate() {
 
     if (navBeam) {
         // Upgrade Logic: Navigation Laser Raycasting
-        const beamOrigin = aircraft.position.clone();
+        const beamOrigin = new THREE.Vector3(0, 0, -1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
         const beamDir = new THREE.Vector3(0, 0, -1); 
         navRaycaster.set(beamOrigin, beamDir);
         
@@ -1322,6 +1348,24 @@ function animate() {
                         const p = new THREE.Vector2(hit.point.x, hit.point.y);
                         const th = obs.triforceHoles;
                         if (p.distanceTo(th.p1) < th.r || p.distanceTo(th.p2) < th.r || p.distanceTo(th.p3) < th.r) continue;
+                    }
+                    if (obs.isRotatingSectorHole) {
+                        const rsh = obs.isRotatingSectorHole;
+                        const dx = hit.point.x;
+                        const dy = hit.point.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist <= rsh.radius) {
+                            let a = Math.atan2(dy, dx);
+                            a += elapsed * rsh.speed;
+                            a = ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+                            let inSector = false;
+                            if (rsh.startAngle < rsh.endAngle) {
+                                inSector = (a >= rsh.startAngle && a <= rsh.endAngle);
+                            } else {
+                                inSector = (a >= rsh.startAngle || a <= rsh.endAngle);
+                            }
+                            if (inSector) continue;
+                        }
                     }
                 }
                 
@@ -1391,6 +1435,7 @@ function animate() {
                         if (slot.pickupType === 'fuel') spawnFuelPickup(scene, slot);
                         else if (slot.pickupType === 'credits') spawnHighValuePickup(scene, slot);
                         else if (slot.pickupType === 'shield') spawnShieldPickup(scene, slot);
+                        else if (slot.pickupType === 'formation') spawnLowValueFormation(scene, slot);
                         slots.splice(i, 1);
                     }
                 }
@@ -1456,7 +1501,7 @@ function animate() {
     } else if (levelState === 'TRANSITION') {
         transitionWaitTimer += dt;
         
-        const EMPTY_SPACE_DELAY = 2.0; 
+        const EMPTY_SPACE_DELAY = 1.0; 
 
         if (!formationSpawned && transitionWaitTimer >= EMPTY_SPACE_DELAY) {
             const depthInfo = spawnInterLevelFormation(scene);
@@ -1477,8 +1522,8 @@ function animate() {
                 setTunnelColor(lerpTunnelColor(colorShiftFrom, colorShiftTo, ct));
             }
 
-            // Wait for formation to pass. Reduced padding from 50 to 10 for less downtime.
-            const distanceToCover = DESPAWN_Z - (SPAWN_Z - transitionFormationDepth) + 10;
+            // Start next level as soon as the formation has cleared SPAWN_Z with a small buffer
+            const distanceToCover = transitionFormationDepth + 60;
             const timeToCover = (distanceToCover / speed) + EMPTY_SPACE_DELAY;
             
             // Return to PLAYING once formation has passed AND color shift is complete
@@ -1561,6 +1606,7 @@ function animate() {
             resetSequencer();
             pendingPickups.length = 0;
             initWorld2(scene, camera);
+            crossfadeMusicTheme('world2');
 
             // Unlock World 2 in persistence
             if (getMaxWorldUnlocked() < 2) setMaxWorldUnlocked(2);
@@ -1698,9 +1744,29 @@ function animate() {
 
     // Helper: returns true if player hits this obstacle
     function obsHitsPlayer(obs) {
+        if (obs.isRotatingSectorHole) {
+            const wallZ = obs.parts[0].position.z;
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            const rsh = obs.isRotatingSectorHole;
+            const dist = Math.sqrt(aircraft.position.x * aircraft.position.x + aircraft.position.y * aircraft.position.y);
+            if (dist > rsh.radius) return false;
+            let angle = Math.atan2(aircraft.position.y, aircraft.position.x);
+            angle += elapsed * rsh.speed;
+            angle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+            let inSector = false;
+            if (rsh.startAngle < rsh.endAngle) {
+                inSector = (angle >= rsh.startAngle && angle <= rsh.endAngle);
+            } else {
+                inSector = (angle >= rsh.startAngle || angle <= rsh.endAngle);
+            }
+            if (inSector) return false;
+            return true;
+        }
         if (obs.isTube) {
-            const frontZ = obs.parts[0].position.z;
-            const backZ = obs.parts[1].position.z;
+            const centerZ = obs.parts[0].position.z;
+            const halfDepth = obs.isTube.depth / 2;
+            const frontZ = centerZ + halfDepth;
+            const backZ = centerZ - halfDepth;
             if (aircraft.position.z < frontZ + 2 && aircraft.position.z > backZ - 2) {
                 const dist = Math.sqrt(aircraft.position.x * aircraft.position.x + aircraft.position.y * aircraft.position.y);
                 if (dist > obs.isTube.radius - PLANE_RADIUS) return true;
@@ -1760,6 +1826,25 @@ function animate() {
             // To be safely "inside" the hole, the aircraft's center must be 
             // further than PLANE_RADIUS from any edge (i.e. d <= -PLANE_RADIUS)
             if (d1 < -PLANE_RADIUS || d2 < -PLANE_RADIUS || d3 < -PLANE_RADIUS) return false;
+            return true;
+        }
+        if (obs.isDiagonalTop) {
+            const diag = obs.isDiagonalTop;
+            const wallPos = obs.parts[0].position;
+            const dx = aircraft.position.x - wallPos.x;
+            const dy = aircraft.position.y - wallPos.y;
+            const dz = aircraft.position.z - wallPos.z;
+            const cosA = Math.cos(-diag.angle);
+            const sinA = Math.sin(-diag.angle);
+            const localX = dx * cosA + dz * sinA;
+            const localY = dy;
+            const localZ = -dx * sinA + dz * cosA;
+            const halfW = diag.width / 2 + PLANE_RADIUS;
+            const halfH = diag.height / 2 + PLANE_RADIUS;
+            const halfD = PLANE_RADIUS;
+            if (Math.abs(localX) > halfW) return false;
+            if (Math.abs(localY) > halfH) return false;
+            if (Math.abs(localZ) > halfD) return false;
             return true;
         }
         // Normal AABB check

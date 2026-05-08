@@ -3,7 +3,9 @@ const STORAGE_KEY = 'stellarRushSettings';
 const defaultSettings = {
     preset: 'High',
     fpsEnabled: false, // Will be updated to match DEVELOPMENT_MODE in main.js if not set
-    fov: 60
+    fov: 60,
+    audioVol: 1.0,
+    musicVol: 1.0
 };
 
 let currentSettings = { ...defaultSettings };
