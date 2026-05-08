@@ -330,7 +330,7 @@ export function crossfadeMusicTheme(theme) {
 
     const source = ctx.createBufferSource();
     source.buffer = buffers[key];
-    source.loop = true;
+    source.loop = false;
 
     const gain = ctx.createGain();
     gain.gain.value = 0;

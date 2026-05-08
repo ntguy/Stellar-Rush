@@ -1027,6 +1027,9 @@ function createSimonShape(type, size, number, color) {
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
 
+    // Clear background to ensure transparency
+    ctx.clearRect(0, 0, 512, 512);
+
     // Fill background
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -1042,15 +1045,16 @@ function createSimonShape(type, size, number, color) {
     }
     ctx.fill();
 
-    // Draw number
+    // Draw number (Slightly smaller font)
     ctx.fillStyle = '#000000';
-    ctx.font = 'bold 320px Orbitron, sans-serif';
+    ctx.font = 'bold 240px Orbitron, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(number.toString(), 256, 270);
+    ctx.fillText(number.toString(), 256, 275);
 
     const texture = new THREE.CanvasTexture(canvas);
-    const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthWrite: false });
     const geo = new THREE.PlaneGeometry(size * 2, size * 2);
     return new THREE.Mesh(geo, mat);
 }
@@ -1063,55 +1067,65 @@ export function patternSimon(params = {}) {
     const speedMultiplier = (lvl === 5 ? 1.1 : 1.25);
     const speed = baseSpeed * speedMultiplier;
 
-    const shapeSize = (lvl === 5 ? 3.8 : 3.2);
-    const shapeSpacing = (lvl === 5 ? 7 : 9);
-    const zSpacing = speed * 0.9;
+    const shapeSize = (lvl === 5 ? 5.5 : 5.0);
+    const shapeSpacing = (lvl === 5 ? 16 : 14); // Increased X spacing
+    const zSpacing = speed * 1.2; // Increased Z spacing by 20%
 
     const shapes = ['circle', 'square', 'triangle'];
     const shuffledShapes = [...shapes].sort(() => Math.random() - 0.5);
     const shapeNumbers = [1, 2, 3].sort(() => Math.random() - 0.5);
 
-    const blockD = zSpacing * 5;
-    const duration = 5 * (zSpacing / speed);
+    // Total duration (Reduced to 8x spacing)
+    const blockD = zSpacing * 8; 
+    const duration = blockD / speed;
 
     const interval = params.obstacleInterval || 1.6;
     const totalSteps = Math.ceil(duration / interval);
 
     steps.push((scene, obstacles) => {
-        const slotY = BOUNDS_Y * 0.6;
-        const startX = -shapeSpacing * 2;
+        const slots = [];
+        const infoY = BOUNDS_Y * 1.5; // Even higher, out of play area
+        const wallY = 0;              // Shapes on walls centered
+        const startX = -shapeSpacing; // Centered horizontally
         const shapeZ1 = SPAWN_Z;
         const shapeZ2 = SPAWN_Z - zSpacing;
         const shapeZ3 = SPAWN_Z - zSpacing * 2;
 
         for (let i = 0; i < 3; i++) {
             const shapeType = shuffledShapes[i];
-            const number = shapeNumbers.indexOf(i + 1) + 1;
+            const number = i + 1; // 1, 2, 3 in Z-order
             const xPos = startX + i * shapeSpacing;
             const zPos = [shapeZ1, shapeZ2, shapeZ3][i];
 
-            const shapeMesh = createSimonShape(shapeType, shapeSize, number, '#ffffff');
-            shapeMesh.position.set(xPos, slotY, zPos);
+            const shapeColor = (shapeType === 'triangle') ? '#ff4444' 
+                             : (shapeType === 'square')   ? '#44ff44' 
+                             : '#4444ff';
+
+            // Info shapes are 50% larger than wall shapes
+            const infoShapeSize = shapeSize * 1.5;
+            const shapeMesh = createSimonShape(shapeType, infoShapeSize, number, shapeColor);
+            shapeMesh.position.set(xPos, infoY, zPos);
             scene.add(shapeMesh);
             obstacles.push({ parts: [shapeMesh], fadeAge: 0, isSimonShape: { type: shapeType, number: number } });
+            
+            // Add a formation spawn point below the info shape
+            slots.push({ type: 'formation', x: xPos, y: 0, z: zPos, dx: 1, dy: 0, count: 3 });
         }
 
-        const wallZStart = SPAWN_Z - zSpacing * 3;
-        const holePositions = [0, 1, 2];
-        const holeOrder = [...holePositions].sort(() => Math.random() - 0.5);
-
-        const slots = [];
+        const wallZStart = SPAWN_Z - zSpacing * 2.7; // Slightly less space after last info block
 
         for (let i = 0; i < 3; i++) {
-            const wallZ = wallZStart - i * zSpacing * 1.5;
-            const holeIndex = holeOrder[i];
-            const holeShapeType = shuffledShapes[holeIndex];
-            const holeNumber = shapeNumbers[holeIndex];
+            // Wall i corresponds to info shape i
+            const wallZ = wallZStart - i * zSpacing * 1.8; // More Z spacing between walls
+            const correctShapeType = shuffledShapes[i];
+
+            // Fixed order: Triangle, Square, Circle
+            const wallShapeOrder = ['triangle', 'square', 'circle'];
+            const holeIndexOnWall = wallShapeOrder.indexOf(correctShapeType);
 
             const wallParts = [];
             const wallW = BOUNDS_X * 2.5;
             const wallH = BOUNDS_Y * 2.4;
-            const wallY = 0;
 
             const wallMat = new THREE.MeshPhongMaterial({
                 color: 0xddeeff,
@@ -1132,14 +1146,20 @@ export function patternSimon(params = {}) {
             scene.add(rim);
             wallParts.push(wallMesh, rim);
 
+            let holeX = 0;
+            const holeSize = shapeSize * 1.2;
+
             for (let j = 0; j < 3; j++) {
                 const sx = startX + j * shapeSpacing;
-                const sy = slotY;
+                const sy = wallY;
+                const isHole = (j === holeIndexOnWall);
+                const currentShapeType = wallShapeOrder[j];
 
-                const holeSize = shapeSize * 1.2;
-                const holeGeo = (shuffledShapes[j] === 'circle')
+                if (isHole) holeX = sx;
+
+                const holeGeo = (currentShapeType === 'circle')
                     ? new THREE.CircleGeometry(holeSize, 32)
-                    : (shuffledShapes[j] === 'square')
+                    : (currentShapeType === 'square')
                         ? new THREE.PlaneGeometry(holeSize * 1.8, holeSize * 1.8)
                         : new THREE.CircleGeometry(holeSize, 3);
 
@@ -1152,8 +1172,13 @@ export function patternSimon(params = {}) {
                         uHoleR: { value: holeSize },
                         uWallW: { value: wallW },
                         uWallH: { value: wallH },
-                        uIsHole: { value: (j === holeIndex) ? 1.0 : 0.0 },
-                        uShapeType: { value: ['circle', 'square', 'triangle'].indexOf(shuffledShapes[j]) }
+                        uIsHole: { value: isHole ? 1.0 : 0.0 },
+                        uShapeType: { value: ['circle', 'square', 'triangle'].indexOf(currentShapeType) },
+                        uShapeColor: { 
+                            value: (currentShapeType === 'triangle') ? new THREE.Color(0xcc3333) // Deep Red
+                                 : (currentShapeType === 'square')   ? new THREE.Color(0x33cc33) // Deep Green
+                                 : new THREE.Color(0x3333cc) // Deep Blue
+                        }
                     },
                     vertexShader: `
                         varying vec2 vUv;
@@ -1168,6 +1193,7 @@ export function patternSimon(params = {}) {
                         uniform float uWallH;
                         uniform float uIsHole;
                         uniform int uShapeType;
+                        uniform vec3 uShapeColor;
                         varying vec2 vUv;
                         void main() {
                             float wx = (vUv.x - 0.5) * uWallW;
@@ -1184,7 +1210,7 @@ export function patternSimon(params = {}) {
                                 float r = uHoleR * 1.1;
                                 float k = sqrt(3.0);
                                 float x = dx;
-                                float y = dy + r/k;
+                                float y = dy + r/k * 1.35; // Corrected offset to move triangle down
                                 x = abs(x) - r;
                                 if (x + k*y > 0.0) {
                                     float tx = x - k*y;
@@ -1196,14 +1222,10 @@ export function patternSimon(params = {}) {
                                 inside = (-sqrt(x*x + y*y) * sign(y) < 0.0);
                             }
 
-                            if (uIsHole > 0.5 && inside) discard;
-                            
-                            if (inside) {
-                                gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity * 0.8);
-                                return;
-                            }
+                            if (!inside) discard; 
 
-                            gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
+                            // Wall shapes use the assigned color (Red, Green, or Blue)
+                            gl_FragColor = vec4(uShapeColor, clamp(uOpacity * 1.4, 0.0, 1.0));
                         }`,
                     transparent: true,
                     side: THREE.DoubleSide,
@@ -1216,7 +1238,19 @@ export function patternSimon(params = {}) {
                 wallParts.push(shapeOutline);
             }
 
-            obstacles.push({ parts: wallParts, fadeAge: 0, isSimonWall: { holeShape: holeShapeType, holeNumber: holeNumber } });
+            obstacles.push({ 
+                parts: wallParts, 
+                fadeAge: 0, 
+                isSimonWall: { 
+                    holeX: holeX, 
+                    holeY: wallY, 
+                    holeR: holeSize, 
+                    shapeType: correctShapeType 
+                } 
+            });
+
+            // Safe pickup spawn point 0.25s after passing the hole
+            slots.push({ type: 'single', x: holeX, y: wallY, z: wallZ - speed * 0.25 });
 
             if (i === 2 && Math.random() < 0.5) {
                 slots.push({ type: 'single', x: 0, y: 0, z: wallZ });
@@ -1647,50 +1681,18 @@ export function nextObstacle(scene, obstacles, levelParams) {
             currentPatternName = FORCE_PATTERN;
         } else {
             // Level-based filtering
-            let available = Object.keys(ALL_PATTERN_MAP);
             const level = params.level || 1;
-
-            // World 2 patterns (levels 4-6): trench, tube
-            // Simon (levels 5-6), Tic-Tac-Toe (level 6 only)
-            const isWorld2 = level >= 4;
-
-            if (isWorld2) {
-                available = available.filter(k =>
-                    !['patternLeftRight', 'patternTopDown', 'patternCorners',
-                       'patternShiftingGates', 'patternNarrow', 'patternSlalomGate',
-                       'patternScatter', 'patternFourCorners', 'patternChoice',
-                       'patternSuperScatter'].includes(k)
-                );
-
-                // Simon for levels 5-6 only
-                if (level < 5) {
-                    available = available.filter(k => k !== 'patternSimon');
-                }
-
-                // Tic-Tac-Toe for level 6 only
-                if (level !== 6) {
-                    available = available.filter(k => k !== 'patternTicTacToe');
-                }
-            } else {
-                // World 1 patterns (levels 1-3)
-                available = available.filter(k =>
-                    !['patternTrench', 'patternTube', 'patternSimon', 'patternTicTacToe'].includes(k)
-                );
-
-                const varietyLevel = level;
-
-                if (varietyLevel >= 2) {
-                    available = available.filter(k => k !== 'patternLeftRight' && k !== 'patternShiftingGates');
-                } else {
-                    available = available.filter(k => k !== 'patternFourCorners' && k !== 'patternChoice');
-                }
-
-                if (varietyLevel >= 3) {
-                    available = available.filter(k => k !== 'patternScatter');
-                } else {
-                    available = available.filter(k => k !== 'patternSuperScatter');
-                }
-            }
+            
+            const LEVEL_PATTERNS = {
+                1: ['patternLeftRight', 'patternTopDown', 'patternCorners', 'patternShiftingGates', 'patternNarrow', 'patternSlalomGate', 'patternScatter'],
+                2: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternScatter', 'patternFourCorners', 'patternChoice'],
+                3: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternFourCorners', 'patternChoice', 'patternSuperScatter'],
+                4: ['patternTopDown', 'patternShiftingGates', 'patternChoice', 'patternTrench', 'patternTube'],
+                5: ['patternLeftRight', 'patternShiftingGates', 'patternTrench', 'patternTube', 'patternSimon'],
+                6: ['patternLeftRight', 'patternFourCorners', 'patternTrench', 'patternTube', 'patternSimon']
+            };
+            
+            let available = LEVEL_PATTERNS[level] || LEVEL_PATTERNS[1];
 
             let name;
             do {

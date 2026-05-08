@@ -11,7 +11,8 @@ import * as THREE from 'three';
 /* ═══════════════════════════════════════════════════════════
    LEVEL DEFINITIONS — Level Scaling
    ═══════════════════════════════════════════════════════════ */
-export const DEBUG_SKIP_W1 = true; // Set to true to skip to the end of Level 3 for rapid testing
+export const DEBUG_SKIP_W1 = false; // Set to true to skip to the end of Level 3 for rapid testing
+export const SKIP_TO_LEVEL_5 = false; // Set to true to skip directly to Level 5
 
 export const LEVELS = [
     {
@@ -41,7 +42,7 @@ export const LEVELS = [
     {
         /* Level 2 — Magenta */
         level: 2,
-        duration: 50,                 // seconds
+        duration: 49,                 // seconds
         speedMultiplier: 1.10,        // +10% speed
         tunnelColor: new THREE.Color(0xff44ff),  // magenta
         obstacleInterval: 1.5,        // faster obstacle spawn
@@ -58,7 +59,7 @@ export const LEVELS = [
     {
         /* Level 3 — Red (final level of World 1) */
         level: 3,
-        duration: 60,                 // 60 seconds, then world transition
+        duration: 58,                 // 58 seconds, then world transition
         speedMultiplier: 1.25,        // +25%
         tunnelColor: new THREE.Color(0xff3333),  // red
         obstacleInterval: 1.4,        // tight obstacle spawn
@@ -84,6 +85,8 @@ if (DEBUG_SKIP_W1) {
         LEVELS.push(lvl3);
     }
 }
+
+
 
 /* ═══════════════════════════════════════════════════════════
    WORLD 2 LEVELS  —  "The Cloud Kingdom"
@@ -143,6 +146,22 @@ export const WORLD_2_LEVELS = [
         },
     },
 ];
+
+// Skip to Level 5 logic
+if (SKIP_TO_LEVEL_5) {
+    const lvl5 = WORLD_2_LEVELS.find(l => l.level === 5);
+    const lvl6 = WORLD_2_LEVELS.find(l => l.level === 6);
+    if (lvl5) {
+        WORLD_2_LEVELS.length = 0;
+        WORLD_2_LEVELS.push(lvl5);
+        if (lvl6) WORLD_2_LEVELS.push(lvl6);
+        
+        // Ensure World 1 is very fast
+        if (LEVELS.length > 0) {
+            LEVELS[LEVELS.length - 1].duration = 1;
+        }
+    }
+}
 
 /* ═══════════════════════════════════════════════════════════
    WORLDS  —  Top-level structure referencing level arrays.

@@ -1828,6 +1828,28 @@ function animate() {
             if (d1 < -PLANE_RADIUS || d2 < -PLANE_RADIUS || d3 < -PLANE_RADIUS) return false;
             return true;
         }
+        if (obs.isSimonWall) {
+            const wallZ = obs.parts[0].position.z;
+            // 3.5 is the collision depth buffer
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            
+            const sw = obs.isSimonWall;
+            const dx = aircraft.position.x - sw.holeX;
+            const dy = aircraft.position.y - sw.holeY;
+            
+            let inside = false;
+            if (sw.shapeType === 'circle') {
+                inside = (dx*dx + dy*dy < sw.holeR * sw.holeR);
+            } else if (sw.shapeType === 'square') {
+                inside = (Math.abs(dx) < sw.holeR * 0.9 && Math.abs(dy) < sw.holeR * 0.9);
+            } else if (sw.shapeType === 'triangle') {
+                inside = (sdEquilateralTriangle(dx, dy, sw.holeR * 1.1) < 0);
+            }
+            
+            // If aircraft is safely inside the correct hole, no collision
+            if (inside) return false;
+            return true; // Crash into the solid part of the wall
+        }
         if (obs.isDiagonalTop) {
             const diag = obs.isDiagonalTop;
             const wallPos = obs.parts[0].position;
