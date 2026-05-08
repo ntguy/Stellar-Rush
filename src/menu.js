@@ -297,7 +297,13 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
     const skipBtn = document.getElementById('skip-intro');
 
     if (menuActions) { menuActions.className = 'align-' + cfg.playButtonAlign; }
-    if (skipBtn) { skipBtn.style.display = 'block'; skipBtn.style.pointerEvents = 'auto'; }
+    if (skipBtn) { 
+        skipBtn.style.display = 'block'; 
+        skipBtn.style.pointerEvents = 'auto'; 
+    }
+    if (menuEl) {
+        menuEl.style.pointerEvents = 'auto'; // Capture clicks across the whole screen for skip
+    }
 
     const camStart  = new THREE.Vector3(...cfg.cameraStartPos);
     const camEnd    = new THREE.Vector3(...cfg.cameraEndPos);
@@ -314,12 +320,22 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
     const _onPlayClick = () => { if (onPlayCb) onPlayCb(); };
     if (playBtn) playBtn.addEventListener('click', _onPlayClick);
 
-    const _onSkipClick = (e) => {
+    const _onSkipAction = (e) => {
+        if (e && (e.type === 'keydown' && e.key !== ' ')) return; // Only Space for keydown
         if (e) e.stopPropagation();
-        elapsed = ANIM_DURATION;
-        if (skipBtn) skipBtn.style.display = 'none';
+        if (elapsed < ANIM_DURATION) {
+            elapsed = ANIM_DURATION;
+            if (skipBtn) skipBtn.style.display = 'none';
+            if (menuEl) menuEl.style.pointerEvents = 'none'; // Revert to let buttons handle themselves
+            window.removeEventListener('keydown', _onSkipAction);
+            menuEl.removeEventListener('click', _onSkipAction);
+        }
     };
-    if (skipBtn) skipBtn.addEventListener('click', _onSkipClick);
+
+    if (skipBtn) {
+        window.addEventListener('keydown', _onSkipAction);
+        menuEl.addEventListener('click', _onSkipAction);
+    }
 
     loadJetBuffer();
 
@@ -392,6 +408,9 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
             stopMenuJet();
             if (onReadyCb) onReadyCb();
             if (skipBtn) skipBtn.style.display = 'none';
+            if (menuEl) menuEl.style.pointerEvents = 'none';
+            window.removeEventListener('keydown', _onSkipAction);
+            menuEl.removeEventListener('click', _onSkipAction);
             const tc = document.getElementById('title-container');
             if (tc) { tc.classList.add('visible', 'anim-' + cfg.titleAnimation); }
             setTimeout(() => { 
@@ -402,7 +421,8 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
 
     function dispose() {
         if (playBtn) playBtn.removeEventListener('click', _onPlayClick);
-        if (skipBtn) skipBtn.removeEventListener('click', _onSkipClick);
+        window.removeEventListener('keydown', _onSkipAction);
+        if (menuEl) menuEl.removeEventListener('click', _onSkipAction);
         if (menuEl) menuEl.style.display = 'none';
         stopMenuJet();
         tracked.forEach(obj => {

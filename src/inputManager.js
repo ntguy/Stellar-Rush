@@ -87,6 +87,7 @@ export class InputManager {
         if (key === 'escape') {
             this.actions.escape = true;
             this._fireEvent('onPauseAction', 'Escape');
+            return; // Prevent switching to KEYBOARD mode on Escape
         }
 
         if (this.rawKeys.hasOwnProperty(key) === false || !this.rawKeys[key]) {

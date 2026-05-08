@@ -4,6 +4,8 @@
 
 let ctx = null;
 const buffers = {};
+let masterAudioGain = null;
+let masterMusicGain = null;
 let engineSource = null;
 let boostSource = null;
 let lowFuelSource = null;
@@ -12,6 +14,17 @@ let menuMusicSource = null;
 let menuMusicGain = null;
 let outOfFuelSource = null;
 let outOfFuelGain = null;
+let gameplayMusicSource = null;
+let gameplayMusicGain = null;
+let currentMusicTheme = null;
+
+export function setMasterAudioVolume(val) {
+    if (masterAudioGain) masterAudioGain.gain.value = val;
+}
+
+export function setMasterMusicVolume(val) {
+    if (masterMusicGain) masterMusicGain.gain.value = val;
+}
 
 /**
  * Loads an audio file and decodes it into a buffer.
@@ -32,6 +45,10 @@ async function loadBuffer(key, url) {
 export async function initAudio() {
     if (!ctx) {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
+        masterAudioGain = ctx.createGain();
+        masterAudioGain.connect(ctx.destination);
+        masterMusicGain = ctx.createGain();
+        masterMusicGain.connect(ctx.destination);
     }
 
     await Promise.all([
@@ -45,6 +62,8 @@ export async function initAudio() {
         loadBuffer('lowFuel',    'src/audio/LowOnFuel.mp3'),
         loadBuffer('outOfFuel',  'src/audio/OutOfFuel.mp3'),
         loadBuffer('menuMusic',  'src/audio/chillTitleMusic.mp3'),
+        loadBuffer('spaceMusic', 'src/audio/SpaceMusic1'),
+        loadBuffer('cloudMusic', 'src/audio/CloudsMusic1.mp3'),
     ]);
 
     startBaseEngine();
@@ -77,7 +96,7 @@ export function startBaseEngine() {
 
     gain.gain.value = 0.05; 
 
-    engineSource.connect(gain).connect(ctx.destination);
+    engineSource.connect(gain).connect(masterAudioGain);
     engineSource.start();
 }
 
@@ -95,6 +114,7 @@ export function stopAllAudio() {
     }
     stopFuelLowBeep();
     stopMenuMusic();
+    stopGameplayMusic();
 }
 
 /**
@@ -110,7 +130,7 @@ function playOneShot(key, volume = 0.5, playbackRate = 1.0) {
     const gain = ctx.createGain();
     gain.gain.value = volume;
     
-    src.connect(gain).connect(ctx.destination);
+    src.connect(gain).connect(masterAudioGain);
     src.start();
 }
 
@@ -130,7 +150,7 @@ function startLoop(key, volume = 0.5) {
     gain.gain.value = 0; 
     gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.1);
 
-    src.connect(gain).connect(ctx.destination);
+    src.connect(gain).connect(masterAudioGain);
     src.start();
 
     return () => {
@@ -175,7 +195,7 @@ export function playOutOfFuel() {
     outOfFuelGain = ctx.createGain();
     outOfFuelGain.gain.value = 0.2;
 
-    outOfFuelSource.connect(outOfFuelGain).connect(ctx.destination);
+    outOfFuelSource.connect(outOfFuelGain).connect(masterAudioGain);
     outOfFuelSource.start();
 }
 
@@ -217,7 +237,7 @@ export function startFuelLowBeep() {
     lowFuelGain = ctx.createGain();
     lowFuelGain.gain.value = 0; 
 
-    lowFuelSource.connect(lowFuelGain).connect(ctx.destination);
+    lowFuelSource.connect(lowFuelGain).connect(masterAudioGain);
     lowFuelSource.start();
 }
 
@@ -255,7 +275,7 @@ export function startMenuMusic() {
     menuMusicGain = ctx.createGain();
     menuMusicGain.gain.value = 0.4;
     
-    menuMusicSource.connect(menuMusicGain).connect(ctx.destination);
+    menuMusicSource.connect(menuMusicGain).connect(masterMusicGain);
     menuMusicSource.start();
 }
 
@@ -278,4 +298,52 @@ export function stopMenuMusic() {
     setTimeout(() => {
         try { source.stop(); } catch(e) {}
     }, 1000);
+}
+
+/**
+ * Crossfades to a new gameplay music theme ('world1' or 'world2').
+ */
+export function crossfadeMusicTheme(theme) {
+    if (currentMusicTheme === theme) return;
+    currentMusicTheme = theme;
+    
+    // fade out old
+    if (gameplayMusicSource) {
+        const oldGain = gameplayMusicGain;
+        const oldSource = gameplayMusicSource;
+        if (oldGain) {
+            oldGain.gain.setTargetAtTime(0, ctx.currentTime, 1.0);
+            setTimeout(() => {
+                try { oldSource.stop(); } catch(e) {}
+            }, 3000);
+        }
+    }
+
+    if (!theme) {
+        gameplayMusicSource = null;
+        gameplayMusicGain = null;
+        return;
+    }
+
+    const key = theme === 'world1' ? 'spaceMusic' : 'cloudMusic';
+    if (!ctx || !buffers[key]) return;
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffers[key];
+    source.loop = false;
+
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    const targetVol = theme === 'world2' ? 0.2 : 0.25;
+    gain.gain.setTargetAtTime(targetVol, ctx.currentTime, 1.0); // fade in to targetVol
+
+    source.connect(gain).connect(masterMusicGain);
+    source.start();
+
+    gameplayMusicSource = source;
+    gameplayMusicGain = gain;
+}
+
+export function stopGameplayMusic() {
+    crossfadeMusicTheme(null);
 }
