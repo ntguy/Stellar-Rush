@@ -191,12 +191,13 @@ export function spawnLowValueFormation(scene, slot) {
     const dx    = slot.dx   ?? 0;
     const dy    = slot.dy   ?? 0;
     const Z_STEP = 8;
+    const startZ = slot.z ?? SPAWN_Z;
     
     const fid = ++formationIdCounter;
     formationTracker[fid] = { total: count, collected: 0, patternName: slot.patternName || 'Unknown' };
     
     for (let i = 0; i < count; i++) {
-        spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, SPAWN_Z - i * Z_STEP, fid);
+        spawnLowValuePickup(scene, slot.x + dx * i, slot.y + dy * i, startZ - i * Z_STEP, fid);
     }
 }
 

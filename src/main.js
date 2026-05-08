@@ -8,7 +8,7 @@ import {
     matGlow, matAsteroid, matLine, DEVELOPMENT_MODE, FORCE_MOBILE
 } from './config.js';
 
-import { nextObstacle, resetSequencer, currentPatternName } from './patterns.js';
+import { nextObstacle, resetSequencer, currentPatternName, isPatternFinished } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
 import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
 import {
@@ -1260,7 +1260,7 @@ function animate() {
 
     aircraft.position.addScaledVector(vel, dt);
     aircraft.position.x = THREE.MathUtils.clamp(aircraft.position.x, -BOUNDS_X, BOUNDS_X);
-    aircraft.position.y = THREE.MathUtils.clamp(aircraft.position.y, -BOUNDS_Y, BOUNDS_Y);
+    aircraft.position.y = THREE.MathUtils.clamp(aircraft.position.y, -BOUNDS_Y + 5.0, BOUNDS_Y);
     aircraft.position.z = 0;
 
     /* ── Tilt ─────────────────────────────────────────── */
@@ -1355,7 +1355,7 @@ function animate() {
     if (levelState === 'PLAYING') {
         levelTimer += dt;
 
-        if (levelTimer >= currentLevel.duration) {
+        if (levelTimer >= currentLevel.duration && isPatternFinished()) {
             if (currentLevelIdx < activeLevels.length - 1) {
                 // Normal inter-level transition within same world
                 targetLevelIdx = currentLevelIdx + 1;
@@ -1378,10 +1378,12 @@ function animate() {
             /* ── Spawn obstacles ──────────────────────────────── */
             spawnTimer += dt;
             if (spawnTimer > currentLevel.obstacleInterval) {
-                spawnTimer -= currentLevel.obstacleInterval;
-                const slots = nextObstacle(scene, obstacles, currentLevel.difficultyParams);
-                slots.forEach(s => s.patternName = currentPatternName);
-                
+                if (levelTimer < currentLevel.duration || !isPatternFinished()) {
+                    spawnTimer -= currentLevel.obstacleInterval;
+                    const patternParams = { ...currentLevel.difficultyParams, obstacleInterval: currentLevel.obstacleInterval, speed: speed };
+                    const slots = nextObstacle(scene, obstacles, patternParams);
+                    slots.forEach(s => s.patternName = currentPatternName);
+
                 // First, handle slots that have a MANDATORY pickup type (like patternChoice)
                 for (let i = slots.length - 1; i >= 0; i--) {
                     const slot = slots[i];
@@ -1413,6 +1415,7 @@ function animate() {
                     }
                 }
             }
+        }
 
             /* ── Pickup timers ───────────────────────────────────────── */
             formationTimer.value  += dt;
@@ -1583,22 +1586,24 @@ function animate() {
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
         obs.fadeAge = Math.min(obs.fadeAge + dt, OBS_FADE_TIME);
-        const opacity = (obs.fadeAge / OBS_FADE_TIME) * OBS_TARGET_OPACITY;
+        const targetOpacity = (obs.targetOpacity !== undefined) ? obs.targetOpacity : OBS_TARGET_OPACITY;
+        const opacity = (obs.fadeAge / OBS_FADE_TIME) * targetOpacity;
         let rm = false;
 
         for (const m of obs.parts) {
             if (m.material.transparent) {
                 // ShaderMaterial (circle-hole walls & premium boxes) uses uniforms
+                const partOpacity = (m.userData.opacityMult !== undefined) ? opacity * m.userData.opacityMult : opacity;
                 if (m.material.isShaderMaterial) {
-                    m.material.uniforms.uOpacity.value = opacity;
+                    m.material.uniforms.uOpacity.value = partOpacity;
                     if (m.material.uniforms.uTime) m.material.uniforms.uTime.value = elapsed;
                 } else {
-                    m.material.opacity = opacity;
+                    m.material.opacity = partOpacity;
                 }
             }
             m.position.z += speed * dt;
 
-            if (m.position.z > DESPAWN_Z) rm = true;
+            let despawnLimit = DESPAWN_Z; if (obs.isLong) despawnLimit += obs.isLong.depth / 2; if (m === obs.parts[0] && m.position.z > despawnLimit) rm = true;
         }
         if (rm) {
             obs.parts.forEach(m => { m.geometry.dispose(); m.material.dispose(); scene.remove(m); });
@@ -1693,6 +1698,34 @@ function animate() {
 
     // Helper: returns true if player hits this obstacle
     function obsHitsPlayer(obs) {
+        if (obs.isTube) {
+            const frontZ = obs.parts[0].position.z;
+            const backZ = obs.parts[1].position.z;
+            if (aircraft.position.z < frontZ + 2 && aircraft.position.z > backZ - 2) {
+                const dist = Math.sqrt(aircraft.position.x * aircraft.position.x + aircraft.position.y * aircraft.position.y);
+                if (dist > obs.isTube.radius - PLANE_RADIUS) return true;
+            }
+            return false;
+        }
+        if (obs.isSectorHole) {
+            const wallZ = obs.parts[0].position.z;
+            if (Math.abs(aircraft.position.z - wallZ) > 3.5) return false;
+            const dist = Math.sqrt(aircraft.position.x * aircraft.position.x + aircraft.position.y * aircraft.position.y);
+            if (dist > obs.isSectorHole.r - PLANE_RADIUS) return true;
+            let angle = Math.atan2(aircraft.position.y, aircraft.position.x);
+            if (angle < 0) angle += Math.PI * 2;
+            let start = obs.isSectorHole.startAngle;
+            let end = obs.isSectorHole.endAngle;
+            let inSector = false;
+            if (start < end) {
+                inSector = (angle >= start && angle <= end);
+            } else {
+                inSector = (angle >= start || angle <= end);
+            }
+            // we want to be IN the cut-out section to survive.
+            if (!inSector) return true;
+            return false;
+        }
         if (obs.circleHole) {
             // Circle-hole wall — hit if player is NOT safely inside the hole
             const wallZ = obs.parts[0].position.z;

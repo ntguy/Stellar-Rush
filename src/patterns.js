@@ -103,6 +103,99 @@ export function makeBox(scene, w, h, d, x, y, z, mat, group) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   GEOMETRY HELPERS FOR WORLD 2 (3D VOLUMES)
+   ═══════════════════════════════════════════════════════════ */
+export function make3DBox(scene, w, h, d, x, y, z, mat, group) {
+    const faceMat = new THREE.MeshPhongMaterial({
+        color: 0xddeeff,
+        emissive: 0x0a1115,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+    });
+    
+    const boxGeo = new THREE.BoxGeometry(w, h, d);
+    const face = new THREE.Mesh(boxGeo, faceMat);
+    face.position.set(x, y, z);
+    scene.add(face);
+    
+    const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+    const edgeMat = new THREE.LineBasicMaterial({ 
+        color: 0xbbddff, 
+        transparent: true, 
+        opacity: 0,
+        blending: THREE.AdditiveBlending 
+    });
+
+    const rim = new THREE.LineSegments(edgeGeo, edgeMat);
+    rim.position.set(x, y, z);
+    scene.add(rim);
+    
+    group.push(face, rim);
+    return face;
+}
+
+export function spawnWallSectorHole(scene, obstacles, gapR, startAngle, endAngle, z) {
+    const ow = BOUNDS_X * 2.5, oh = BOUNDS_Y * 2.4;
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            uColor:   { value: new THREE.Color(0xddeeff) },
+            uOpacity: { value: 0 },
+            uGapR:    { value: gapR },
+            uStartA:  { value: startAngle },
+            uEndA:    { value: endAngle },
+            uWallW:   { value: ow },
+            uWallH:   { value: oh },
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }`,
+        fragmentShader: `
+            uniform vec3 uColor;
+            uniform float uOpacity;
+            uniform float uGapR;
+            uniform float uStartA;
+            uniform float uEndA;
+            uniform float uWallW;
+            uniform float uWallH;
+            #define PI 3.14159265359
+            varying vec2 vUv;
+            void main() {
+                float wx = (vUv.x - 0.5) * uWallW;
+                float wy = (vUv.y - 0.5) * uWallH;
+                float r = sqrt(wx * wx + wy * wy);
+                if (r > uGapR) discard; 
+                
+                float a = atan(wy, wx);
+                if (a < 0.0) a += 2.0 * PI;
+                
+                bool inSector = false;
+                if (uStartA < uEndA) {
+                    inSector = (a >= uStartA && a <= uEndA);
+                } else {
+                    inSector = (a >= uStartA || a <= uEndA);
+                }
+                
+                if (inSector) discard;
+
+                gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
+            }`,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+    });
+
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(ow, oh), mat);
+    plane.position.set(0, 0, z);
+    scene.add(plane);
+    
+    obstacles.push({ parts: [plane], fadeAge: 0, isSectorHole: { r: gapR, startAngle, endAngle } });
+}
+
+/* ═══════════════════════════════════════════════════════════
    PARAMETERISED PATTERN TEMPLATES
    ═══════════════════════════════════════════════════════════ */
 
@@ -435,6 +528,340 @@ export function patternSlalomGate(params = {}) {
     return steps;
 }
 
+/* ── World 2 Patterns (Levels 4-6) ─────────────────────────── */
+
+export function patternTrench(params = {}) {
+    const steps = [];
+    const lvl = params.level || 4;
+
+    // Use speed from params if provided (from main.js), otherwise fallback to level-based estimate
+    const baseSpeed = params.speed || 50;
+    const speedMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
+    const speed = baseSpeed * speedMultiplier;
+    
+    // Narrower zSpacing at higher levels
+    const zSpacing = speed * (1 - (lvl - 4) * 0.1); 
+
+    const subPatterns = [];
+
+    // 1. Block: Middle-Outsides-Middle
+    subPatterns.push([
+        { walls: [{ pos: 'C' }], safe: 'L' },
+        { walls: [{ pos: 'L' }, { pos: 'R' }], safe: 'C' },
+        { walls: [{ pos: 'C' }], safe: 'R' }
+    ]);
+
+    // 2. Block: Swerve Left
+    subPatterns.push([
+        { walls: [{ pos: 'R' }], safe: 'L' },
+        { walls: [{ pos: 'CR' }], safe: 'CL' },
+        { walls: [{ pos: 'C' }], safe: 'CR' },
+        { walls: [{ pos: 'CL' }], safe: 'R' }
+    ]);
+
+    // 3. Block: Swerve Right (Mirror)
+    subPatterns.push([
+        { walls: [{ pos: 'L' }], safe: 'R' },
+        { walls: [{ pos: 'CL' }], safe: 'CR' },
+        { walls: [{ pos: 'C' }], safe: 'CL' },
+        { walls: [{ pos: 'CR' }], safe: 'L' }
+    ]);
+
+    // 4. Block: Random Burst
+    const burst = [];
+    const randomCount = lvl === 4 ? 6 : (lvl === 5 ? 10 : 15);
+    for (let i = 0; i < randomCount; i++) {
+        const walls = [];
+        if (Math.random() < 0.5) {
+            // Two non-overlapping walls: guarantee a gap by splitting the screen with buffers
+            const w1 = -BOUNDS_X * 0.8 + Math.random() * (BOUNDS_X * 0.5);
+            const w2 =  BOUNDS_X * 0.3 + Math.random() * (BOUNDS_X * 0.5);
+            walls.push({ customX: w1 }, { customX: w2 });
+        } else {
+            const w1 = (Math.random() - 0.5) * 2 * (BOUNDS_X * 0.7);
+            walls.push({ customX: w1 });
+        }
+        const avgX = walls.reduce((acc, w) => acc + w.customX, 0) / walls.length;
+        const safeX = avgX > 0 ? -BOUNDS_X * 0.6 : BOUNDS_X * 0.6;
+        burst.push({ walls: walls, safeX: safeX, formDxDir: 0 });
+    }
+    subPatterns.push(burst);
+
+    // Shuffle the sub-patterns to keep the trench fresh
+    for (let i = subPatterns.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [subPatterns[i], subPatterns[j]] = [subPatterns[j], subPatterns[i]];
+    }
+
+    // Flatten into final sequence
+    const sequence = [];
+    subPatterns.forEach(block => sequence.push(...block));
+
+    const wallCount = sequence.length;
+    const blockD = (wallCount - 1) * zSpacing;
+    const duration = wallCount * (zSpacing / speed); 
+    
+    const interval = params.obstacleInterval || 1.6;
+    const totalSteps = Math.ceil(duration / interval);
+
+    steps.push((scene, obstacles) => {
+        const blockW = BOUNDS_X * 2.5; 
+        
+        // 1. A thin floor (ceiling) that "locks" the plane near the bottom.
+        // Positioned just above the short walls to create the trench effect.
+        const ceilingH = 0.5;
+        const ceilingY = -0.1 * BOUNDS_Y; // Raised from -0.3
+        const trenchCenterZ = SPAWN_Z - blockD / 2;
+        const ceilingParts = [];
+        make3DBox(scene, blockW, ceilingH, blockD, 0, ceilingY, trenchCenterZ, null, ceilingParts);
+        
+        // Denser grid pattern (24x16)
+        const laserMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 });
+        const divZ = 64;
+        const divX = 16;
+        for (let i = 0; i <= divZ; i++) {
+            const lz = trenchCenterZ - blockD/2 + (i / divZ) * blockD;
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-blockW/2, 0, 0), new THREE.Vector3(blockW/2, 0, 0)]);
+            const line = new THREE.Line(lineGeo, laserMat);
+            line.userData.opacityMult = 0.6; // Differentiate grid from floor
+            line.position.set(0, ceilingY, lz);
+            scene.add(line);
+            ceilingParts.push(line);
+        }
+        for (let i = 0; i <= divX; i++) {
+            const lx = -blockW/2 + (i / divX) * blockW;
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, -blockD/2), new THREE.Vector3(0, 0, blockD/2)]);
+            const line = new THREE.Line(lineGeo, laserMat);
+            line.userData.opacityMult = 0.6;
+            line.position.set(lx, ceilingY, trenchCenterZ);
+            scene.add(line);
+            ceilingParts.push(line);
+        }
+
+        obstacles.push({ parts: ceilingParts, fadeAge: 0, targetOpacity: 0.2, isLong: { depth: blockD } });
+
+        // 2. A large 2D wall at the very start filling the top 2/3rds of the screen.
+        const topWallH = (2 * BOUNDS_Y) * (2/3);
+        const topWallY = BOUNDS_Y - (topWallH / 2);
+        const topWallParts = [];
+        makeBox(scene, blockW, topWallH, 1, 0, topWallY, SPAWN_Z, matObs, topWallParts);
+        obstacles.push({ parts: topWallParts, fadeAge: 0 });
+
+        const slots = [];
+        
+        // Base width
+        const w = BOUNDS_X * 0.4 * (1 + (lvl - 4) * 0.15); 
+        const getX = (pos) => {
+            if (pos === 'far-left' || pos === 'L') return -BOUNDS_X + w/2;
+            if (pos === 'center-left' || pos === 'CL') return -w/2;
+            if (pos === 'center' || pos === 'C') return 0;
+            if (pos === 'center-right' || pos === 'CR') return w/2;
+            if (pos === 'far-right' || pos === 'R') return BOUNDS_X - w/2;
+            if (pos === 'random') return (Math.random() - 0.5) * 2 * (BOUNDS_X - w/2);
+            if (pos === 'random-left') return -BOUNDS_X + w/2 + Math.random() * (BOUNDS_X - w);
+            if (pos === 'random-right') return BOUNDS_X - w/2 - Math.random() * (BOUNDS_X - w);
+            return 0;
+        };
+
+        for (let i = 0; i < wallCount; i++) {
+            const rowDef = sequence[i];
+            if (!rowDef) continue;
+            const wallZ = SPAWN_Z - i * zSpacing;
+            
+            // Spawn walls from the bottom (shorter now)
+            for (const wDef of rowDef.walls) {
+                const wParts = [];
+                const centerX = wDef.customX !== undefined ? wDef.customX : getX(wDef.pos);
+                const wallH = BOUNDS_Y * 0.85; // Raised by 30%
+                const wallCenterY = -BOUNDS_Y + wallH / 2;
+                makeBox(scene, w, wallH, 1, centerX, wallCenterY, wallZ, matObs, wParts);
+                obstacles.push({ parts: wParts, fadeAge: 0 });
+            }
+
+            // Spawn pickups in safe zones
+            if (Math.random() < 0.6) {
+                const safeX = rowDef.safeX !== undefined ? rowDef.safeX : getX(rowDef.safe);
+                const slotY = -BOUNDS_Y + 4;
+                
+                // Formations if formDxDir != 0 and random chance
+                if (rowDef.formDxDir !== 0 && Math.random() < 0.5) {
+                    slots.push({ type: 'formation', x: safeX, y: slotY, z: wallZ, dx: rowDef.formDxDir * (w / 4), dy: 0, count: 4 });
+                } else {
+                    slots.push({ type: 'single', x: safeX, y: slotY, z: wallZ });
+                }
+            }
+        }
+        return slots;
+    });
+
+    for (let i = 1; i < totalSteps; i++) {
+        steps.push(() => []);
+    }
+    
+    return steps;
+}
+
+export function patternCanyon(params = {}) {
+    const steps = [];
+    const lvl = params.level || 4;
+    let wallCount = 8;
+    if (lvl === 5) wallCount = Math.floor(wallCount * 1.2);
+    if (lvl === 6) wallCount = Math.floor(wallCount * 1.4);
+
+    const speed = 50 * (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
+    const zSpacing = speed / 2; 
+    const blockD = wallCount * zSpacing;
+    const duration = wallCount * 0.5; 
+    
+    const interval = params.obstacleInterval || 1.6;
+    const totalSteps = Math.ceil(duration / interval);
+
+    steps.push((scene, obstacles) => {
+        const partsLeft = [];
+        const partsRight = [];
+        const blockW = (2 * BOUNDS_X) * (1/3);
+        const blockH = BOUNDS_Y * 2.5; 
+        const centerZ = SPAWN_Z - blockD / 2 + zSpacing / 2;
+
+        const leftX = -BOUNDS_X + blockW / 2;
+        make3DBox(scene, blockW, blockH, blockD, leftX, 0, centerZ, null, partsLeft);
+        obstacles.push({ parts: partsLeft, fadeAge: 0 });
+
+        const rightX = BOUNDS_X - blockW / 2;
+        make3DBox(scene, blockW, blockH, blockD, rightX, 0, centerZ, null, partsRight);
+        obstacles.push({ parts: partsRight, fadeAge: 0 });
+
+        const slots = [];
+        
+        for (let i = 0; i < wallCount; i++) {
+            const wallZ = SPAWN_Z - i * zSpacing;
+            const wParts = [];
+            const barW = (2 * BOUNDS_X) * (1/3) + 2; 
+            const barH = 0.3 * BOUNDS_Y * 2;
+            const dir = Math.random() < 0.5 ? -1 : 1;
+            const centerY = dir * (BOUNDS_Y * 0.45);
+
+            makeBox(scene, barW, barH, 1, 0, centerY, wallZ, matObs, wParts);
+            obstacles.push({ parts: wParts, fadeAge: 0 });
+
+            if (Math.random() < 0.5) {
+                const slotY = -dir * BOUNDS_Y * 0.45;
+                slots.push({ type: 'single', x: 0, y: slotY, z: wallZ });
+            }
+        }
+        return slots;
+    });
+
+    for (let i = 1; i < totalSteps; i++) {
+        steps.push(() => []);
+    }
+    
+    return steps;
+}
+
+export function patternTube(params = {}) {
+    const steps = [];
+    const lvl = params.level || 4;
+    let wallCount = 8;
+    if (lvl === 5) wallCount = Math.floor(wallCount * 1.2);
+    if (lvl === 6) wallCount = Math.floor(wallCount * 1.4);
+
+    const baseSpeed = params.speed || 50;
+    const speedMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
+    const speed = baseSpeed * speedMultiplier;
+    const zSpacing = speed / 2; 
+    const blockD = wallCount * zSpacing;
+    const duration = wallCount * 0.5; 
+    
+    const interval = params.obstacleInterval || 1.6;
+    const totalSteps = Math.ceil(duration / interval);
+
+    let degrees = 90;
+    if (lvl === 5) degrees = 75;
+    if (lvl === 6) degrees = 60;
+    const radSafe = (degrees * Math.PI) / 180;
+
+    steps.push((scene, obstacles) => {
+        const parts = [];
+        const centerZ = SPAWN_Z - blockD / 2 + zSpacing / 2;
+        const radius = Math.min(BOUNDS_X, BOUNDS_Y) * 0.85;
+
+        const ow = BOUNDS_X * 2.5, oh = BOUNDS_Y * 2.4;
+        const frontMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor:   { value: new THREE.Color(0xddeeff) },
+                uOpacity: { value: 0 },
+                uGapX:    { value: 0 },
+                uGapY:    { value: 0 },
+                uGapR:    { value: radius },
+                uWallW:   { value: ow },
+                uWallH:   { value: oh },
+            },
+            vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            fragmentShader: `
+                uniform vec3 uColor; uniform float uOpacity; uniform float uGapX; uniform float uGapY; uniform float uGapR; uniform float uWallW; uniform float uWallH;
+                varying vec2 vUv;
+                void main() {
+                    float wx = (vUv.x - 0.5) * uWallW; float wy = (vUv.y - 0.5) * uWallH;
+                    float dx = wx - uGapX; float dy = wy - uGapY;
+                    if (dx * dx + dy * dy < uGapR * uGapR) discard;
+                    gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
+                }`,
+            transparent: true, side: THREE.DoubleSide, depthWrite: false,
+        });
+        const front = new THREE.Mesh(new THREE.PlaneGeometry(ow, oh), frontMat);
+        front.position.set(0, 0, centerZ + blockD / 2);
+        
+        const backMat = frontMat.clone();
+        const back = new THREE.Mesh(new THREE.PlaneGeometry(ow, oh), backMat);
+        back.position.set(0, 0, centerZ - blockD / 2);
+
+        const tubeMat = new THREE.MeshPhongMaterial({
+            color: 0xddeeff, emissive: 0x0a1115, transparent: true, opacity: 0,
+            side: THREE.BackSide, depthWrite: false
+        });
+        const tubeGeo = new THREE.CylinderGeometry(radius, radius, blockD, 64, 1, true);
+        tubeGeo.rotateX(Math.PI / 2);
+        const tube = new THREE.Mesh(tubeGeo, tubeMat);
+        tube.position.set(0, 0, centerZ);
+
+        scene.add(front); scene.add(back); scene.add(tube);
+        parts.push(front, back, tube);
+        obstacles.push({ parts, fadeAge: 0, isTube: { radius: radius, depth: blockD } });
+
+        const slots = [];
+        let curAngle = Math.random() * Math.PI * 2;
+        
+        for (let i = 0; i < wallCount; i++) {
+            const wallZ = SPAWN_Z - i * zSpacing;
+            
+            const maxShift = (degrees / 180) * Math.PI; 
+            curAngle += (Math.random() - 0.5) * maxShift;
+            if (curAngle < 0) curAngle += Math.PI * 2;
+            if (curAngle > Math.PI * 2) curAngle -= Math.PI * 2;
+
+            const startA = curAngle;
+            let endA = curAngle + radSafe;
+            if (endA > Math.PI * 2) endA -= Math.PI * 2;
+
+            spawnWallSectorHole(scene, obstacles, radius, startA, endA, wallZ);
+
+            if (Math.random() < 0.5) {
+                const midAngle = curAngle + radSafe / 2;
+                const r = radius * (0.3 + Math.random() * 0.4);
+                slots.push({ type: 'single', x: Math.cos(midAngle) * r, y: Math.sin(midAngle) * r, z: wallZ });
+            }
+        }
+        return slots;
+    });
+
+    for (let i = 1; i < totalSteps; i++) {
+        steps.push(() => []);
+    }
+    
+    return steps;
+}
+
 /* ═══════════════════════════════════════════════════════════
    PRIMITIVE SPAWNERS
    ═══════════════════════════════════════════════════════════ */
@@ -663,7 +1090,8 @@ export function spawnWallWithCircleGap(scene, obstacles, gapX, gapY, gapR) {
 const ALL_PATTERN_MAP = { 
     patternLeftRight, patternTopDown, patternCorners, patternShiftingGates, 
     patternNarrow, patternSlalomGate, patternScatter,
-    patternFourCorners, patternChoice, patternSuperScatter
+    patternFourCorners, patternChoice, patternSuperScatter,
+    patternTrench, patternCanyon, patternTube
 };
 
 export let currentPatternName = '';
@@ -685,19 +1113,21 @@ export function nextObstacle(scene, obstacles, levelParams) {
             let available = Object.keys(ALL_PATTERN_MAP);
             const level = params.level || 1;
             
-            if (level >= 2) {
-                // For level 2 and 3, patternLeftRight and patternShiftingGates should be removed
+            // Always exclude unreleased World 2 patterns
+            available = available.filter(k => !['patternTrench', 'patternCanyon', 'patternTube'].includes(k));
+
+            // Map World 2 levels (4-6) to World 1 variety levels (1-3)
+            const varietyLevel = level > 3 ? level - 3 : level;
+
+            if (varietyLevel >= 2) {
                 available = available.filter(k => k !== 'patternLeftRight' && k !== 'patternShiftingGates');
             } else {
-                // New patterns (FourCorners, Choice) don't spawn in level 1 normally
                 available = available.filter(k => k !== 'patternFourCorners' && k !== 'patternChoice');
             }
             
-            if (level >= 3) {
-                // For level 3 only, patternScatter should also be removed
+            if (varietyLevel >= 3) {
                 available = available.filter(k => k !== 'patternScatter');
             } else {
-                // Super scatter only for lvl 3
                 available = available.filter(k => k !== 'patternSuperScatter');
             }
 
@@ -714,6 +1144,10 @@ export function nextObstacle(scene, obstacles, levelParams) {
     }
     const stepFn = currentSteps[stepIdx]; if (!stepFn) { stepIdx++; return []; }
     const slots = stepFn(scene, obstacles) ?? []; stepIdx++; return slots;
+}
+
+export function isPatternFinished() {
+    return (currentSteps.length > 0 && stepIdx >= currentSteps.length) || (currentSteps.length === 0);
 }
 
 export function resetSequencer() { currentSteps = []; stepIdx = 0; lastTemplateIdx = -1; currentPatternName = ''; }

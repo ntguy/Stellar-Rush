@@ -93,7 +93,7 @@ if (DEBUG_SKIP_W1) {
 export const WORLD_2_LEVELS = [
     {
         /* Level 4 (= World 2, Stage 1) — Sky Blue */
-        level: 1,
+        level: 4,
         duration: 40,
         speedMultiplier: 1.0,
         tunnelColor: new THREE.Color(0x4488ff),  // re-used for HUD tinting
@@ -101,7 +101,7 @@ export const WORLD_2_LEVELS = [
         enemyInterval: 9,
         enemyMaxCount: 1,
         difficultyParams: {
-            level: 1,
+            level: 4,
             count: 2,
             wallSize: 0.8,
             gapSize: PLANE_RADIUS * 5.5,
@@ -110,7 +110,7 @@ export const WORLD_2_LEVELS = [
     },
     {
         /* Level 5 (= World 2, Stage 2) — Sunset Orange */
-        level: 2,
+        level: 5,
         duration: 50,
         speedMultiplier: 1.10,
         tunnelColor: new THREE.Color(0xff8844),
@@ -118,7 +118,7 @@ export const WORLD_2_LEVELS = [
         enemyInterval: 7,
         enemyMaxCount: 2,
         difficultyParams: {
-            level: 2,
+            level: 5,
             count: 3,
             wallSize: 1,
             gapSize: PLANE_RADIUS * 4.6,
@@ -127,7 +127,7 @@ export const WORLD_2_LEVELS = [
     },
     {
         /* Level 6 (= World 2, Stage 3) — Storm Purple */
-        level: 3,
+        level: 6,
         duration: 60,
         speedMultiplier: 1.25,
         tunnelColor: new THREE.Color(0xaa44ff),
@@ -135,7 +135,7 @@ export const WORLD_2_LEVELS = [
         enemyInterval: 5,
         enemyMaxCount: 3,
         difficultyParams: {
-            level: 3,
+            level: 6,
             count: 3,
             wallSize: 1.2,
             gapSize: PLANE_RADIUS * 4,
@@ -150,7 +150,7 @@ export const WORLD_2_LEVELS = [
 export const WORLDS = [
     { name: 'WORLD 1',  subtitle: 'Deep Space',      levels: LEVELS,        unlocked: true },
     { name: 'WORLD 2',  subtitle: 'Cloud Kingdom',   levels: WORLD_2_LEVELS, unlocked: false },
-    { name: 'WORLD 3',  subtitle: '???',             levels: null,          unlocked: false },
+    { name: 'WORLD 3',  subtitle: 'Not Developed',             levels: null,          unlocked: false },
 ];
 
 /* ═══════════════════════════════════════════════════════════
