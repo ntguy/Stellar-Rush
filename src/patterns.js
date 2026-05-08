@@ -949,19 +949,13 @@ export function patternTube(params = {}) {
                 
                 if (inSector) discard;
 
-                // Very thin grid pattern on circle face
-                float gX = abs(fract(vUv.x * 24.0) - 0.5);
-                float gY = abs(fract(vUv.y * 24.0) - 0.5);
-                if (min(gX, gY) < 0.005) {
-                    gl_FragColor = vec4(0.0, 0.0, 0.0, uOpacity);
-                } else {
-                    gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
-                }
+                if (inSector) discard;
+                gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
             }`;
 
         const circlePlaneGeo = new THREE.PlaneGeometry(ow, oh);
         const ringGeo = new THREE.EdgesGeometry(new THREE.RingGeometry(radius - 0.3, radius, 64));
-        const ringMat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+        const ringMat = new THREE.LineBasicMaterial({ color: 0xbb4444, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
 
         for (let i = 0; i < circleCount; i++) {
             const wallZ = SPAWN_Z - 1 - i * totalSpacing;
@@ -971,7 +965,7 @@ export function patternTube(params = {}) {
 
             const rotMat = new THREE.ShaderMaterial({
                 uniforms: {
-                    uColor: { value: new THREE.Color(0xddeeff) },
+                    uColor: { value: new THREE.Color(0x993333) },
                     uOpacity: { value: 0 },
                     uGapR: { value: radius },
                     uStartA: { value: startA },
@@ -990,12 +984,10 @@ export function patternTube(params = {}) {
 
             const circlePlane = new THREE.Mesh(circlePlaneGeo, rotMat);
             circlePlane.position.set(0, 0, wallZ);
-            circlePlane.userData.opacityMult = 0.5; // Reduce opacity by half
             scene.add(circlePlane);
 
             const ring = new THREE.LineSegments(ringGeo, ringMat);
             ring.position.set(0, 0, wallZ + 0.1);
-            ring.userData.opacityMult = 0.5; // Match circle opacity
             scene.add(ring);
 
             obstacles.push({ parts: [circlePlane, ring], fadeAge: 0, isRotatingSectorHole: { radius: radius, startAngle: initialAngles[i], endAngle: endA, speed: rotationSpeed } });
