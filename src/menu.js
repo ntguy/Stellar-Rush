@@ -415,7 +415,7 @@ export function createMenu(scene, camera, cfg, skipIntro = false) {
             if (tc) { tc.classList.add('visible', 'anim-' + cfg.titleAnimation); }
             setTimeout(() => { 
                 if (menuActions) menuActions.classList.add('visible'); 
-            }, 600);
+            }, 100);
         }
     }
 

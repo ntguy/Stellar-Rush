@@ -652,7 +652,7 @@
             flex-direction: column;
             gap: 2.04vh;
             opacity: 0;
-            transition: opacity 0.6s, transform 0.6s;
+            transition: opacity 0.3s, transform 0.3s;
             z-index: 100;
             pointer-events: none;
         }
@@ -660,6 +660,12 @@
         #menu-actions.visible {
             opacity: 1;
             pointer-events: auto;
+        }
+
+        #menu-actions.hidden {
+            opacity: 0;
+            pointer-events: none;
+            display: none;
         }
 
         .menu-btn-base {
@@ -1151,6 +1157,195 @@
             overflow: hidden;
             background: #000;
         }
+        /* ── Play Splash Screen ───────────────────────── */
+        #play-splash {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(ellipse at 50% 60%, #060818 0%, #020408 55%, #000 100%);
+            cursor: pointer;
+            transition: opacity 0.7s ease-out;
+        }
+
+        #play-splash.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Animated star ring behind button */
+        #play-splash::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(0,170,255,0.07) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(100,0,255,0.07) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(0,255,255,0.04) 0%, transparent 65%);
+            pointer-events: none;
+        }
+
+        /* Subtle scanline texture */
+        #play-splash::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.12) 3px,
+                rgba(0,0,0,0.12) 4px
+            );
+            pointer-events: none;
+        }
+
+        .splash-title {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 5vw;
+            letter-spacing: 0.5vw;
+            color: #fff;
+            text-shadow:
+                0 0 1.5vw rgba(0,170,255,0.9),
+                0 0 3vw rgba(0,170,255,0.5),
+                0 0 6vw rgba(0,80,200,0.3);
+            margin-bottom: 0.5vh;
+            animation: splashTitlePulse 3s ease-in-out infinite alternate;
+            position: relative;
+            z-index: 1;
+        }
+
+        .splash-subtitle {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1vw;
+            letter-spacing: 0.6vw;
+            color: rgba(0,200,255,0.55);
+            text-transform: uppercase;
+            margin-bottom: 7vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes splashTitlePulse {
+            from { text-shadow: 0 0 1.5vw rgba(0,170,255,0.9), 0 0 3vw rgba(0,170,255,0.5), 0 0 6vw rgba(0,80,200,0.3); }
+            to   { text-shadow: 0 0 2vw rgba(0,220,255,1),    0 0 4vw rgba(0,200,255,0.7), 0 0 9vw rgba(0,120,255,0.5); }
+        }
+
+        #play-splash-btn {
+            position: relative;
+            z-index: 1;
+            padding: 2.4vh 5.5vw;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5vw;
+            font-weight: 900;
+            letter-spacing: 0.5vw;
+            text-transform: uppercase;
+            color: #e8f8ff;
+            background: linear-gradient(135deg,
+                rgba(0,150,255,0.15) 0%,
+                rgba(0,220,255,0.08) 50%,
+                rgba(0,100,200,0.15) 100%);
+            border: 2px solid rgba(0,200,255,0.6);
+            border-radius: 0.6vw;
+            cursor: pointer;
+            outline: none;
+            box-shadow:
+                0 0 2vw rgba(0,170,255,0.5),
+                0 0 4vw rgba(0,100,255,0.3),
+                inset 0 0 1vw rgba(0,200,255,0.1);
+            animation: splashBtnPulse 2s ease-in-out infinite alternate;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            backdrop-filter: blur(2px);
+        }
+
+        #play-splash-btn::before {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 0.8vw;
+            background: linear-gradient(135deg, rgba(0,200,255,0.4), transparent 50%, rgba(100,0,255,0.3));
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            -webkit-mask-composite: xor;
+            padding: 3px;
+            pointer-events: none;
+            opacity: 0.6;
+            animation: splashBorderSpin 4s linear infinite;
+        }
+
+        @keyframes splashBorderSpin {
+            from { filter: hue-rotate(0deg); }
+            to   { filter: hue-rotate(360deg); }
+        }
+
+        @keyframes splashBtnPulse {
+            from {
+                box-shadow: 0 0 2vw rgba(0,170,255,0.5), 0 0 4vw rgba(0,100,255,0.3), inset 0 0 1vw rgba(0,200,255,0.1);
+            }
+            to {
+                box-shadow: 0 0 3vw rgba(0,200,255,0.8), 0 0 6vw rgba(0,150,255,0.5), inset 0 0 1.5vw rgba(0,255,255,0.2);
+            }
+        }
+
+        #play-splash-btn:hover {
+            transform: scale(1.05);
+            background: linear-gradient(135deg,
+                rgba(0,180,255,0.25) 0%,
+                rgba(0,240,255,0.15) 50%,
+                rgba(0,130,220,0.25) 100%);
+            box-shadow:
+                0 0 3.5vw rgba(0,200,255,0.9),
+                0 0 7vw rgba(0,150,255,0.6),
+                inset 0 0 2vw rgba(0,255,255,0.25);
+        }
+
+        #play-splash-btn:active {
+            transform: scale(0.97);
+        }
+
+        .splash-hint {
+            position: absolute;
+            bottom: 4vh;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75vw;
+            letter-spacing: 0.3vw;
+            color: rgba(255,255,255,0.25);
+            text-transform: uppercase;
+            white-space: nowrap;
+            animation: splashHintBlink 2.5s ease-in-out infinite;
+            z-index: 1;
+        }
+
+        @keyframes splashHintBlink {
+            0%, 100% { opacity: 0.25; }
+            50%       { opacity: 0.55; }
+        }
+
+        /* Orbit rings (decorative) */
+        .splash-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 1px solid rgba(0,170,255,0.12);
+            pointer-events: none;
+            z-index: 0;
+            animation: splashRingSpin linear infinite;
+        }
+
+        .splash-ring:nth-child(1) { width: 40vw; height: 40vw; animation-duration: 18s; border-color: rgba(0,170,255,0.10); }
+        .splash-ring:nth-child(2) { width: 60vw; height: 60vw; animation-duration: 30s; border-color: rgba(100,0,255,0.08); animation-direction: reverse; }
+        .splash-ring:nth-child(3) { width: 80vw; height: 80vw; animation-duration: 45s; border-color: rgba(0,255,200,0.06); }
+
+        @keyframes splashRingSpin {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to   { transform: translate(-50%, -50%) rotate(360deg); }
+        }
     </style>
 </head>
 
@@ -1340,6 +1535,15 @@
         "stats": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/stats.module.js"
     } }
     </script>
+        <!-- Play Game Splash (shown before everything, ensures audio context works) -->
+        <div id="play-splash">
+            <div class="splash-ring"></div>
+            <div class="splash-ring"></div>
+            <div class="splash-ring"></div>
+            <button id="play-splash-btn">▶ &nbsp;PLAY GAME</button>
+            <div class="splash-hint">Click or press Space to begin</div>
+        </div>
+
         <div id="startup-fade"></div>
     <div id="world-transition-flash"></div>
 

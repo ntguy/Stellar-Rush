@@ -976,6 +976,12 @@ function enterMenu() {
         .filter(c => c.isLight || c === guideLine)
         .forEach(c => scene.remove(c));
     
+    // Ensure menu buttons are visible and reset
+    const menuActions = document.getElementById('menu-actions');
+    if (menuActions) {
+        menuActions.classList.remove('hidden');
+    }
+
     // Create menu
     if (menuController) menuController.dispose();
     menuController = createMenu(scene, camera, getMenuConfig(), hasPlayedBefore);
@@ -1008,6 +1014,14 @@ function showWorldSelect() {
     });
 
     el.style.display = 'flex';
+    
+    // Hide main menu buttons when world selection is open
+    const menuActions = document.getElementById('menu-actions');
+    if (menuActions) {
+        menuActions.classList.add('hidden');
+        menuActions.classList.remove('visible');
+    }
+
     setupMenuNavigation('world-select', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
 }
 
@@ -1050,6 +1064,13 @@ function startWithWorld(worldIdx) {
         backBtn.addEventListener('click', () => {
             el.style.display = 'none';
             document.getElementById('main-menu').style.display = 'flex';
+
+            const menuActions = document.getElementById('menu-actions');
+            if (menuActions) {
+                menuActions.classList.remove('hidden');
+                menuActions.classList.add('visible');
+            }
+
             setupMenuNavigation('main-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
         });
     }
@@ -1057,9 +1078,35 @@ function startWithWorld(worldIdx) {
 
 /* ── Startup ──────────────────────────────────────────────── */
 if (DEVELOPMENT_MODE) {
-    init();
-} else {
+    const splash = document.getElementById('play-splash');
+    if (splash) splash.remove();
+    hasPlayedBefore = true; // Skips intro animation
     enterMenu();
+} else {
+    (function initSplash() {
+        const splash = document.getElementById('play-splash');
+        if (!splash) return;
+
+        function dismissSplash() {
+            resumeAudioContext();
+            splash.classList.add('hidden');
+            setTimeout(() => splash.remove(), 750);
+            enterMenu();
+        }
+
+        document.getElementById('play-splash-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismissSplash();
+        });
+
+        window.addEventListener('keydown', function onSplashKey(e) {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                window.removeEventListener('keydown', onSplashKey);
+                dismissSplash();
+            }
+        });
+    })();
 }
 
 /* ═══════════════════════════════════════════════════════════
