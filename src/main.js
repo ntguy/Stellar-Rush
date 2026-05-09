@@ -1094,18 +1094,27 @@ if (DEVELOPMENT_MODE) {
             enterMenu();
         }
 
-        document.getElementById('play-splash-btn').addEventListener('click', (e) => {
+        const playBtn = document.getElementById('play-splash-btn');
+        
+        function onSplashKey(e) {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                cleanup();
+                dismissSplash();
+            }
+        }
+
+        function cleanup() {
+            window.removeEventListener('keydown', onSplashKey);
+        }
+
+        playBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            cleanup();
             dismissSplash();
         });
 
-        window.addEventListener('keydown', function onSplashKey(e) {
-            if (e.code === 'Space' || e.key === ' ') {
-                e.preventDefault();
-                window.removeEventListener('keydown', onSplashKey);
-                dismissSplash();
-            }
-        });
+        window.addEventListener('keydown', onSplashKey);
     })();
 }
 

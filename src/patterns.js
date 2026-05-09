@@ -687,6 +687,7 @@ export function patternTrench(params = {}) {
         obstacles.push({ parts: topWallParts, fadeAge: 0 });
 
         const slots = [];
+        const wallH = BOUNDS_Y * 0.85;
 
         const w = baseWallW;
         const getX = (pos) => {
@@ -793,23 +794,19 @@ export function patternTrench(params = {}) {
                 const wallX = dir === 1 ? -BOUNDS_X * 0.8 : BOUNDS_X * 0.8; 
                 const wallZ = SPAWN_Z - cumZ; 
 
-                // Formation logic: Perfectly tracks the slanted surface with a fixed X-offset
-                const count = 5;
-                const zStep = 9; 
-                const dx = dir * zStep; // dX/dZ = -1/dir = -dir? No, X = wallX + dir * (wallZ - Z) => dX/dZ = -dir. 
-                // Wait. Z_i = startZ - i * zStep. 
-                // X_i = wallX + dir * (wallZ - (startZ - i * zStep)) + xOffset
-                // X_i = [wallX + dir * (wallZ - startZ) + xOffset] + i * (dir * zStep)
-                // So dx = dir * zStep. Correct.
+                // Formation logic: Long sequence starting near center and extending past the wall
+                const count = 6;
+                const zStep = 12; 
+                const dx = dir * 6; 
 
-                const xOffset = -dir * 7.5; // Offset to the "safe" side of the slant
-                const startZ = wallZ + (depth * 0.35) + 80; // + 80 offset so aligned with wall
-                const startX = wallX + dir * (wallZ - startZ) + xOffset;
+                const xOffset = -dir * 8; // Offset to start closer to center
+                const startZ = wallZ + 100; 
+                const startX = xOffset; 
 
                 slots.push({ 
                     type: 'formation', 
-                    x: THREE.MathUtils.clamp(startX, -BOUNDS_X + 2, BOUNDS_X - 2), 
-                    y: -BOUNDS_Y + 5, 
+                    x: startX, 
+                    y: -BOUNDS_Y + wallH / 2, 
                     z: startZ, 
                     dx, 
                     zStep, 
@@ -820,12 +817,12 @@ export function patternTrench(params = {}) {
                 // Safe point at the far end of the wall
                 const endX = wallX + (dir * depth * 0.35) + xOffset;
                 const endZ = wallZ - (depth * 0.35) - 15;
-                slots.push({ type: 'single', x: THREE.MathUtils.clamp(endX, -22, 22), y: -BOUNDS_Y + 4, z: endZ });
+                slots.push({ type: 'single', x: THREE.MathUtils.clamp(endX, -22, 22), y: -BOUNDS_Y + wallH / 2, z: endZ });
 
             } else if (rowDef.isWideTrench) {
                 const side = Math.random() < 0.5 ? -1 : 1;
-                const safeX = side * (BOUNDS_X * 0.95);
-                const slotY = -BOUNDS_Y + 4;
+                const safeX = side * (BOUNDS_X);
+                const slotY = -BOUNDS_Y + wallH / 2;
                 
                 if (Math.random() < 0.4) {
                     slots.push({ type: 'single', x: safeX, y: slotY, z: wallZ + 2 });
@@ -835,7 +832,7 @@ export function patternTrench(params = {}) {
                         type: 'formation', 
                         x: safeX, 
                         y: slotY, 
-                        z: wallZ, 
+                        z: wallZ - 10, 
                         dx: -side * 3.5, 
                         dy: 0, 
                         count: 4,
@@ -844,7 +841,7 @@ export function patternTrench(params = {}) {
                 }
             } else if (!rowDef.noPickup && Math.random() < 0.7) {
                 const safeX = rowDef.safeX !== undefined ? rowDef.safeX : getX(rowDef.safe);
-                const slotY = -BOUNDS_Y + 4;
+                const slotY = -BOUNDS_Y + wallH / 2;
                 slots.push({ type: 'single', x: safeX, y: slotY, z: wallZ });
             }
         }
@@ -867,14 +864,13 @@ export function patternTube(params = {}) {
     const speedMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
     const speed = baseSpeed * speedMultiplier;
 
-    const cutoutAngles = { 4: 110, 5: 100, 6: 90 };
-    const degrees = cutoutAngles[lvl] || 110;
-    const radSafe = (degrees * Math.PI) / 180;
-
-    const rotationSpeed = (lvl === 4 ? 0.45 : (lvl === 5 ? 0.75 : 1.05));
+    const cutoutAngles = { 4: 90, 5: 80, 6: 70 };
+    const degrees = cutoutAngles[lvl] || 80;
+    const gapWidthRad = (degrees * Math.PI) / 180;
+    const rotationSpeed = (lvl === 4 ? 0.65 : (lvl === 5 ? 0.9 : 1.2));
 
     // Calculate depths
-    const totalSpacing = speed * 1.2;
+    const totalSpacing = speed * 1.5;
     const circleSectionD = (circleCount - 1) * totalSpacing;
     const blockD = circleSectionD + 2; // Extremely tight: only 1 unit on each end
     
@@ -1016,7 +1012,7 @@ export function patternTube(params = {}) {
         for (let i = 0; i < circleCount; i++) {
             const wallZ = SPAWN_Z - 1 - i * totalSpacing;
             const startA = initialAngles[i];
-            let endA = startA + radSafe;
+            let endA = startA + gapWidthRad;
             if (endA > Math.PI * 2) endA -= Math.PI * 2;
 
             const rotMat = new THREE.ShaderMaterial({
@@ -1049,25 +1045,38 @@ export function patternTube(params = {}) {
             obstacles.push({ parts: [circlePlane, ring], fadeAge: 0, isRotatingSectorHole: { radius: radius, startAngle: initialAngles[i], endAngle: endA, speed: rotationSpeed } });
         }
 
-        // Optional slots only
+        // Safe points between circles
         for (let i = 0; i < circleCount - 1; i++) {
             const wallZ = SPAWN_Z - 1 - i * totalSpacing;
             const midZ = wallZ - totalSpacing * 0.5;
-            const angle = Math.random() * Math.PI * 2;
-            const r = radius * (0.2 + Math.random() * 0.3);
-            slots.push({ type: 'single', x: Math.cos(angle) * r, y: Math.sin(angle) * r, z: midZ });
+            
+            if (Math.random() < 0.6) {
+                // Single gem
+                const angle = Math.random() * Math.PI * 2;
+                const r = radius * (0.2 + Math.random() * 0.3);
+                slots.push({ type: 'single', x: Math.cos(angle) * r, y: Math.sin(angle) * r, z: midZ });
+            } else {
+                // High-value formation
+                const angle = Math.random() * Math.PI * 2;
+                const r = radius * 0.4;
+                slots.push({ 
+                    type: 'formation', 
+                    x: Math.cos(angle) * r - 2, 
+                    y: Math.sin(angle) * r, 
+                    z: midZ + 5, 
+                    dx: 1.5, 
+                    zStep: 4, 
+                    count: 4,
+                    patternName: 'tubeFormation'
+                });
+            }
         }
 
         return slots;
     });
 
     for (let i = 1; i < totalSteps; i++) {
-        steps.push(() => {
-            const slots = [];
-            slots.push({ type: 'formation', x: 0, y: 0, z: SPAWN_Z, dx: 2, dy: 0, count: 4 });
-            slots.push({ type: 'single', x: 0, y: 0, z: SPAWN_Z });
-            return slots;
-        });
+        steps.push(() => []);
     }
 
     // Add a delay step at the end before the next pattern spawns
@@ -1140,6 +1149,7 @@ export function patternSimon(params = {}) {
 
     steps.push((scene, obstacles) => {
         const slots = [];
+        const wallH = BOUNDS_Y * 0.85;
         const infoY = BOUNDS_Y * 1.5; // Even higher, out of play area
         const wallY = 0;              // Shapes on walls centered
         const startX = -shapeSpacing; // Centered horizontally
