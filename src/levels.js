@@ -30,6 +30,9 @@ export const LEVELS = [
            - wallSize: base scale for the physical geometry
            - gapSize: how much clearance the player has to fly through
            - gapOffset: how far from the center gaps can be shifted
+           
+           Patterns used: patternLeftRight, patternTopDown, patternCorners, 
+           patternShiftingGates, patternNarrow, patternSlalomGate, patternScatter
         */
         difficultyParams: {           
             level: 1,
@@ -48,6 +51,8 @@ export const LEVELS = [
         obstacleInterval: 1.5,        // faster obstacle spawn
         enemyInterval: 7,             
         enemyMaxCount: 2,             // up to 2 enemies per wave
+        /* Patterns used: patternTopDown, patternCorners, patternNarrow, 
+           patternSlalomGate, patternScatter, patternFourCorners, patternChoice */
         difficultyParams: {           
             level: 2,
             count: 3,
@@ -65,6 +70,8 @@ export const LEVELS = [
         obstacleInterval: 1.4,        // tight obstacle spawn
         enemyInterval: 5,             
         enemyMaxCount: 3,             // up to 3 enemies per wave
+        /* Patterns used: patternTopDown, patternCorners, patternNarrow, 
+           patternSlalomGate, patternFourCorners, patternChoice, patternSuperScatter */
         difficultyParams: {           
             level: 3,
             count: 3,
@@ -90,8 +97,8 @@ if (DEBUG_SKIP_W1) {
 
 /* ═══════════════════════════════════════════════════════════
    WORLD 2 LEVELS  —  "The Cloud Kingdom"
-   Re-uses World 1 difficulty params for now. Levels 4-6
-   will get unique patterns in a future update.
+   Levels 4-6 use unique difficulty parameters to scale 
+   the World 2 specific obstacle patterns.
    ═══════════════════════════════════════════════════════════ */
 export const WORLD_2_LEVELS = [
     {
@@ -103,12 +110,24 @@ export const WORLD_2_LEVELS = [
         obstacleInterval: 1.6,
         enemyInterval: 9,
         enemyMaxCount: 1,
+        /* Patterns used: patternTopDown, patternShiftingGates, patternChoice, 
+           patternTrench, patternTube */
         difficultyParams: {
             level: 4,
             count: 2,
             wallSize: 1.1,
             gapSize: PLANE_RADIUS * 4.5,
             gapOffset: 6,
+
+            // World 2 Specific: Trench
+            trenchWallWidthMult: 1.0,
+            trenchGapWidthMult: 1.0,
+            trenchAngleMult: 1.0,
+
+            // World 2 Specific: Tube
+            tubeCircleCount: 3,
+            tubeCutoutAngle: 90,
+            tubeRotationSpeed: 0.65,
         },
     },
     {
@@ -120,29 +139,61 @@ export const WORLD_2_LEVELS = [
         obstacleInterval: 1.5,
         enemyInterval: 7,
         enemyMaxCount: 2,
+        /* Patterns used: patternLeftRight, patternShiftingGates, patternTrench, 
+           patternTube, patternSimon */
         difficultyParams: {
             level: 5,
             count: 3,
             wallSize: 1.2,
             gapSize: PLANE_RADIUS * 4.2,
             gapOffset: 7,
+
+            // World 2 Specific: Trench
+            trenchWallWidthMult: 1.0,
+            trenchGapWidthMult: 0.85,
+            trenchAngleMult: 1.0,
+
+            // World 2 Specific: Tube
+            tubeCircleCount: 4,
+            tubeCutoutAngle: 80,
+            tubeRotationSpeed: 0.9,
+
+            // World 2 Specific: Simon
+            simonShapeSize: 5.5,
+            simonShapeSpacing: 16,
         },
     },
     {
         /* Level 6 (= World 2, Stage 3) — Storm Purple */
         level: 6,
         duration: 60,
-        speedMultiplier: 1.2,
+        speedMultiplier: 1.25,
         tunnelColor: new THREE.Color(0xaa44ff),
         obstacleInterval: 1.4,
         enemyInterval: 6,
         enemyMaxCount: 3,
+        /* Patterns used: patternLeftRight, patternFourCorners, patternTrench, 
+           patternTube, patternSimon */
         difficultyParams: {
             level: 6,
             count: 3,
             wallSize: 1.3,
             gapSize: PLANE_RADIUS * 3.8,
             gapOffset: 8,
+
+            // World 2 Specific: Trench
+            trenchWallWidthMult: 1.15,
+            trenchGapWidthMult: 1.0,
+            trenchAngleMult: 0.8,
+
+            // World 2 Specific: Tube
+            tubeCircleCount: 4,
+            tubeCutoutAngle: 70,
+            tubeRotationSpeed: 1.2,
+
+            // World 2 Specific: Simon
+            simonShapeSize: 5.0,
+            simonShapeSpacing: 14,
         },
     },
 ];

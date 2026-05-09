@@ -534,16 +534,14 @@ export function patternTrench(params = {}) {
     const steps = [];
     const lvl = params.level || 4;
 
-    const baseSpeed = params.speed || 50;
-    const speedMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
-    const speed = baseSpeed * speedMultiplier;
+    const speed = params.speed || 50;
     const zSpacing = speed * (1 - (lvl - 4) * 0.1);
 
     const subPatterns = [];
 
-    const wallWidthMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.0 : (lvl === 6 ? 1.15 : 1.0)));
-    const gapWidthMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 0.85 : 1.0));
-    const angleMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.0 : (lvl === 6 ? 0.8 : 1.0)));
+    const wallWidthMultiplier = params.trenchWallWidthMult || (lvl === 4 ? 1.0 : (lvl === 5 ? 1.0 : (lvl === 6 ? 1.15 : 1.0)));
+    const gapWidthMultiplier = params.trenchGapWidthMult || (lvl === 4 ? 1.0 : (lvl === 5 ? 0.85 : 1.0));
+    const angleMultiplier = params.trenchAngleMult || (lvl === 4 ? 1.0 : (lvl === 5 ? 1.0 : (lvl === 6 ? 0.8 : 1.0)));
 
     const baseWallW = BOUNDS_X * 0.4 * wallWidthMultiplier;
 
@@ -859,15 +857,13 @@ export function patternTube(params = {}) {
     const steps = [];
     const lvl = params.level || 4;
 
-    const circleCount = (lvl >= 5) ? 4 : 3;
-    const baseSpeed = params.speed || 50;
-    const speedMultiplier = (lvl === 4 ? 1.0 : (lvl === 5 ? 1.1 : 1.25));
-    const speed = baseSpeed * speedMultiplier;
+    const circleCount = params.tubeCircleCount || ((lvl >= 5) ? 4 : 3);
+    const speed = params.speed || 50;
 
     const cutoutAngles = { 4: 90, 5: 80, 6: 70 };
-    const degrees = cutoutAngles[lvl] || 80;
+    const degrees = params.tubeCutoutAngle || cutoutAngles[lvl] || 80;
     const gapWidthRad = (degrees * Math.PI) / 180;
-    const rotationSpeed = (lvl === 4 ? 0.65 : (lvl === 5 ? 0.9 : 1.2));
+    const rotationSpeed = params.tubeRotationSpeed || (lvl === 4 ? 0.65 : (lvl === 5 ? 0.9 : 1.2));
 
     // Calculate depths
     const totalSpacing = speed * 1.5;
@@ -1128,12 +1124,10 @@ export function patternSimon(params = {}) {
     const steps = [];
     const lvl = params.level || 5;
 
-    const baseSpeed = params.speed || 50;
-    const speedMultiplier = (lvl === 5 ? 1.1 : 1.25);
-    const speed = baseSpeed * speedMultiplier;
+    const speed = params.speed || 50;
 
-    const shapeSize = (lvl === 5 ? 5.5 : 5.0);
-    const shapeSpacing = (lvl === 5 ? 16 : 14);
+    const shapeSize = params.simonShapeSize || (lvl === 5 ? 5.5 : 5.0);
+    const shapeSpacing = params.simonShapeSpacing || (lvl === 5 ? 16 : 14);
     const zSpacing = speed * 1.2; 
     const infoZSpacing = zSpacing * 0.7; // Info shapes 30% closer together
 
@@ -1331,8 +1325,7 @@ export function patternTicTacToe(params = {}) {
     const steps = [];
     const lvl = params.level || 6;
 
-    const baseSpeed = params.speed || 50;
-    const speed = baseSpeed * 1.25;
+    const speed = params.speed || 50;
     const zSpacing = speed * 0.8;
     const wallCount = 5;
     const blockD = (wallCount - 1) * zSpacing;
