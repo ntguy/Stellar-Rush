@@ -1333,7 +1333,7 @@ function animate() {
 
     aircraft.position.addScaledVector(vel, dt);
     aircraft.position.x = THREE.MathUtils.clamp(aircraft.position.x, -BOUNDS_X, BOUNDS_X);
-    aircraft.position.y = THREE.MathUtils.clamp(aircraft.position.y, -BOUNDS_Y + 5.0, BOUNDS_Y);
+    aircraft.position.y = THREE.MathUtils.clamp(aircraft.position.y, -BOUNDS_Y + 6.0, BOUNDS_Y);
     aircraft.position.z = 0;
 
     /* ── Tilt ─────────────────────────────────────────── */

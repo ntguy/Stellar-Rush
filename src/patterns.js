@@ -549,9 +549,9 @@ export function patternTrench(params = {}) {
 
     // 1. Wide center -> Left+Right -> Wide center
     subPatterns.push([
-        { walls: [{ pos: 'C', w: baseWallW * 2.0 }], safe: 'L', noPickup: true, zMult: 1 },
-        { walls: [{ pos: 'L', w: baseWallW * 1.3 }, { pos: 'R', w: baseWallW * 1.3 }], safe: 'C', noPickup: true, zMult: 1 },
-        { walls: [{ pos: 'C', w: baseWallW * 2.0 }], safe: 'R', noPickup: true, zMult: 1 }
+        { walls: [{ pos: 'C', w: baseWallW * 2.4 }], isWideTrench: true, zMult: 1 },
+        { walls: [{ pos: 'L', w: baseWallW * 2 }, { pos: 'R', w: baseWallW * 2 }], safe: 'C', zMult: 1 },
+        { walls: [{ pos: 'C', w: baseWallW * 3 }], isWideTrench: true, zMult: 1 }
     ]);
 
     // 2. Narrow gap pattern (like patternNarrow from World 1)
@@ -570,7 +570,6 @@ export function patternTrench(params = {}) {
         narrowSequence.push({
             walls: [{ customGap: { centerX: gapCenterX, width: gapWidth } }],
             safeX: gapCenterX,
-            noPickup: true,
             zMult: 1
         });
     }
@@ -584,10 +583,10 @@ export function patternTrench(params = {}) {
     for (let i = 0; i < diagonalCount; i++) {
         diagonalSequence.push({
             walls: [{ diagonalTop: true, depth: wallDepth, dir: diagonalDir, startEdge: true }],
-            safe: diagonalDir === 1 ? 'L' : 'R',
-            noPickup: true,
             zMult: 1,
-            isDiagonal: true
+            isDiagonal: true,
+            diagDir: diagonalDir,
+            wallDepth: wallDepth
         });
         diagonalDir *= -1;
     }
@@ -602,7 +601,7 @@ export function patternTrench(params = {}) {
     for (let i = 0; i < scatterCount; i++) {
         const walls = [];
         const usedPositions = [];
-        for (let j = 0; j < 2; j++) {
+        for (let j = 0; j < 1; j++) {
             let bx;
             let attempts = 0;
             do {
@@ -614,7 +613,7 @@ export function patternTrench(params = {}) {
         }
         scatterSequence.push({
             walls: walls,
-            noPickup: i < scatterCount - 1,
+            noPickup: true,
             zMult: 0.5
         });
     }
@@ -765,7 +764,7 @@ export function patternTrench(params = {}) {
                         angle: wDef.dir * (Math.PI / 4)
                     } });
                 } else if (wDef.fullHeightWall) {
-                    const wallW = 4 + Math.random() * 3;
+                    const wallW = 8 + Math.random() * 6;
                     const wallH = ceilingY - floorY;
                     const wallCenterY = floorY + wallH / 2;
                     makeBox(scene, wallW, wallH, 1, wDef.x, wallCenterY, wallZ, matObs, wParts);
@@ -786,7 +785,64 @@ export function patternTrench(params = {}) {
                 }
             }
 
-            if (!rowDef.noPickup && Math.random() < 0.6) {
+            if (rowDef.isDiagonal) {
+                const dir = rowDef.diagDir;
+                const depth = rowDef.wallDepth;
+                
+                // Wall center points
+                const wallX = dir === 1 ? -BOUNDS_X * 0.8 : BOUNDS_X * 0.8; 
+                const wallZ = SPAWN_Z - cumZ; 
+
+                // Formation logic: Perfectly tracks the slanted surface with a fixed X-offset
+                const count = 5;
+                const zStep = 9; 
+                const dx = dir * zStep; // dX/dZ = -1/dir = -dir? No, X = wallX + dir * (wallZ - Z) => dX/dZ = -dir. 
+                // Wait. Z_i = startZ - i * zStep. 
+                // X_i = wallX + dir * (wallZ - (startZ - i * zStep)) + xOffset
+                // X_i = [wallX + dir * (wallZ - startZ) + xOffset] + i * (dir * zStep)
+                // So dx = dir * zStep. Correct.
+
+                const xOffset = -dir * 7.5; // Offset to the "safe" side of the slant
+                const startZ = wallZ + (depth * 0.35) + 80; // + 80 offset so aligned with wall
+                const startX = wallX + dir * (wallZ - startZ) + xOffset;
+
+                slots.push({ 
+                    type: 'formation', 
+                    x: THREE.MathUtils.clamp(startX, -BOUNDS_X + 2, BOUNDS_X - 2), 
+                    y: -BOUNDS_Y + 5, 
+                    z: startZ, 
+                    dx, 
+                    zStep, 
+                    count, 
+                    patternName: 'trenchDiagonal' 
+                });
+
+                // Safe point at the far end of the wall
+                const endX = wallX + (dir * depth * 0.35) + xOffset;
+                const endZ = wallZ - (depth * 0.35) - 15;
+                slots.push({ type: 'single', x: THREE.MathUtils.clamp(endX, -22, 22), y: -BOUNDS_Y + 4, z: endZ });
+
+            } else if (rowDef.isWideTrench) {
+                const side = Math.random() < 0.5 ? -1 : 1;
+                const safeX = side * (BOUNDS_X * 0.95);
+                const slotY = -BOUNDS_Y + 4;
+                
+                if (Math.random() < 0.4) {
+                    slots.push({ type: 'single', x: safeX, y: slotY, z: wallZ + 2 });
+                } else {
+                    // Formation angling towards the center
+                    slots.push({ 
+                        type: 'formation', 
+                        x: safeX, 
+                        y: slotY, 
+                        z: wallZ, 
+                        dx: -side * 3.5, 
+                        dy: 0, 
+                        count: 4,
+                        patternName: 'trenchWide'
+                    });
+                }
+            } else if (!rowDef.noPickup && Math.random() < 0.7) {
                 const safeX = rowDef.safeX !== undefined ? rowDef.safeX : getX(rowDef.safe);
                 const slotY = -BOUNDS_Y + 4;
                 slots.push({ type: 'single', x: safeX, y: slotY, z: wallZ });
