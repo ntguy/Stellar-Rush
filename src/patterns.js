@@ -1133,14 +1133,14 @@ export function patternSimon(params = {}) {
     const speed = baseSpeed * speedMultiplier;
 
     const shapeSize = (lvl === 5 ? 5.5 : 5.0);
-    const shapeSpacing = (lvl === 5 ? 16 : 14); // Increased X spacing
-    const zSpacing = speed * 1.2; // Increased Z spacing by 20%
+    const shapeSpacing = (lvl === 5 ? 16 : 14);
+    const zSpacing = speed * 1.2; 
+    const infoZSpacing = zSpacing * 0.7; // Info shapes 30% closer together
 
     const shapes = ['circle', 'square', 'triangle'];
     const shuffledShapes = [...shapes].sort(() => Math.random() - 0.5);
-    const shapeNumbers = [1, 2, 3].sort(() => Math.random() - 0.5);
-
-    // Total duration (Reduced to 8x spacing)
+    
+    // Total duration
     const blockD = zSpacing * 8; 
     const duration = blockD / speed;
 
@@ -1149,44 +1149,45 @@ export function patternSimon(params = {}) {
 
     steps.push((scene, obstacles) => {
         const slots = [];
-        const wallH = BOUNDS_Y * 0.85;
-        const infoY = BOUNDS_Y * 1.5; // Even higher, out of play area
-        const wallY = 0;              // Shapes on walls centered
-        const startX = -shapeSpacing; // Centered horizontally
-        const shapeZ1 = SPAWN_Z;
-        const shapeZ2 = SPAWN_Z - zSpacing;
-        const shapeZ3 = SPAWN_Z - zSpacing * 2;
+        const infoY = BOUNDS_Y * 1.5; 
+        const wallY = 0;              
+        const startX = -shapeSpacing; 
+        
+        // Positions for the 3 info slots (Fixed Z-order and X-order)
+        const slotZ = [SPAWN_Z, SPAWN_Z - infoZSpacing, SPAWN_Z - infoZSpacing * 2];
 
         for (let i = 0; i < 3; i++) {
+            // i is the sequence step (1st, 2nd, 3rd)
             const shapeType = shuffledShapes[i];
-            const number = i + 1; // 1, 2, 3 in Z-order
+            const number = i + 1;
+            
+            // Fixed horizontal position: Step 1 (Left), Step 2 (Middle), Step 3 (Right)
             const xPos = startX + i * shapeSpacing;
-            const zPos = [shapeZ1, shapeZ2, shapeZ3][i];
+            const zPos = slotZ[i];
 
             const shapeColor = (shapeType === 'triangle') ? '#ff4444' 
                              : (shapeType === 'square')   ? '#44ff44' 
                              : '#4444ff';
 
-            // Info shapes are 50% larger than wall shapes
             const infoShapeSize = shapeSize * 1.5;
             const shapeMesh = createSimonShape(shapeType, infoShapeSize, number, shapeColor);
             shapeMesh.position.set(xPos, infoY, zPos);
             scene.add(shapeMesh);
             obstacles.push({ parts: [shapeMesh], fadeAge: 0, isSimonShape: { type: shapeType, number: number } });
             
-            // Add a formation spawn point below the info shape
             slots.push({ type: 'formation', x: xPos, y: 0, z: zPos, dx: 1, dy: 0, count: 3 });
         }
 
-        const wallZStart = SPAWN_Z - zSpacing * 2.7; // Slightly less space after last info block
+        // Wall starts closer to the last info shape
+        const wallZStart = SPAWN_Z - infoZSpacing * 2 - zSpacing * 0.8;
 
         for (let i = 0; i < 3; i++) {
-            // Wall i corresponds to info shape i
-            const wallZ = wallZStart - i * zSpacing * 1.8; // More Z spacing between walls
+            // Wall i corresponds to sequence step i
+            const wallZ = wallZStart - i * zSpacing * 1.3; // Walls closer together
             const correctShapeType = shuffledShapes[i];
 
-            // Fixed order: Triangle, Square, Circle
-            const wallShapeOrder = ['triangle', 'square', 'circle'];
+            // Randomized hole order for each wall
+            const wallShapeOrder = ['triangle', 'square', 'circle'].sort(() => Math.random() - 0.5);
             const holeIndexOnWall = wallShapeOrder.indexOf(correctShapeType);
 
             const wallParts = [];
@@ -1199,7 +1200,7 @@ export function patternSimon(params = {}) {
                 transparent: true,
                 opacity: 0,
                 side: THREE.DoubleSide,
-                depthWrite: false,
+                depthWrite: true, // Opaque wall
             });
             const wallMesh = new THREE.Mesh(new THREE.PlaneGeometry(wallW, wallH), wallMat);
             wallMesh.position.set(0, wallY, wallZ);
@@ -1223,12 +1224,6 @@ export function patternSimon(params = {}) {
 
                 if (isHole) holeX = sx;
 
-                const holeGeo = (currentShapeType === 'circle')
-                    ? new THREE.CircleGeometry(holeSize, 32)
-                    : (currentShapeType === 'square')
-                        ? new THREE.PlaneGeometry(holeSize * 1.8, holeSize * 1.8)
-                        : new THREE.CircleGeometry(holeSize, 3);
-
                 const holeMat = new THREE.ShaderMaterial({
                     uniforms: {
                         uColor: { value: new THREE.Color(0xddeeff) },
@@ -1241,9 +1236,9 @@ export function patternSimon(params = {}) {
                         uIsHole: { value: isHole ? 1.0 : 0.0 },
                         uShapeType: { value: ['circle', 'square', 'triangle'].indexOf(currentShapeType) },
                         uShapeColor: { 
-                            value: (currentShapeType === 'triangle') ? new THREE.Color(0xcc3333) // Deep Red
-                                 : (currentShapeType === 'square')   ? new THREE.Color(0x33cc33) // Deep Green
-                                 : new THREE.Color(0x3333cc) // Deep Blue
+                            value: (currentShapeType === 'triangle') ? new THREE.Color(0xcc3333) 
+                                 : (currentShapeType === 'square')   ? new THREE.Color(0x33cc33) 
+                                 : new THREE.Color(0x3333cc) 
                         }
                     },
                     vertexShader: `
@@ -1276,7 +1271,7 @@ export function patternSimon(params = {}) {
                                 float r = uHoleR * 1.1;
                                 float k = sqrt(3.0);
                                 float x = dx;
-                                float y = dy + r/k * 1.35; // Corrected offset to move triangle down
+                                float y = dy + r/k * 1.35; 
                                 x = abs(x) - r;
                                 if (x + k*y > 0.0) {
                                     float tx = x - k*y;
@@ -1289,8 +1284,6 @@ export function patternSimon(params = {}) {
                             }
 
                             if (!inside) discard; 
-
-                            // Wall shapes use the assigned color (Red, Green, or Blue)
                             gl_FragColor = vec4(uShapeColor, clamp(uOpacity * 1.4, 0.0, 1.0));
                         }`,
                     transparent: true,
@@ -1307,6 +1300,7 @@ export function patternSimon(params = {}) {
             obstacles.push({ 
                 parts: wallParts, 
                 fadeAge: 0, 
+                targetOpacity: 1.0, // Fully opaque wall
                 isSimonWall: { 
                     holeX: holeX, 
                     holeY: wallY, 
@@ -1315,8 +1309,8 @@ export function patternSimon(params = {}) {
                 } 
             });
 
-            // Safe pickup spawn point 0.25s after passing the hole
-            slots.push({ type: 'single', x: holeX, y: wallY, z: wallZ - speed * 0.25 });
+            // Safe pickup spawn point 0.5s after passing the hole (Twice as far back)
+            slots.push({ type: 'single', x: holeX, y: wallY, z: wallZ - speed * 0.4 });
 
             if (i === 2 && Math.random() < 0.5) {
                 slots.push({ type: 'single', x: 0, y: 0, z: wallZ });
@@ -1390,17 +1384,18 @@ export function patternTicTacToe(params = {}) {
                 depthWrite: false,
             });
 
-            const createGridWall = (offsetX, isVertical) => {
+            const createGridWall = (offset, isVertical) => {
                 const w = isVertical ? 0.3 : BOUNDS_X * 2.5;
                 const h = isVertical ? BOUNDS_Y * 2.4 : 0.3;
                 const geo = new THREE.PlaneGeometry(w, h);
                 const mesh = new THREE.Mesh(geo, wallMat.clone());
-                mesh.position.set(offsetX, 0, wallZ);
+                if (isVertical) mesh.position.set(offset, 0, wallZ);
+                else mesh.position.set(0, offset, wallZ);
                 scene.add(mesh);
                 parts.push(mesh);
 
                 const edgeGeo = new THREE.EdgesGeometry(geo);
-                const edgeMat = new THREE.LineBasicMaterial({ color: 0xbbddff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+                const edgeMat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
                 const rim = new THREE.LineSegments(edgeGeo, edgeMat);
                 rim.position.copy(mesh.position);
                 scene.add(rim);
@@ -1419,7 +1414,6 @@ export function patternTicTacToe(params = {}) {
                 if (gp) {
                     const markerMat = new THREE.MeshBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 });
                     if (playerPositions.has(filledPos)) {
-                        const xShape = new THREE.Group();
                         const line1 = new THREE.Line(
                             new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1.5, -1.5, 0), new THREE.Vector3(1.5, 1.5, 0)]),
                             new THREE.LineBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 })
@@ -1428,10 +1422,10 @@ export function patternTicTacToe(params = {}) {
                             new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.5, -1.5, 0), new THREE.Vector3(-1.5, 1.5, 0)]),
                             new THREE.LineBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 })
                         );
-                        xShape.add(line1, line2);
-                        xShape.position.set(gp.x, gp.y, wallZ + 0.2);
-                        scene.add(xShape);
-                        parts.push(xShape);
+                        line1.position.set(gp.x, gp.y, wallZ + 0.2);
+                        line2.position.set(gp.x, gp.y, wallZ + 0.2);
+                        scene.add(line1, line2);
+                        parts.push(line1, line2);
                     } else if (aiPositions.has(filledPos)) {
                         const oShape = new THREE.Mesh(
                             new THREE.RingGeometry(1.2, 1.5, 32),
@@ -1754,6 +1748,7 @@ export function nextObstacle(scene, obstacles, levelParams) {
                 2: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternScatter', 'patternFourCorners', 'patternChoice'],
                 3: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternFourCorners', 'patternChoice', 'patternSuperScatter'],
                 4: ['patternTopDown', 'patternShiftingGates', 'patternChoice', 'patternTrench', 'patternTube'],
+                // 4: ['patternTicTacToe'],
                 5: ['patternLeftRight', 'patternShiftingGates', 'patternTrench', 'patternTube', 'patternSimon'],
                 6: ['patternLeftRight', 'patternFourCorners', 'patternTrench', 'patternTube', 'patternSimon']
             };

@@ -106,9 +106,9 @@ export const WORLD_2_LEVELS = [
         difficultyParams: {
             level: 4,
             count: 2,
-            wallSize: 0.8,
-            gapSize: PLANE_RADIUS * 5.5,
-            gapOffset: 3,
+            wallSize: 1.1,
+            gapSize: PLANE_RADIUS * 4.5,
+            gapOffset: 6,
         },
     },
     {
@@ -123,26 +123,26 @@ export const WORLD_2_LEVELS = [
         difficultyParams: {
             level: 5,
             count: 3,
-            wallSize: 1,
-            gapSize: PLANE_RADIUS * 4.6,
-            gapOffset: 4,
+            wallSize: 1.2,
+            gapSize: PLANE_RADIUS * 4.2,
+            gapOffset: 7,
         },
     },
     {
         /* Level 6 (= World 2, Stage 3) — Storm Purple */
         level: 6,
         duration: 60,
-        speedMultiplier: 1.25,
+        speedMultiplier: 1.2,
         tunnelColor: new THREE.Color(0xaa44ff),
         obstacleInterval: 1.4,
-        enemyInterval: 5,
+        enemyInterval: 6,
         enemyMaxCount: 3,
         difficultyParams: {
             level: 6,
             count: 3,
-            wallSize: 1.2,
-            gapSize: PLANE_RADIUS * 4,
-            gapOffset: 5,
+            wallSize: 1.3,
+            gapSize: PLANE_RADIUS * 3.8,
+            gapOffset: 8,
         },
     },
 ];

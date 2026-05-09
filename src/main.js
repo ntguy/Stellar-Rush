@@ -1693,7 +1693,7 @@ function animate() {
         let rm = false;
 
         for (const m of obs.parts) {
-            if (m.material.transparent) {
+            if (m.material && m.material.transparent) {
                 // ShaderMaterial (circle-hole walls & premium boxes) uses uniforms
                 const partOpacity = (m.userData.opacityMult !== undefined) ? opacity * m.userData.opacityMult : opacity;
                 if (m.material.isShaderMaterial) {
