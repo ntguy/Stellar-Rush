@@ -598,10 +598,14 @@ let prevFuelLow  = false;
 /* ═══════════════════════════════════════════════════════════
    INPUT
    ═══════════════════════════════════════════════════════════ */
-const isMobile = inputManager.isMobile || FORCE_MOBILE;
-if (isMobile) {
+// Initial mobile check
+if (inputManager.isMobile || FORCE_MOBILE) {
     document.body.classList.add('is-mobile');
     inputManager.isMobile = true;
+}
+
+function getIsMobile() {
+    return inputManager.isMobile || FORCE_MOBILE;
 }
 
 inputManager.on('onControlModeChange', mode => {
@@ -880,7 +884,7 @@ function init() {
     // Show gameplay UI
     elHud.classList.remove('hidden');
     elMenuBtn.classList.add('visible');
-    if (isMobile) document.getElementById('mobile-controls').classList.add('visible');
+    if (getIsMobile()) document.getElementById('mobile-controls').classList.add('visible');
 
     // Reset camera
     camera.position.set(0, 10, 20);
@@ -1303,11 +1307,11 @@ function animate() {
     
     const targetVel = new THREE.Vector3();
 
-    if (inputManager.controlMode === 'KEYBOARD' || (isMobile && inputMag > 0)) {
+    if (inputManager.controlMode === 'KEYBOARD' || (getIsMobile() && inputMag > 0)) {
         // ── Direct Steering (Keys / Joystick) ──
         targetVel.set(inputX * maxSpd, inputY * maxSpd, 0);
         guideLine.visible = false;
-    } else if (inputManager.controlMode === 'MOUSE' && !isMobile) {
+    } else if (inputManager.controlMode === 'MOUSE' && !getIsMobile()) {
         // ── Seek Mode (Mouse) ──
         guideLine.visible = true;
         const mouseNDC = inputManager.getMouseNDC(gameRect);

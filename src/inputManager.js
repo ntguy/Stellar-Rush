@@ -17,7 +17,10 @@ export class InputManager {
         this.mouseX = 0;
         this.mouseY = 0;
         
-        this.isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+        const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+        // Start with true only if it's a mobile UA or a small touch screen
+        this.isMobile = isMobileUA || (hasTouch && window.innerWidth < 3000);
         
         this.joystickPointerId = null;
         this.boostPointerId = null;
@@ -52,6 +55,14 @@ export class InputManager {
         if (this.controlMode !== mode) {
             this.controlMode = mode;
             this._fireEvent('onControlModeChange', mode);
+        }
+        
+        // If we get keyboard or mouse input, we are definitely NOT strictly mobile
+        if ((mode === 'KEYBOARD' || mode === 'MOUSE') && this.isMobile) {
+            this.isMobile = false;
+            document.body.classList.remove('is-mobile');
+            const mobileControls = document.getElementById('mobile-controls');
+            if (mobileControls) mobileControls.classList.remove('visible');
         }
     }
 
@@ -109,20 +120,17 @@ export class InputManager {
     }
 
     _onMouseMove(e) {
-        if (this.isMobile) return;
         this.mouseX = e.clientX;
         this.mouseY = e.clientY;
     }
 
     _onMouseDown(e) {
         this._fireEvent('onAnyInput');
-        if (this.isMobile) return;
         this.setControlMode('MOUSE');
         if (e.button === 0) this.actions.boost = true;
     }
 
     _onMouseUp(e) {
-        if (this.isMobile) return;
         if (e.button === 0) this.actions.boost = false;
     }
 
