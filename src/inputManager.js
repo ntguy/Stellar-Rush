@@ -17,10 +17,10 @@ export class InputManager {
         this.mouseX = 0;
         this.mouseY = 0;
         
-        const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        this.isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const hasTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
         // Start with true only if it's a mobile UA or a small touch screen
-        this.isMobile = isMobileUA || (hasTouch && window.innerWidth < 3000);
+        this.isMobile = this.isMobileUA || (hasTouch && window.innerWidth < 3000);
         
         this.joystickPointerId = null;
         this.boostPointerId = null;
@@ -58,11 +58,16 @@ export class InputManager {
         }
         
         // If we get keyboard or mouse input, we are definitely NOT strictly mobile
-        if ((mode === 'KEYBOARD' || mode === 'MOUSE') && this.isMobile) {
-            this.isMobile = false;
-            document.body.classList.remove('is-mobile');
-            const mobileControls = document.getElementById('mobile-controls');
-            if (mobileControls) mobileControls.classList.remove('visible');
+        // BUT: Only disable mobile mode if we are NOT on a true mobile UA.
+        // This prevents taps on mobile devices (which fire mousedown) from disabling mobile controls.
+        // On desktop touchscreens (isMobileUA = false), it WILL correctly disable mobile mode.
+        if (this.isMobile && !this.isMobileUA) {
+            if (mode === 'KEYBOARD' || mode === 'MOUSE') {
+                this.isMobile = false;
+                document.body.classList.remove('is-mobile');
+                const mobileControls = document.getElementById('mobile-controls');
+                if (mobileControls) mobileControls.classList.remove('visible');
+            }
         }
     }
 
