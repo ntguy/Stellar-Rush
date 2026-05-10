@@ -543,10 +543,38 @@ function applyUpgrades() {
         elFuelWrap.style.width = (13.23 * upgFuelTankMult) + 'vw';
     }
 
-    if (upgNavSystem && !navBeam) {
-        // Upgrade Logic: Laser Navigation System Initialization
+    // Navigation Laser — Now always present, upgrade makes it better
+    if (!navBeam) {
         const beamGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
-        const beamMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+        const beamMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uColor: { value: new THREE.Color(0xff0000) },
+                uOpacity: { value: 0.8 },
+                uFade: { value: 0.0 }
+            },
+            vertexShader: `
+                varying float vZ;
+                void main() {
+                    vZ = position.z; // 0 at plane, -1 at end
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor;
+                uniform float uOpacity;
+                uniform float uFade;
+                varying float vZ;
+                void main() {
+                    float alpha = uOpacity;
+                    if (uFade > 0.5) {
+                        // vZ goes from 0 to -1
+                        alpha *= (1.0 + vZ); 
+                    }
+                    gl_FragColor = vec4(uColor, alpha);
+                }
+            `,
+            transparent: true
+        });
         navBeam = new THREE.Line(beamGeo, beamMat);
         navBeam.frustumCulled = false;
         scene.add(navBeam);
@@ -558,8 +586,16 @@ function applyUpgrades() {
 
         navPointLight = new THREE.PointLight(0xff0000, 5.0, 12);
         scene.add(navPointLight);
-    } else if (!upgNavSystem && navBeam) {
-        cleanupNavBeam();
+    }
+
+    if (upgNavSystem) {
+        // Improved: Bright, solid, no fade
+        navBeam.material.uniforms.uOpacity.value = 0.8;
+        navBeam.material.uniforms.uFade.value = 0.0;
+    } else {
+        // Base: Thinner/Fainter, fades out
+        navBeam.material.uniforms.uOpacity.value = 0.6;
+        navBeam.material.uniforms.uFade.value = 1.0;
     }
 }
 
@@ -1467,7 +1503,8 @@ function animate() {
         }
         const intersects = navRaycaster.intersectObjects(_navTargets);
         
-        let laserDist = 200; 
+        let maxDist = upgNavSystem ? 200 : 60;
+        let laserDist = maxDist; 
         let hitFound = false;
 
         if (intersects.length > 0) {
@@ -1509,12 +1546,20 @@ function animate() {
                     }
                 }
                 
-                laserDist = hit.distance;
-                navDot.visible = true;
-                navPointLight.visible = true;
-                navDot.position.copy(hit.point);
-                navPointLight.position.copy(hit.point);
-                hitFound = true;
+                if (hit.distance < maxDist) {
+                    laserDist = hit.distance;
+                    hitFound = true;
+                    
+                    if (upgNavSystem) {
+                        navDot.visible = true;
+                        navPointLight.visible = true;
+                        navDot.position.copy(hit.point);
+                        navPointLight.position.copy(hit.point);
+                    } else {
+                        navDot.visible = false;
+                        navPointLight.visible = false;
+                    }
+                }
                 break;
             }
         }
@@ -1524,10 +1569,9 @@ function animate() {
             navPointLight.visible = false;
         }
 
-        const positions = navBeam.geometry.attributes.position.array;
-        positions[0] = _beamOrigin.x; positions[1] = _beamOrigin.y; positions[2] = _beamOrigin.z;
-        positions[3] = _beamOrigin.x; positions[4] = _beamOrigin.y; positions[5] = _beamOrigin.z - laserDist;
-        navBeam.geometry.attributes.position.needsUpdate = true;
+        navBeam.position.copy(_beamOrigin);
+        navBeam.rotation.set(0, 0, 0);
+        navBeam.scale.set(1, 1, laserDist);
     }
 
     /* ── Camera follow ────────────────────────────────── */
