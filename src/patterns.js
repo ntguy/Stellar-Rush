@@ -1585,8 +1585,8 @@ function spawnSingleBlock(scene, obstacles, size = 1, z = SPAWN_Z, noFormations 
     const parts = [];
     const s = 3 * size;
     // Allow bx to be anywhere across the width, including the center
-    const bx = _pm(BOUNDS_X * 0.7);
-    const by = _pm(BOUNDS_Y * 0.6);
+    const bx = _pm(BOUNDS_X * 0.95);
+    const by = _pm(BOUNDS_Y * 0.92);
     
     makeBox(scene, s + Math.random() * 3, s + Math.random() * 3, 1, bx, by, z, matObs, parts);
     obstacles.push({ parts, fadeAge: 0 });
