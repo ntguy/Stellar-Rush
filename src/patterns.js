@@ -63,6 +63,57 @@ function _evaluateSpec(spec) {
 
 /* ── Geometric Energy Wall Factory ──────────────────────── */
 
+/* ── Geometry Cache ────────────────────────────────────────
+   Avoids creating duplicate PlaneGeometry/BoxGeometry objects.
+   Key format: "w,h" for planes, "w,h,d" for boxes.         */
+const _planeGeoCache = new Map();
+const _boxGeoCache = new Map();
+const _edgesGeoCache = new Map();
+const _cylinderGeoCache = new Map();
+const _ringGeoCache = new Map();
+
+function _getCachedPlaneGeo(w, h) {
+    const key = `${w},${h}`;
+    if (!_planeGeoCache.has(key)) {
+        _planeGeoCache.set(key, new THREE.PlaneGeometry(w, h));
+    }
+    return _planeGeoCache.get(key);
+}
+
+function _getCachedBoxGeo(w, h, d) {
+    const key = `${w},${h},${d}`;
+    if (!_boxGeoCache.has(key)) {
+        _boxGeoCache.set(key, new THREE.BoxGeometry(w, h, d));
+    }
+    return _boxGeoCache.get(key);
+}
+
+function _getCachedCylinderGeo(rt, rb, h, rs, hs, open) {
+    const key = `${rt},${rb},${h},${rs},${hs},${open}`;
+    if (!_cylinderGeoCache.has(key)) {
+        const geo = new THREE.CylinderGeometry(rt, rb, h, rs, hs, open);
+        geo.rotateX(Math.PI / 2); // Pre-rotate for tube alignment
+        _cylinderGeoCache.set(key, geo);
+    }
+    return _cylinderGeoCache.get(key);
+}
+
+function _getCachedRingGeo(ir, or, seg) {
+    const key = `${ir},${or},${seg}`;
+    if (!_ringGeoCache.has(key)) {
+        _ringGeoCache.set(key, new THREE.RingGeometry(ir, or, seg));
+    }
+    return _ringGeoCache.get(key);
+}
+
+function _getCachedEdgesGeo(sourceGeo) {
+    const key = sourceGeo.uuid;
+    if (!_edgesGeoCache.has(key)) {
+        _edgesGeoCache.set(key, new THREE.EdgesGeometry(sourceGeo));
+    }
+    return _edgesGeoCache.get(key);
+}
+
 /** 
  * Unified Obstacle Factory: Creates an "Energy Panel".
  * - Simple PlaneGeometry (2D, zero thickness, zero flashbang spikes).
@@ -70,23 +121,22 @@ function _evaluateSpec(spec) {
  * - Glowing Rim using LineSegments (Techy, clean look).
  */
 export function makeBox(scene, w, h, d, x, y, z, mat, group) {
-    // 1. The Glass Face
-    // Use a clean desaturated blue with a bit of emissive glow
-    const faceMat = new THREE.MeshPhongMaterial({
+    // 1. The Glass Face — MeshBasicMaterial avoids per-vertex lighting for translucent panels
+    const faceMat = new THREE.MeshBasicMaterial({
         color: 0xddeeff,
-        emissive: 0x0a1115,
         transparent: true,
         opacity: 0,
         side: THREE.DoubleSide,
         depthWrite: false,
     });
     
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), faceMat);
+    const faceGeo = _getCachedPlaneGeo(w, h);
+    const face = new THREE.Mesh(faceGeo, faceMat);
     face.position.set(x, y, z);
     scene.add(face);
     
     // 2. The Tech Rim
-    const edgeGeo = new THREE.EdgesGeometry(new THREE.PlaneGeometry(w, h));
+    const edgeGeo = _getCachedEdgesGeo(faceGeo);
     const edgeMat = new THREE.LineBasicMaterial({ 
         color: 0xbbddff, 
         transparent: true, 
@@ -106,20 +156,19 @@ export function makeBox(scene, w, h, d, x, y, z, mat, group) {
    GEOMETRY HELPERS FOR WORLD 2 (3D VOLUMES)
    ═══════════════════════════════════════════════════════════ */
 export function make3DBox(scene, w, h, d, x, y, z, mat, group) {
-    const faceMat = new THREE.MeshPhongMaterial({
+    const faceMat = new THREE.MeshBasicMaterial({
         color: 0xddeeff,
-        emissive: 0x0a1115,
         transparent: true,
         opacity: 0,
         depthWrite: false,
     });
     
-    const boxGeo = new THREE.BoxGeometry(w, h, d);
+    const boxGeo = _getCachedBoxGeo(w, h, d);
     const face = new THREE.Mesh(boxGeo, faceMat);
     face.position.set(x, y, z);
     scene.add(face);
     
-    const edgeGeo = new THREE.EdgesGeometry(boxGeo);
+    const edgeGeo = _getCachedEdgesGeo(boxGeo);
     const edgeMat = new THREE.LineBasicMaterial({ 
         color: 0xbbddff, 
         transparent: true, 
@@ -907,12 +956,13 @@ export function patternTube(params = {}) {
             transparent: true, side: THREE.DoubleSide, depthWrite: false,
         });
 
-        const front = new THREE.Mesh(new THREE.PlaneGeometry(ow, oh), circleHoleMat.clone());
+        const frontGeo = _getCachedPlaneGeo(ow, oh);
+        const front = new THREE.Mesh(frontGeo, circleHoleMat.clone());
         front.position.set(0, 0, frontZ);
         scene.add(front);
         obstacles.push({ parts: [front], fadeAge: 0, circleHole: { x: 0, y: 0, r: radius } });
 
-        const back = new THREE.Mesh(new THREE.PlaneGeometry(ow, oh), circleHoleMat.clone());
+        const back = new THREE.Mesh(frontGeo, circleHoleMat.clone());
         back.position.set(0, 0, backZ);
         scene.add(back);
         obstacles.push({ parts: [back], fadeAge: 0, circleHole: { x: 0, y: 0, r: radius } });
@@ -948,8 +998,7 @@ export function patternTube(params = {}) {
             transparent: true, side: THREE.BackSide, depthWrite: false
         });
 
-        const tubeGeo = new THREE.CylinderGeometry(radius, radius, blockD, 48, 1, true);
-        tubeGeo.rotateX(Math.PI / 2);
+        const tubeGeo = _getCachedCylinderGeo(radius, radius, blockD, 48, 1, true);
         const tube = new THREE.Mesh(tubeGeo, tubeMat);
         tube.position.set(0, 0, centerZ);
         scene.add(tube);
@@ -1001,8 +1050,9 @@ export function patternTube(params = {}) {
                 gl_FragColor = vec4(uColor + vec3(0.05), uOpacity);
             }`;
 
-        const circlePlaneGeo = new THREE.PlaneGeometry(ow, oh);
-        const ringGeo = new THREE.EdgesGeometry(new THREE.RingGeometry(radius - 0.3, radius, 64));
+        const circlePlaneGeo = _getCachedPlaneGeo(ow, oh);
+        const ringGeoRaw = _getCachedRingGeo(radius - 0.3, radius, 64);
+        const ringGeo = _getCachedEdgesGeo(ringGeoRaw);
         const ringMat = new THREE.LineBasicMaterial({ color: 0xbb4444, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
 
         for (let i = 0; i < circleCount; i++) {

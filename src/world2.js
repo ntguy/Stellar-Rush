@@ -645,6 +645,17 @@ const _physicalCloudMat = new THREE.MeshPhongMaterial({
     opacity: 0 
 });
 
+// Cache sphere geometries to prevent memory leaks and GC spikes
+const _cloudGeoCache = new Map();
+function _getCachedCloudGeo(r) {
+    // Round radius to nearest integer to maximize cache hits while keeping variety
+    const key = Math.round(r);
+    if (!_cloudGeoCache.has(key)) {
+        _cloudGeoCache.set(key, new THREE.SphereGeometry(r, 7, 7));
+    }
+    return _cloudGeoCache.get(key);
+}
+
 function _spawnPhysicalCloud() {
     if (_physicalClouds.length > 10) return;
     
@@ -653,8 +664,8 @@ function _spawnPhysicalCloud() {
     const mats = [];
     
     for (let i = 0; i < numPuffs; i++) {
-        // Less rock-like, more spherical overlapping shapes
-        const puffGeo = new THREE.SphereGeometry(15 + Math.random() * 20, 7, 7);
+        const radius = 15 + Math.random() * 20;
+        const puffGeo = _getCachedCloudGeo(radius);
         const mat = _physicalCloudMat.clone();
         mats.push(mat);
         const puff = new THREE.Mesh(puffGeo, mat);
@@ -663,49 +674,40 @@ function _spawnPhysicalCloud() {
             (Math.random() - 0.5) * 15, 
             (Math.random() - 0.5) * 30
         );
-        // Randomize rotation so they look distinct
         puff.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
-        
-        // Scale non-uniformly for flatter bottoms or stretched cloud shapes
         puff.scale.set(1 + Math.random(), 0.6 + Math.random() * 0.5, 1 + Math.random());
         cloudGroup.add(puff);
     }
     
     let posX, posY;
     if (Math.random() < 0.4) {
-        // Above the play area
         posX = (Math.random() - 0.5) * 80;
-        posY = BOUNDS_Y + 50 + Math.random() * 30; // High enough to clear
+        posY = BOUNDS_Y + 50 + Math.random() * 30;
     } else {
-        // Sides of the play area
         const isRight = Math.random() > 0.5;
         posX = isRight ? (BOUNDS_X + 60 + Math.random() * 60) : (-BOUNDS_X - 60 - Math.random() * 60);
         posY = 10 + Math.random() * 60;
     }
     
-    // Spawn much further away
     cloudGroup.position.set(posX, posY, SPAWN_Z - 400);
-    
     _scene.add(cloudGroup);
     _physicalClouds.push({ group: cloudGroup, mats, fadeAge: 0 });
 }
 
 function _updatePhysicalClouds(dt, speed) {
-    if (Math.random() < 0.01) _spawnPhysicalCloud(); // Spawn less frequently
+    if (Math.random() < 0.01) _spawnPhysicalCloud();
     for (let i = _physicalClouds.length - 1; i >= 0; i--) {
         const cloud = _physicalClouds[i];
         cloud.fadeAge += dt;
+        // Restore the original 0.87 capped opacity fade
         const alpha = Math.min(0.87, (cloud.fadeAge / 3.0) * 0.87);
         for(let m of cloud.mats) m.opacity = alpha;
 
-        // Move slightly slower than ground to give parallax
         cloud.group.position.z += speed * 0.85 * dt; 
         if (cloud.group.position.z > DESPAWN_Z + 100) {
             _scene.remove(cloud.group);
-            cloud.group.children.forEach(c => {
-                c.geometry.dispose();
-                c.material.dispose();
-            });
+            // Geometries are cached, do not dispose. Only dispose cloned materials.
+            cloud.mats.forEach(m => m.dispose());
             _physicalClouds.splice(i, 1);
         }
     }
@@ -714,10 +716,7 @@ function _updatePhysicalClouds(dt, speed) {
 function _clearPhysicalClouds(scene) {
     for (const cloud of _physicalClouds) {
         scene.remove(cloud.group);
-        cloud.group.children.forEach(c => {
-            c.geometry.dispose();
-            c.material.dispose();
-        });
+        cloud.mats.forEach(m => m.dispose());
     }
     _physicalClouds.length = 0;
 }

@@ -9,6 +9,9 @@ import {
 import { playCollect1, playCollect2 } from './audio.js';
 import { settings } from './settings.js';
 
+/* ── Reusable vectors (avoid per-frame GC pressure) ───────── */
+const _magnetDir = new THREE.Vector3();
+
 /* ═══════════════════════════════════════════════════════════
    SHARED GEOMETRIES & MATERIALS
    ═══════════════════════════════════════════════════════════ */
@@ -74,14 +77,30 @@ function logIfCloseToEdge(pos, type, patternName = 'Unknown') {
 const burstParticles = [];
 const burstGeo = new THREE.OctahedronGeometry(0.15, 0);
 
+// Pre-allocated material pool for burst particles to avoid per-collection allocation
+const BURST_MAT_POOL_SIZE = 80;
+const _burstMatPool = [];
+let _burstMatPoolIdx = 0;
+for (let i = 0; i < BURST_MAT_POOL_SIZE; i++) {
+    _burstMatPool.push(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 }));
+}
+function _getBurstMat(colour) {
+    const mat = _burstMatPool[_burstMatPoolIdx % BURST_MAT_POOL_SIZE];
+    _burstMatPoolIdx++;
+    mat.color.set(colour);
+    mat.opacity = 1;
+    return mat;
+}
+
 export function spawnCollectBurst(scene, pos, colour) {
     const count = settings.preset === 'Low' ? 5 : 10;
     for (let i = 0; i < count; i++) {
-        const mat = new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 1 });
+        const mat = _getBurstMat(colour);
         const m = new THREE.Mesh(burstGeo, mat);
         m.position.copy(pos);
         const spd = 4 + Math.random() * 10;
-        m.userData.vel = new THREE.Vector3(
+        if (!m.userData.vel) m.userData.vel = new THREE.Vector3();
+        m.userData.vel.set(
             (Math.random() - 0.5) * 2,
             (Math.random() - 0.5) * 2,
             (Math.random() - 0.5) * 2
@@ -98,7 +117,7 @@ export function updateBurstParticles(scene, dt) {
         p.userData.life -= dt * 4.5;
         if (p.userData.life <= 0) {
             scene.remove(p);
-            p.material.dispose();
+            // Materials are pooled, no dispose needed
             burstParticles.splice(i, 1);
             continue;
         }
@@ -112,7 +131,7 @@ export function updateBurstParticles(scene, dt) {
 export function clearBurstParticles(scene) {
     for (const p of burstParticles) {
         scene.remove(p);
-        p.material.dispose();
+        // Materials are pooled, no dispose needed
     }
     burstParticles.length = 0;
 }
@@ -253,8 +272,8 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
             // Upgrade Logic: Magnet attracts nearby pickups
             const dist = p.mesh.position.distanceTo(aircraftPos);
             if (dist < 15) {
-                const dir = aircraftPos.clone().sub(p.mesh.position).normalize();
-                p.mesh.position.add(dir.multiplyScalar(magnetStrength * dt));
+                _magnetDir.copy(aircraftPos).sub(p.mesh.position).normalize();
+                p.mesh.position.addScaledVector(_magnetDir, magnetStrength * dt);
             }
         }
 
@@ -308,7 +327,16 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
 }
 
 export function clearPickups(scene) {
-    for (const p of pickups) scene.remove(p.mesh);
+    for (const p of pickups) {
+        scene.remove(p.mesh);
+        // Dispose cloned materials
+        if (p.mesh.material) p.mesh.material.dispose();
+        if (p.haze && p.haze.material) p.haze.material.dispose();
+        // Dispose child PointLights
+        p.mesh.children.forEach(c => {
+            if (c.isPointLight && c.dispose) c.dispose();
+        });
+    }
     pickups.length = 0;
     clearBurstParticles(scene);
     for (let key in formationTracker) delete formationTracker[key];

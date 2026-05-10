@@ -444,6 +444,29 @@
             opacity: 1;
         }
 
+        /* ── Performance Monitor ──────────────────────────── */
+        #perf-monitor {
+            position: absolute;
+            bottom: 1.2vh;
+            left: 1.2vw;
+            color: #aaffaa;
+            font-family: 'Courier New', monospace;
+            font-size: 0.72vw;
+            line-height: 1.6;
+            pointer-events: none;
+            z-index: 1001;
+            background: rgba(0, 0, 0, 0.55);
+            padding: 0.5vh 0.7vw;
+            border-radius: 0.3vw;
+            border: 1px solid rgba(100, 255, 100, 0.15);
+            display: none;
+            white-space: pre;
+            backdrop-filter: blur(2px);
+        }
+        #perf-monitor.visible {
+            display: block;
+        }
+
         /* ── Main Menu overlay ────────────────────────────── */
         #main-menu {
             position: absolute;
@@ -1362,6 +1385,9 @@
             <div id="boost-indicator">BOOST ACTIVE</div>
             <div id="shield-indicator">SHIELD ACTIVE</div>
         </div>
+
+        <!-- Performance Monitor -->
+        <div id="perf-monitor"></div>
 
         <div id="mobile-controls">
             <div id="mobile-boost-btn">BOOST</div>

@@ -10,7 +10,7 @@ import {
 
 import { nextObstacle, resetSequencer, currentPatternName, isPatternFinished } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
-import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles } from './pickups.js';
+import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles, pickups } from './pickups.js';
 import {
     playCrash,
     startShieldHum, startBoostHum, startFuelLowBeep,
@@ -32,6 +32,16 @@ import { buildStarField } from './stars.js';
 import { createMenu } from './menu.js';
 import { enterUpgradesMenu, exitUpgradesMenu, getEquippedUpgrades, isUpgradesOpen } from './upgrades.js';
 import Stats from 'stats';
+
+/* ── Reusable vectors (hoisted out of animate to avoid GC pressure) ── */
+const _targetVel   = new THREE.Vector3();
+const _beamOrigin  = new THREE.Vector3();
+const _beamDir     = new THREE.Vector3(0, 0, -1);
+const _nozzleV3    = new THREE.Vector3();
+const _exhaustVelV3= new THREE.Vector3();
+const _tmpV2       = new THREE.Vector2();
+const _navTargets  = [];           // reused array for laser raycasting
+const _exhaustRemoveList = [];     // reused array for exhaust cleanup
 import { settings, saveSettings } from './settings.js';
 
 // ─── Menu animation config ───
@@ -109,6 +119,64 @@ stats.dom.style.top = '1.63vh';
 stats.dom.style.bottom = '';
 if (elGameContainer) elGameContainer.appendChild(stats.dom);
 else document.body.appendChild(stats.dom);
+
+/* ═══════════════════════════════════════════════════════════
+   PERFORMANCE MONITOR  — detailed perf HUD (Shift+P to toggle)
+   Shows FPS, frame time, frame budget, draw calls, tris, object counts.
+   Uses EMA (exponential moving average) for smooth readings.
+   ═══════════════════════════════════════════════════════════ */
+const elPerfMonitor = document.getElementById('perf-monitor');
+let perfMonitorEnabled = settings.perfMonitor || false;
+if (perfMonitorEnabled && elPerfMonitor) elPerfMonitor.classList.add('visible');
+
+const _perf = {
+    frameTimes: [],
+    lastUpdate: 0,
+    emaFps: 60,
+    emaFrameMs: 16.7,
+    alpha: 0.05,   // EMA smoothing (lower = smoother)
+};
+
+function updatePerfMonitor(dt) {
+    if (!perfMonitorEnabled || !elPerfMonitor) return;
+    const now = performance.now();
+    const frameMs = dt * 1000;
+    _perf.emaFrameMs = _perf.emaFrameMs * (1 - _perf.alpha) + frameMs * _perf.alpha;
+    _perf.emaFps = _perf.emaFps * (1 - _perf.alpha) + (1 / Math.max(dt, 0.001)) * _perf.alpha;
+
+    // Update display at 4Hz to avoid excessive DOM writes
+    if (now - _perf.lastUpdate < 250) return;
+    _perf.lastUpdate = now;
+
+    const info = renderer.info;
+    const fps = Math.round(_perf.emaFps);
+    const frameTime = _perf.emaFrameMs.toFixed(1);
+    // Budget: what % of the available frame time are we using?
+    // At 60Hz, budget is 16.67ms. At 144Hz, budget is 6.94ms.
+    const budgetMs = 1000 / Math.max(fps, 30);
+    const budgetPct = Math.min(100, ((_perf.emaFrameMs / budgetMs) * 100)).toFixed(0);
+    const draws = info.render.calls;
+    const tris = info.render.triangles;
+    const textures = info.memory.textures;
+    const geometries = info.memory.geometries;
+
+    const trisStr = tris > 1000 ? (tris / 1000).toFixed(1) + 'K' : tris;
+
+    elPerfMonitor.textContent =
+        `FPS: ${fps}  Frame: ${frameTime}ms  Budget: ${budgetPct}%\n` +
+        `Draws: ${draws}  Tris: ${trisStr}  Tex: ${textures}  Geo: ${geometries}\n` +
+        `Obstacles: ${obstacles.length}  Pickups: ${pickups.length}  Exhaust: ${exhaustActive.size}`;
+}
+
+// Toggle with Shift+P
+window.addEventListener('keydown', e => {
+    if (e.shiftKey && e.code === 'KeyP') {
+        perfMonitorEnabled = !perfMonitorEnabled;
+        settings.perfMonitor = perfMonitorEnabled;
+        saveSettings();
+        if (elPerfMonitor) elPerfMonitor.classList.toggle('visible', perfMonitorEnabled);
+    }
+});
 
 const MIN_ASPECT = 1.6; // 16:10
 const MAX_ASPECT = 2.0; // 18:9
@@ -201,12 +269,13 @@ function emitExhaust(boosting) {
     mat.color.copy(matGlow.color);
     mat.opacity = 0.80;
 
-    const nozzle = new THREE.Vector3(0, 0, 1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
-    m.position.copy(nozzle);
+    _nozzleV3.set(0, 0, 1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
+    m.position.copy(_nozzleV3);
     m.scale.setScalar(1);
     const spd = 5 + Math.random() * 4;
     const spread = boosting ? 2.4 : 1.2;
-    m.userData.vel = new THREE.Vector3(
+    if (!m.userData.vel) m.userData.vel = new THREE.Vector3();
+    m.userData.vel.set(
         (Math.random() - 0.5) * spread,
         (Math.random() - 0.5) * spread,
         spd,
@@ -217,18 +286,23 @@ function emitExhaust(boosting) {
 }
 
 function updateExhaust(dt) {
-    for (const p of [...exhaustActive]) {
+    _exhaustRemoveList.length = 0;
+    for (const p of exhaustActive) {
         p.userData.life -= dt * 3.5;
         if (p.userData.life <= 0) {
-            scene.remove(p);
-            exhaustActive.delete(p);
-            exhaustFree.push(p);
+            _exhaustRemoveList.push(p);
             continue;
         }
         p.position.addScaledVector(p.userData.vel, dt);
         p.material.opacity = p.userData.life * 0.85;
         p.scale.setScalar(p.userData.life * 0.9);
         p.lookAt(camera.position);
+    }
+    for (let i = 0; i < _exhaustRemoveList.length; i++) {
+        const p = _exhaustRemoveList[i];
+        scene.remove(p);
+        exhaustActive.delete(p);
+        exhaustFree.push(p);
     }
 }
 
@@ -1305,11 +1379,11 @@ function animate() {
     const topSpeedBoost = defaultMaxSpd * upgBoostPowerMult;
     const maxSpd = (boosting ? defaultMaxSpd + topSpeedBoost : defaultMaxSpd) * upgTopSpeedMult;
     
-    const targetVel = new THREE.Vector3();
+    _targetVel.set(0, 0, 0);
 
     if (inputManager.controlMode === 'KEYBOARD' || (getIsMobile() && inputMag > 0)) {
         // ── Direct Steering (Keys / Joystick) ──
-        targetVel.set(inputX * maxSpd, inputY * maxSpd, 0);
+        _targetVel.set(inputX * maxSpd, inputY * maxSpd, 0);
         guideLine.visible = false;
     } else if (inputManager.controlMode === 'MOUSE' && !getIsMobile()) {
         // ── Seek Mode (Mouse) ──
@@ -1329,20 +1403,20 @@ function animate() {
             // For 95% of the distance, this equals maxSpd. Only slows down in the last ~1.5 units.
             const maxSafeSpd = (dist / dt) * 0.4; 
             const desiredSpd = Math.min(maxSpd, maxSafeSpd);
-            targetVel.copy(tmpV).setLength(desiredSpd);
+            _targetVel.copy(tmpV).setLength(desiredSpd);
         } else {
             // Absolute hard stop to kill all jiggle
-            targetVel.set(0, 0, 0);
+            _targetVel.set(0, 0, 0);
             vel.set(0, 0, 0); 
         }
     } else {
         // ── Idle Damping ──
         guideLine.visible = false;
-        targetVel.set(0, 0, 0);
+        _targetVel.set(0, 0, 0);
     }
 
     // Since acceleration has been removed, instantly apply target velocity
-    vel.copy(targetVel);
+    vel.copy(_targetVel);
 
     aircraft.position.addScaledVector(vel, dt);
     aircraft.position.x = THREE.MathUtils.clamp(aircraft.position.x, -BOUNDS_X, BOUNDS_X);
@@ -1379,13 +1453,19 @@ function animate() {
 
     if (navBeam) {
         // Upgrade Logic: Navigation Laser Raycasting
-        const beamOrigin = new THREE.Vector3(0, 0, -1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
-        const beamDir = new THREE.Vector3(0, 0, -1); 
-        navRaycaster.set(beamOrigin, beamDir);
+        _beamOrigin.set(0, 0, -1.4).applyQuaternion(aircraft.quaternion).add(aircraft.position);
+        _beamDir.set(0, 0, -1);
+        navRaycaster.set(_beamOrigin, _beamDir);
         
-        const targetMeshes = [];
-        obstacles.forEach(obs => obs.parts.forEach(m => targetMeshes.push(m)));
-        const intersects = navRaycaster.intersectObjects(targetMeshes);
+        // Reuse persistent array instead of allocating a new one each frame
+        _navTargets.length = 0;
+        for (let oi = 0; oi < obstacles.length; oi++) {
+            const parts = obstacles[oi].parts;
+            for (let pi = 0; pi < parts.length; pi++) {
+                _navTargets.push(parts[pi]);
+            }
+        }
+        const intersects = navRaycaster.intersectObjects(_navTargets);
         
         let laserDist = 200; 
         let hitFound = false;
@@ -1405,9 +1485,9 @@ function animate() {
                         if (dx < obs.squareHole.w / 2 && dy < obs.squareHole.h / 2) continue;
                     }
                     if (obs.triforceHoles) {
-                        const p = new THREE.Vector2(hit.point.x, hit.point.y);
+                        _tmpV2.set(hit.point.x, hit.point.y);
                         const th = obs.triforceHoles;
-                        if (p.distanceTo(th.p1) < th.r || p.distanceTo(th.p2) < th.r || p.distanceTo(th.p3) < th.r) continue;
+                        if (_tmpV2.distanceTo(th.p1) < th.r || _tmpV2.distanceTo(th.p2) < th.r || _tmpV2.distanceTo(th.p3) < th.r) continue;
                     }
                     if (obs.isRotatingSectorHole) {
                         const rsh = obs.isRotatingSectorHole;
@@ -1445,8 +1525,8 @@ function animate() {
         }
 
         const positions = navBeam.geometry.attributes.position.array;
-        positions[0] = beamOrigin.x; positions[1] = beamOrigin.y; positions[2] = beamOrigin.z;
-        positions[3] = beamOrigin.x; positions[4] = beamOrigin.y; positions[5] = beamOrigin.z - laserDist;
+        positions[0] = _beamOrigin.x; positions[1] = _beamOrigin.y; positions[2] = _beamOrigin.z;
+        positions[3] = _beamOrigin.x; positions[4] = _beamOrigin.y; positions[5] = _beamOrigin.z - laserDist;
         navBeam.geometry.attributes.position.needsUpdate = true;
     }
 
@@ -1712,7 +1792,11 @@ function animate() {
             let despawnLimit = DESPAWN_Z; if (obs.isLong) despawnLimit += obs.isLong.depth / 2; if (m === obs.parts[0] && m.position.z > despawnLimit) rm = true;
         }
         if (rm) {
-            obs.parts.forEach(m => { m.geometry.dispose(); m.material.dispose(); scene.remove(m); });
+            obs.parts.forEach(m => {
+                // Only dispose material (per-instance); geometry may be cached/shared
+                if (m.material) m.material.dispose();
+                scene.remove(m);
+            });
             obstacles.splice(i, 1);
         }
     }
@@ -2070,6 +2154,7 @@ function animate() {
     if (currentWorldIdx === 0) updateTunnel(dt, speed, elapsed);
 
     renderer.render(scene, camera);
+    updatePerfMonitor(dt);
     stats.end();
 }
 
