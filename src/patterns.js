@@ -1371,72 +1371,125 @@ export function patternSimon(params = {}) {
     return steps;
 }
 
+import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup } from './pickups.js';
+
 export function patternTicTacToe(params = {}) {
     const steps = [];
-    const lvl = params.level || 6;
-
     const speed = params.speed || 50;
-    const zSpacing = speed * 0.8;
-    const wallCount = 5;
-    const blockD = (wallCount - 1) * zSpacing;
-    const duration = wallCount * (zSpacing / speed);
+    const zSpacing = speed * 2.4;
+    const wallCount = 9;
 
-    const interval = params.obstacleInterval || 1.6;
-    const totalSteps = Math.ceil(duration / interval);
+    const barX = BOUNDS_X / 3;
+    const barY = BOUNDS_Y / 3;
+    const cellX = (BOUNDS_X * 2) / 3;
+    const cellY = (BOUNDS_Y * 2) / 3;
 
     const gridPositions = [
-        { x: -6, y: 4 }, { x: 0, y: 4 }, { x: 6, y: 4 },
-        { x: -6, y: 0 }, { x: 0, y: 0 }, { x: 6, y: 0 },
-        { x: -6, y: -4 }, { x: 0, y: -4 }, { x: 6, y: -4 }
+        { x: -cellX, y:  cellY }, { x: 0, y:  cellY }, { x: cellX, y:  cellY },
+        { x: -cellX, y:  0     }, { x: 0, y:  0     }, { x: cellX, y:  0     },
+        { x: -cellX, y: -cellY }, { x: 0, y: -cellY }, { x: cellX, y: -cellY }
     ];
-
-    const filledPositions = new Set();
-    let playerWins = false;
-    let aiWins = false;
-
-    const checkWin = (positions, player) => {
-        const wins = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8],
-            [0, 3, 6], [1, 4, 7], [2, 5, 8],
-            [0, 4, 8], [2, 4, 6]
-        ];
-        for (const win of wins) {
-            if (win.every(idx => positions.has(idx))) {
-                return true;
-            }
-        }
-        return false;
-    };
 
     const playerPositions = new Set();
     const aiPositions = new Set();
+    const filledPositions = new Set();
+    let gameOver = false;
 
-    steps.push((scene, obstacles) => {
-        let stopped = false;
+    const checkWin = (positions) => {
+        const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+        return wins.some(win => win.every(idx => positions.has(idx)));
+    };
 
-        for (let i = 0; i < wallCount && !stopped; i++) {
-            const wallZ = SPAWN_Z - i * zSpacing;
+    const addMarkerToWall = (type, cellIdx, scene, wallParts, wallZ) => {
+        const gp = gridPositions[cellIdx];
+        const color = type === 'X' ? 0x00ffff : 0xff00ff;
+        
+        // 1. Background Wall (Subtle 2.5% opacity, has hitbox)
+        const bgGeo = _getCachedPlaneGeo(cellX * 0.95, cellY * 0.95);
+        const bgMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide });
+        const bg = new THREE.Mesh(bgGeo, bgMat);
+        bg.position.set(gp.x, gp.y, wallZ + 0.1);
+        bg.userData.opacityMult = 0.32; // Results in ~0.25 final opacity (0.032 * 0.78)
+        scene.add(bg);
+        wallParts.push(bg);
+
+        // 2. The Marker Shape (25% bigger than before)
+        if (type === 'X') {
+            const xSize = 8.75; // 7.0 * 1.25
+            const xThick = 1.25;
+            const xMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide });
+            const xGeo = new THREE.PlaneGeometry(xSize, xThick);
+            const l1 = new THREE.Mesh(xGeo, xMat);
+            l1.rotation.z = Math.PI/4;
+            l1.position.set(gp.x, gp.y, wallZ + 0.5);
+            l1.userData.flash = 1.0;
+            l1.userData.noHit = true;
+            const l2 = new THREE.Mesh(xGeo, xMat);
+            l2.rotation.z = -Math.PI/4;
+            l2.position.set(gp.x, gp.y, wallZ + 0.5);
+            l2.userData.flash = 1.0;
+            l2.userData.noHit = true;
+            scene.add(l1, l2);
+            wallParts.push(l1, l2);
+        } else {
+            const oShape = new THREE.Mesh(
+                new THREE.RingGeometry(3.125, 4.375, 32), // 2.5*1.25, 3.5*1.25
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide })
+            );
+            oShape.position.set(gp.x, gp.y, wallZ + 0.5);
+            oShape.userData.flash = 1.0;
+            oShape.userData.noHit = true;
+            scene.add(oShape);
+            wallParts.push(oShape);
+        }
+    };
+
+    const spawnWinnerShape = (scene, obstacles, type, wallZ) => {
+        const color = type === 'X' ? 0x00ffff : 0xff00ff;
+        const parts = [];
+        
+        if (type === 'X') {
+            const xSize = 25.0; // Huge
+            const xThick = 3.0;
+            const xMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide });
+            const xGeo = new THREE.PlaneGeometry(xSize, xThick);
+            const l1 = new THREE.Mesh(xGeo, xMat); l1.rotation.z = Math.PI/4; l1.position.set(0, 0, wallZ); l1.userData.flash = 1.2; l1.userData.noHit = true;
+            const l2 = new THREE.Mesh(xGeo, xMat); l2.rotation.z = -Math.PI/4; l2.position.set(0, 0, wallZ); l2.userData.flash = 1.2; l2.userData.noHit = true;
+            scene.add(l1, l2);
+            parts.push(l1, l2);
+        } else {
+            const oShape = new THREE.Mesh(
+                new THREE.RingGeometry(8, 11, 32),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, side: THREE.DoubleSide })
+            );
+            oShape.position.set(0, 0, wallZ);
+            oShape.userData.flash = 1.2;
+            oShape.userData.noHit = true;
+            scene.add(oShape);
+            parts.push(oShape);
+        }
+        
+        const obs = { parts, fadeAge: 3.0, isFadingOut: true, fadeOutTimer: 1.5, targetOpacity: 0.8 };
+        obstacles.push(obs);
+    };
+
+    const waitCount = 1; // Extra wait steps at the end
+    for (let i = 0; i < wallCount + waitCount; i++) {
+        steps.push((scene, obstacles) => {
+            if (gameOver || i >= wallCount) return [];
+            const wallZ = SPAWN_Z;
             const parts = [];
-
-            const wallMat = new THREE.MeshPhongMaterial({
-                color: 0xddeeff,
-                emissive: 0x0a1115,
-                transparent: true,
-                opacity: 0,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            });
+            const wallMat = new THREE.MeshPhongMaterial({ color: 0xddeeff, emissive: 0x0a1115, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false });
 
             const createGridWall = (offset, isVertical) => {
-                const w = isVertical ? 0.3 : BOUNDS_X * 2.5;
-                const h = isVertical ? BOUNDS_Y * 2.4 : 0.3;
+                const w = isVertical ? 0.8 : BOUNDS_X * 2.0;
+                const h = isVertical ? BOUNDS_Y * 2.0 : 0.8;
                 const geo = new THREE.PlaneGeometry(w, h);
                 const mesh = new THREE.Mesh(geo, wallMat.clone());
                 if (isVertical) mesh.position.set(offset, 0, wallZ);
                 else mesh.position.set(0, offset, wallZ);
                 scene.add(mesh);
                 parts.push(mesh);
-
                 const edgeGeo = new THREE.EdgesGeometry(geo);
                 const edgeMat = new THREE.LineBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
                 const rim = new THREE.LineSegments(edgeGeo, edgeMat);
@@ -1445,96 +1498,68 @@ export function patternTicTacToe(params = {}) {
                 parts.push(rim);
             };
 
-            createGridWall(-6, true);
-            createGridWall(6, true);
-            createGridWall(0, true);
-            createGridWall(4, false);
-            createGridWall(-4, false);
-            createGridWall(0, false);
+            createGridWall(-barX, true); createGridWall(barX, true);
+            createGridWall(barY, false); createGridWall(-barY, false);
 
-            for (const filledPos of filledPositions) {
-                const gp = gridPositions[filledPos];
-                if (gp) {
-                    const markerMat = new THREE.MeshBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 });
-                    if (playerPositions.has(filledPos)) {
-                        const line1 = new THREE.Line(
-                            new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1.5, -1.5, 0), new THREE.Vector3(1.5, 1.5, 0)]),
-                            new THREE.LineBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 })
-                        );
-                        const line2 = new THREE.Line(
-                            new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(1.5, -1.5, 0), new THREE.Vector3(-1.5, 1.5, 0)]),
-                            new THREE.LineBasicMaterial({ color: 0x3333ff, transparent: true, opacity: 0 })
-                        );
-                        line1.position.set(gp.x, gp.y, wallZ + 0.2);
-                        line2.position.set(gp.x, gp.y, wallZ + 0.2);
-                        scene.add(line1, line2);
-                        parts.push(line1, line2);
-                    } else if (aiPositions.has(filledPos)) {
-                        const oShape = new THREE.Mesh(
-                            new THREE.RingGeometry(1.2, 1.5, 32),
-                            new THREE.MeshBasicMaterial({ color: 0xff3333, transparent: true, opacity: 0, side: THREE.DoubleSide })
-                        );
-                        oShape.position.set(gp.x, gp.y, wallZ + 0.2);
-                        scene.add(oShape);
-                        parts.push(oShape);
-                    }
-                }
-            }
+            for (const posIdx of playerPositions) addMarkerToWall('X', posIdx, scene, parts, wallZ);
+            for (const posIdx of aiPositions)     addMarkerToWall('O', posIdx, scene, parts, wallZ);
 
-            obstacles.push({ parts, fadeAge: 0 });
-
-            if (i < wallCount - 1) {
-                const availablePositions = [];
-                for (let idx = 0; idx < 9; idx++) {
+            const obs = { 
+                parts, 
+                fadeAge: 0, 
+                isTicTacToeWall: true,
+                onPass: (pos) => {
+                    if (gameOver) return;
+                    let col = 1; if (pos.x < -barX) col = 0; else if (pos.x > barX) col = 2;
+                    let row = 1; if (pos.y > barY) row = 0; else if (pos.y < -barY) row = 2;
+                    const idx = row * 3 + col;
                     if (!filledPositions.has(idx)) {
-                        availablePositions.push(idx);
-                    }
-                }
+                        playerPositions.add(idx);
+                        filledPositions.add(idx);
+                        obstacles.forEach(o => { if (o.isTicTacToeWall && !o.captured) addMarkerToWall('X', idx, scene, o.parts, o.parts[0].position.z); });
 
-                if (availablePositions.length > 0) {
-                    const playerChoiceIdx = Math.floor(Math.random() * availablePositions.length);
-                    const playerPos = availablePositions[playerChoiceIdx];
-                    playerPositions.add(playerPos);
-                    filledPositions.add(playerPos);
+                        if (checkWin(playerPositions)) {
+                            gameOver = true;
+                            const nextWallZ = obs.parts[0].position.z - zSpacing;
+                            spawnWinnerShape(scene, obstacles, 'X', nextWallZ);
+                            spawnFuelPickup(scene,      { x: 0, y: 0, z: nextWallZ - 15 });
+                            spawnHighValuePickup(scene, { x: 0, y: 0, z: nextWallZ - 30 });
+                            spawnShieldPickup(scene,    { x: 0, y: 0, z: nextWallZ - 45 });
+                        } else {
+                            const available = [];
+                            for (let k = 0; k < 9; k++) if (!filledPositions.has(k)) available.push(k);
+                            if (available.length > 0) {
+                                const pick = available[Math.floor(Math.random() * available.length)];
+                                aiPositions.add(pick); filledPositions.add(pick);
+                                obstacles.forEach(o => { if (o.isTicTacToeWall && !o.captured) addMarkerToWall('O', pick, scene, o.parts, o.parts[0].position.z); });
+                                if (checkWin(aiPositions)) {
+                                    gameOver = true;
+                                    const nextWallZ = obs.parts[0].position.z - zSpacing;
+                                    spawnWinnerShape(scene, obstacles, 'O', nextWallZ);
+                                }
+                            }
+                        }
 
-                    if (checkWin(playerPositions, 'player')) {
-                        playerWins = true;
-                        stopped = true;
-                    }
-
-                    if (!stopped && availablePositions.length > 1) {
-                        const remainingForAI = availablePositions.filter(idx => idx !== playerPos);
-                        if (remainingForAI.length > 0) {
-                            const aiChoiceIdx = Math.floor(Math.random() * remainingForAI.length);
-                            const aiPos = remainingForAI[aiChoiceIdx];
-                            aiPositions.add(aiPos);
-                            filledPositions.add(aiPos);
-
-                            if (checkWin(aiPositions, 'ai')) {
-                                aiWins = true;
-                                stopped = true;
+                        if (gameOver) {
+                            finishPattern(waitCount);
+                            for (let j = obstacles.length - 1; j >= 0; j--) {
+                                const o = obstacles[j];
+                                if (o.isTicTacToeWall && o.parts[0].position.z < -5) {
+                                    o.isFadingOut = true;
+                                    o.fadeOutTimer = 1.0;
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
-
-        const slots = [];
-        if (playerWins) {
-            slots.push({ type: 'single', x: 0, y: 0, z: SPAWN_Z - blockD - zSpacing, pickupType: 'fuel' });
-            slots.push({ type: 'single', x: 0, y: 0, z: SPAWN_Z - blockD - zSpacing * 1.3, pickupType: 'credits' });
-            slots.push({ type: 'single', x: 0, y: 0, z: SPAWN_Z - blockD - zSpacing * 1.6, pickupType: 'shield' });
-        }
-        return slots;
-    });
-
-    for (let i = 1; i < totalSteps; i++) {
-        steps.push(() => []);
+            };
+            obstacles.push(obs);
+            return [];
+        });
     }
-
     return steps;
 }
+
 
 /* ═══════════════════════════════════════════════════════════
    PRIMITIVE SPAWNERS
@@ -1791,9 +1816,8 @@ export function nextObstacle(scene, obstacles, levelParams) {
                 2: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternScatter', 'patternFourCorners', 'patternChoice'],
                 3: ['patternTopDown', 'patternCorners', 'patternNarrow', 'patternSlalomGate', 'patternFourCorners', 'patternChoice', 'patternSuperScatter'],
                 4: ['patternTopDown', 'patternShiftingGates', 'patternChoice', 'patternTrench', 'patternTube'],
-                // 4: ['patternTicTacToe'],
                 5: ['patternLeftRight', 'patternShiftingGates', 'patternTrench', 'patternTube', 'patternSimon'],
-                6: ['patternLeftRight', 'patternFourCorners', 'patternTrench', 'patternTube', 'patternSimon']
+                6: ['patternLeftRight', 'patternFourCorners', 'patternTrench', 'patternTube', 'patternSimon', 'patternTicTacToe']
             };
             
             let available = LEVEL_PATTERNS[level] || LEVEL_PATTERNS[1];
@@ -1815,6 +1839,10 @@ export function nextObstacle(scene, obstacles, levelParams) {
 
 export function isPatternFinished() {
     return (currentSteps.length > 0 && stepIdx >= currentSteps.length) || (currentSteps.length === 0);
+}
+
+export function finishPattern(waitCount = 0) {
+    stepIdx = Math.max(0, currentSteps.length - waitCount);
 }
 
 export function resetSequencer() { currentSteps = []; stepIdx = 0; lastTemplateIdx = -1; currentPatternName = ''; }

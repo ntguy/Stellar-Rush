@@ -1773,24 +1773,49 @@ function animate() {
         const obs = obstacles[i];
         obs.fadeAge = Math.min(obs.fadeAge + dt, OBS_FADE_TIME);
         const targetOpacity = (obs.targetOpacity !== undefined) ? obs.targetOpacity : OBS_TARGET_OPACITY;
-        const opacity = (obs.fadeAge / OBS_FADE_TIME) * targetOpacity;
+        let opacity = (obs.fadeAge / OBS_FADE_TIME) * targetOpacity;
         let rm = false;
+            
+        if (obs.isFadingOut) {
+            obs.fadeOutTimer = (obs.fadeOutTimer ?? 1.0) - dt;
+            opacity *= Math.max(0, obs.fadeOutTimer);
+            if (obs.fadeOutTimer <= 0) rm = true;
+        }
 
         for (const m of obs.parts) {
             if (m.material && m.material.transparent) {
                 // ShaderMaterial (circle-hole walls & premium boxes) uses uniforms
                 const partOpacity = (m.userData.opacityMult !== undefined) ? opacity * m.userData.opacityMult : opacity;
+                
+                let finalOpacity = partOpacity;
+                if (m.userData.flash > 0) {
+                    m.userData.flash -= dt * 2.5; // Flash over ~0.4s
+                    const flashAmt = Math.max(0, m.userData.flash);
+                    // Flash: fast ramp up and settle. Using a simple exponential decay feel.
+                    finalOpacity = THREE.MathUtils.lerp(partOpacity, 1.0, flashAmt);
+                }
+
                 if (m.material.isShaderMaterial) {
-                    m.material.uniforms.uOpacity.value = partOpacity;
+                    m.material.uniforms.uOpacity.value = finalOpacity;
                     if (m.material.uniforms.uTime) m.material.uniforms.uTime.value = elapsed;
                 } else {
-                    m.material.opacity = partOpacity;
+                    m.material.opacity = finalOpacity;
                 }
             }
             m.position.z += speed * dt;
 
             let despawnLimit = DESPAWN_Z; if (obs.isLong) despawnLimit += obs.isLong.depth / 2; if (m === obs.parts[0] && m.position.z > despawnLimit) rm = true;
         }
+
+        // Tic-Tac-Toe / Interactive pattern capture logic
+        if (obs.onPass && !obs.captured) {
+            const firstPart = obs.parts[0];
+            if (firstPart && firstPart.position.z >= aircraft.position.z) {
+                obs.captured = true;
+                obs.onPass(aircraft.position);
+            }
+        }
+
         if (rm) {
             obs.parts.forEach(m => {
                 // Only dispose material (per-instance); geometry may be cached/shared
@@ -2015,6 +2040,7 @@ function animate() {
         }
         // Normal AABB check
         for (const m of obs.parts) {
+            if (m.userData.noHit) continue;
             tmpBox.setFromObject(m);
             if (tmpBox.intersectsSphere(pSphere)) return true;
         }
