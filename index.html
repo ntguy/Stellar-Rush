@@ -463,6 +463,7 @@
             white-space: pre;
             backdrop-filter: blur(2px);
         }
+
         #perf-monitor.visible {
             display: block;
         }
@@ -1180,6 +1181,7 @@
             overflow: hidden;
             background: #000;
         }
+
         /* ── Play Splash Screen ───────────────────────── */
         #play-splash {
             position: fixed;
@@ -1205,9 +1207,9 @@
             position: absolute;
             inset: 0;
             background:
-                radial-gradient(circle at 30% 20%, rgba(0,170,255,0.07) 0%, transparent 50%),
-                radial-gradient(circle at 70% 80%, rgba(100,0,255,0.07) 0%, transparent 50%),
-                radial-gradient(circle at 50% 50%, rgba(0,255,255,0.04) 0%, transparent 65%);
+                radial-gradient(circle at 30% 20%, rgba(0, 170, 255, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 70% 80%, rgba(100, 0, 255, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.04) 0%, transparent 65%);
             pointer-events: none;
         }
 
@@ -1216,13 +1218,11 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 3px,
-                rgba(0,0,0,0.12) 3px,
-                rgba(0,0,0,0.12) 4px
-            );
+            background: repeating-linear-gradient(0deg,
+                    transparent,
+                    transparent 3px,
+                    rgba(0, 0, 0, 0.12) 3px,
+                    rgba(0, 0, 0, 0.12) 4px);
             pointer-events: none;
         }
 
@@ -1233,9 +1233,9 @@
             letter-spacing: 0.5vw;
             color: #fff;
             text-shadow:
-                0 0 1.5vw rgba(0,170,255,0.9),
-                0 0 3vw rgba(0,170,255,0.5),
-                0 0 6vw rgba(0,80,200,0.3);
+                0 0 1.5vw rgba(0, 170, 255, 0.9),
+                0 0 3vw rgba(0, 170, 255, 0.5),
+                0 0 6vw rgba(0, 80, 200, 0.3);
             margin-bottom: 0.5vh;
             animation: splashTitlePulse 3s ease-in-out infinite alternate;
             position: relative;
@@ -1246,7 +1246,7 @@
             font-family: 'Orbitron', sans-serif;
             font-size: 1vw;
             letter-spacing: 0.6vw;
-            color: rgba(0,200,255,0.55);
+            color: rgba(0, 200, 255, 0.55);
             text-transform: uppercase;
             margin-bottom: 7vh;
             position: relative;
@@ -1254,8 +1254,13 @@
         }
 
         @keyframes splashTitlePulse {
-            from { text-shadow: 0 0 1.5vw rgba(0,170,255,0.9), 0 0 3vw rgba(0,170,255,0.5), 0 0 6vw rgba(0,80,200,0.3); }
-            to   { text-shadow: 0 0 2vw rgba(0,220,255,1),    0 0 4vw rgba(0,200,255,0.7), 0 0 9vw rgba(0,120,255,0.5); }
+            from {
+                text-shadow: 0 0 1.5vw rgba(0, 170, 255, 0.9), 0 0 3vw rgba(0, 170, 255, 0.5), 0 0 6vw rgba(0, 80, 200, 0.3);
+            }
+
+            to {
+                text-shadow: 0 0 2vw rgba(0, 220, 255, 1), 0 0 4vw rgba(0, 200, 255, 0.7), 0 0 9vw rgba(0, 120, 255, 0.5);
+            }
         }
 
         #play-splash-btn {
@@ -1269,17 +1274,17 @@
             text-transform: uppercase;
             color: #e8f8ff;
             background: linear-gradient(135deg,
-                rgba(0,150,255,0.15) 0%,
-                rgba(0,220,255,0.08) 50%,
-                rgba(0,100,200,0.15) 100%);
-            border: 2px solid rgba(0,200,255,0.6);
+                    rgba(0, 150, 255, 0.15) 0%,
+                    rgba(0, 220, 255, 0.08) 50%,
+                    rgba(0, 100, 200, 0.15) 100%);
+            border: 2px solid rgba(0, 200, 255, 0.6);
             border-radius: 0.6vw;
             cursor: pointer;
             outline: none;
             box-shadow:
-                0 0 2vw rgba(0,170,255,0.5),
-                0 0 4vw rgba(0,100,255,0.3),
-                inset 0 0 1vw rgba(0,200,255,0.1);
+                0 0 2vw rgba(0, 170, 255, 0.5),
+                0 0 4vw rgba(0, 100, 255, 0.3),
+                inset 0 0 1vw rgba(0, 200, 255, 0.1);
             animation: splashBtnPulse 2s ease-in-out infinite alternate;
             transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
             backdrop-filter: blur(2px);
@@ -1290,7 +1295,7 @@
             position: absolute;
             inset: -3px;
             border-radius: 0.8vw;
-            background: linear-gradient(135deg, rgba(0,200,255,0.4), transparent 50%, rgba(100,0,255,0.3));
+            background: linear-gradient(135deg, rgba(0, 200, 255, 0.4), transparent 50%, rgba(100, 0, 255, 0.3));
             mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
             mask-composite: exclude;
@@ -1302,29 +1307,35 @@
         }
 
         @keyframes splashBorderSpin {
-            from { filter: hue-rotate(0deg); }
-            to   { filter: hue-rotate(360deg); }
+            from {
+                filter: hue-rotate(0deg);
+            }
+
+            to {
+                filter: hue-rotate(360deg);
+            }
         }
 
         @keyframes splashBtnPulse {
             from {
-                box-shadow: 0 0 2vw rgba(0,170,255,0.5), 0 0 4vw rgba(0,100,255,0.3), inset 0 0 1vw rgba(0,200,255,0.1);
+                box-shadow: 0 0 2vw rgba(0, 170, 255, 0.5), 0 0 4vw rgba(0, 100, 255, 0.3), inset 0 0 1vw rgba(0, 200, 255, 0.1);
             }
+
             to {
-                box-shadow: 0 0 3vw rgba(0,200,255,0.8), 0 0 6vw rgba(0,150,255,0.5), inset 0 0 1.5vw rgba(0,255,255,0.2);
+                box-shadow: 0 0 3vw rgba(0, 200, 255, 0.8), 0 0 6vw rgba(0, 150, 255, 0.5), inset 0 0 1.5vw rgba(0, 255, 255, 0.2);
             }
         }
 
         #play-splash-btn:hover {
             transform: scale(1.05);
             background: linear-gradient(135deg,
-                rgba(0,180,255,0.25) 0%,
-                rgba(0,240,255,0.15) 50%,
-                rgba(0,130,220,0.25) 100%);
+                    rgba(0, 180, 255, 0.25) 0%,
+                    rgba(0, 240, 255, 0.15) 50%,
+                    rgba(0, 130, 220, 0.25) 100%);
             box-shadow:
-                0 0 3.5vw rgba(0,200,255,0.9),
-                0 0 7vw rgba(0,150,255,0.6),
-                inset 0 0 2vw rgba(0,255,255,0.25);
+                0 0 3.5vw rgba(0, 200, 255, 0.9),
+                0 0 7vw rgba(0, 150, 255, 0.6),
+                inset 0 0 2vw rgba(0, 255, 255, 0.25);
         }
 
         #play-splash-btn:active {
@@ -1339,7 +1350,7 @@
             font-family: 'Orbitron', sans-serif;
             font-size: 0.75vw;
             letter-spacing: 0.3vw;
-            color: rgba(255,255,255,0.25);
+            color: rgba(255, 255, 255, 0.25);
             text-transform: uppercase;
             white-space: nowrap;
             animation: splashHintBlink 2.5s ease-in-out infinite;
@@ -1347,27 +1358,57 @@
         }
 
         @keyframes splashHintBlink {
-            0%, 100% { opacity: 0.25; }
-            50%       { opacity: 0.55; }
+
+            0%,
+            100% {
+                opacity: 0.25;
+            }
+
+            50% {
+                opacity: 0.55;
+            }
         }
 
         /* Orbit rings (decorative) */
         .splash-ring {
             position: absolute;
             border-radius: 50%;
-            border: 1px solid rgba(0,170,255,0.12);
+            border: 1px solid rgba(0, 170, 255, 0.12);
             pointer-events: none;
             z-index: 0;
             animation: splashRingSpin linear infinite;
         }
 
-        .splash-ring:nth-child(1) { width: 40vw; height: 40vw; animation-duration: 18s; border-color: rgba(0,170,255,0.10); }
-        .splash-ring:nth-child(2) { width: 60vw; height: 60vw; animation-duration: 30s; border-color: rgba(100,0,255,0.08); animation-direction: reverse; }
-        .splash-ring:nth-child(3) { width: 80vw; height: 80vw; animation-duration: 45s; border-color: rgba(0,255,200,0.06); }
+        .splash-ring:nth-child(1) {
+            width: 40vw;
+            height: 40vw;
+            animation-duration: 18s;
+            border-color: rgba(0, 170, 255, 0.10);
+        }
+
+        .splash-ring:nth-child(2) {
+            width: 60vw;
+            height: 60vw;
+            animation-duration: 30s;
+            border-color: rgba(100, 0, 255, 0.08);
+            animation-direction: reverse;
+        }
+
+        .splash-ring:nth-child(3) {
+            width: 80vw;
+            height: 80vw;
+            animation-duration: 45s;
+            border-color: rgba(0, 255, 200, 0.06);
+        }
 
         @keyframes splashRingSpin {
-            from { transform: translate(-50%, -50%) rotate(0deg); }
-            to   { transform: translate(-50%, -50%) rotate(360deg); }
+            from {
+                transform: translate(-50%, -50%) rotate(0deg);
+            }
+
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
         }
     </style>
 </head>
@@ -1419,6 +1460,8 @@
                 <button id="play-btn" class="btn-premium menu-btn-base">PLAY</button>
                 <button id="upgrades-menu-btn" class="btn-premium menu-btn-base"
                     style="margin-top: 2.04vh;">UPGRADES</button>
+                <button id="instructions-menu-btn" class="btn-premium menu-btn-base"
+                    style="margin-top: 2.04vh;">INSTRUCTIONS</button>
             </div>
 
             <div id="skip-intro">Click/Space to Skip</div>
@@ -1445,7 +1488,8 @@
                         <span class="lock-icon">🔒</span>
                     </button>
                 </div>
-                <button id="world-select-back" class="btn-premium" style="margin-top: 3vh; font-size: 0.9vw; padding: 1vh 2vw;">BACK</button>
+                <button id="world-select-back" class="btn-premium"
+                    style="margin-top: 3vh; font-size: 0.9vw; padding: 1vh 2vw;">BACK</button>
             </div>
         </div>
 
@@ -1462,11 +1506,13 @@
                     <h3>SETTINGS</h3>
                     <div class="setting-row">
                         <label for="setting-audio-vol">Audio Volume</label>
-                        <input type="range" id="setting-audio-vol" min="0" max="1" step="0.05" value="1" style="width: 8vw;">
+                        <input type="range" id="setting-audio-vol" min="0" max="1" step="0.05" value="1"
+                            style="width: 8vw;">
                     </div>
                     <div class="setting-row">
                         <label for="setting-music-vol">Music Volume</label>
-                        <input type="range" id="setting-music-vol" min="0" max="1" step="0.05" value="1" style="width: 8vw;">
+                        <input type="range" id="setting-music-vol" min="0" max="1" step="0.05" value="1"
+                            style="width: 8vw;">
                     </div>
                     <div class="setting-row">
                         <label for="setting-preset">Graphics Preset</label>
@@ -1501,6 +1547,130 @@
                 <button id="upgrades-btn" class="btn-premium" style="width: 100%; margin-top: 1.02vh;">UPGRADES</button>
                 <button id="game-over-back-btn" class="btn-premium" style="width: 100%; margin-top: 1.02vh;">MAIN
                     MENU</button>
+            </div>
+        </div>
+
+        <!-- Instructions Menu -->
+        <div id="instructions-menu"
+            style="display: none; position: absolute; inset: 0; background: rgba(0, 0, 5, 0.88); z-index: 60; font-family: 'Orbitron', sans-serif; justify-content: center; align-items: center;">
+            <div id="instructions-content"
+                style="text-align: center; color: #fff; width: 75vw; max-width: 1200px; padding: 2vw; background: rgba(0, 170, 255, 0.05); border: 1px solid rgba(0, 170, 255, 0.3); border-radius: 0.5vw;">
+
+                <!-- Page 1 -->
+                <div class="inst-page" id="inst-page-1">
+                    <p style="font-size: 1.8vw; line-height: 1.6; margin-bottom: 2vh;">The galaxy's interstellar highway
+                        system has fallen into disrepair after decades of mismanagement and fusion tax revenue
+                        shortfalls.</p>
+                    <p style="font-size: 1.8vw; line-height: 1.6; color: #aaccff;">Unfortunately, Alpha Centauri is in
+                        the midst of a cost of living crisis. Enjoy your commute.</p>
+                </div>
+
+                <!-- Page 2 -->
+                <div class="inst-page" id="inst-page-2" style="display: none;">
+                    <h2
+                        style="font-size: 2.4vw; color: #fff; text-shadow: 0 0 1vw #0af; margin-bottom: 4vh; letter-spacing: 0.2vw;">
+                        CONTROLS</h2>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 1.5vw; text-align: center;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid rgba(0, 170, 255, 0.5);">
+                                <th style="padding: 1vh; width: 25%;"></th>
+                                <th style="padding: 1vh; width: 25%;">
+                                    <svg viewBox="0 0 24 24"
+                                        style="width: 3vw; height: 3vw; stroke: #fff; fill: none; stroke-width: 2;">
+                                        <rect x="5" y="2" width="14" height="20" rx="7" />
+                                        <line x1="12" y1="2" x2="12" y2="10" />
+                                        <line x1="5" y1="10" x2="19" y2="10" />
+                                    </svg>
+                                </th>
+                                <th style="padding: 1vh; width: 25%;">
+                                    <svg viewBox="0 0 24 24"
+                                        style="width: 6vw; height: 4vw; stroke: #fff; fill: none; stroke-width: 1.2;">
+                                        <rect x="2" y="6" width="20" height="12" rx="2" />
+                                        <rect x="4" y="8" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="6.5" y="8" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="9" y="8" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="11.5" y="8" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="14.5" y="8" width="5" height="1.2" rx="0.3" />
+
+                                        <rect x="4" y="10.5" width="2" height="1.2" rx="0.3" />
+                                        <rect x="7" y="10.5" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="9.5" y="10.5" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="12" y="10.5" width="1.5" height="1.2" rx="0.3" />
+                                        <rect x="14.5" y="10.5" width="5" height="1.2" rx="0.3" />
+
+                                        <rect x="7" y="13.2" width="10" height="1.2" rx="0.3" />
+                                    </svg>
+                                </th>
+                                <th style="padding: 1vh; width: 25%;">
+                                    <svg viewBox="0 0 24 24"
+                                        style="width: 3vw; height: 3vw; stroke: #fff; fill: none; stroke-width: 2; transform: rotate(90deg);">
+                                        <rect x="5" y="2" width="14" height="20" rx="2" />
+                                        <line x1="10" y1="5" x2="14" y2="5" />
+                                    </svg>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                <td style="padding: 2vh; color: #aaccff; font-weight: bold;">Steering</td>
+                                <td style="padding: 2vh;">Follows Cursor</td>
+                                <td style="padding: 2vh;">WASD</td>
+                                <td style="padding: 2vh;">Joystick</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 2vh; color: #aaccff; font-weight: bold;">Boost</td>
+                                <td style="padding: 2vh;">Hold Left Click</td>
+                                <td style="padding: 2vh;">Hold Space</td>
+                                <td style="padding: 2vh;">Hold Boost Button</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Page 3 -->
+                <div class="inst-page" id="inst-page-3" style="display: none; text-align: left;">
+                    <h2
+                        style="font-size: 2.4vw; color: #fff; text-shadow: 0 0 1vw #0af; margin-bottom: 1.5vh; text-align: center; letter-spacing: 0.2vw;">
+                        PICKUPS</h2>
+
+                    <div
+                        style="display: flex; align-items: center; margin-bottom: 1vh; background: rgba(0, 0, 0, 0.3); padding: 2.2vh 5vw; border-radius: 0.5vw; border-left: 0.3vw solid #22ff66;">
+                        <div class="pickup-preview" data-type="credits"
+                            style="width: 6vw; height: 6vw; margin-right: 4vw; flex-shrink: 0; display: flex; justify-content: center; align-items: center; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(34,255,102,0.2);">
+                        </div>
+                        <p style="font-size: 1.4vw; line-height: 1.4;">Credits finance the purchase of upgrades for your
+                            ship.</p>
+                    </div>
+
+                    <div
+                        style="display: flex; align-items: center; margin-bottom: 1vh; background: rgba(0, 0, 0, 0.3); padding: 2.2vh 5vw; border-radius: 0.5vw; border-left: 0.3vw solid #ffcc00;">
+                        <div class="pickup-preview" data-type="fuel"
+                            style="width: 6vw; height: 6vw; margin-right: 4vw; flex-shrink: 0; display: flex; justify-content: center; align-items: center; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,204,0,0.2);">
+                        </div>
+                        <p style="font-size: 1.4vw; line-height: 1.4;">Replenish your fuel, which burns faster while
+                            boosting.</p>
+                    </div>
+
+                    <div
+                        style="display: flex; align-items: center; background: rgba(0, 0, 0, 0.3); padding: 2.2vh 5vw; border-radius: 0.5vw; border-left: 0.3vw solid #44aaff;">
+                        <div class="pickup-preview" data-type="shield"
+                            style="width: 6vw; height: 6vw; margin-right: 4vw; flex-shrink: 0; display: flex; justify-content: center; align-items: center; border-radius: 50%; overflow: hidden; background: rgba(255,255,255,0.05); border: 1px solid rgba(68,170,255,0.2);">
+                        </div>
+                        <p style="font-size: 1.4vw; line-height: 1.4;">Shields make you impervious to damage while
+                            active.</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <div
+                style="position: absolute; bottom: 5vh; width: 100%; display: flex; justify-content: center; gap: 2vw;">
+                <button id="inst-exit-btn" class="btn-premium"
+                    style="padding: 1.5vh 3vw; font-size: 1.2vw;">EXIT</button>
+                <button id="inst-prev-btn" class="btn-premium"
+                    style="padding: 1.5vh 3vw; font-size: 1.2vw;">PREVIOUS</button>
+                <button id="inst-next-btn" class="btn-premium"
+                    style="padding: 1.5vh 3vw; font-size: 1.2vw;">NEXT</button>
             </div>
         </div>
 
@@ -1571,7 +1741,7 @@
         </div>
 
         <div id="startup-fade"></div>
-    <div id="world-transition-flash"></div>
+        <div id="world-transition-flash"></div>
 
         <div id="notification-overlay"></div>
 

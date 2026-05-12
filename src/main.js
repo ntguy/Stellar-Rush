@@ -10,7 +10,7 @@ import {
 
 import { nextObstacle, resetSequencer, currentPatternName, isPatternFinished } from './patterns.js';
 import { spawnMover, spawnLaserTurret, updateEnemies, clearEnemies } from './enemies.js';
-import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles, pickups } from './pickups.js';
+import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup, spawnLowValueFormation, updatePickups, clearPickups, spawnCollectBurst, updateBurstParticles, clearBurstParticles, pickups, createPickupPreview } from './pickups.js';
 import {
     playCrash,
     startShieldHum, startBoostHum, startFuelLowBeep,
@@ -851,6 +851,113 @@ document.getElementById('upgrades-back-btn').addEventListener('click', () => {
     exitUpgradesMenu(scene, camera, aircraft);
 });
 
+/* ── Instructions Menu Logic ──────────────────────────────── */
+let currentInstPage = 1;
+const totalInstPages = 3;
+
+const pickupPreviews = [];
+function initPickupPreviews() {
+    if (pickupPreviews.length > 0) return;
+    const containers = document.querySelectorAll('.pickup-preview');
+    containers.forEach(container => {
+        const type = container.dataset.type;
+        const width = 150;
+        const height = 150;
+        
+        const r = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        r.setSize(width, height);
+        r.domElement.style.width = '100%';
+        r.domElement.style.height = '100%';
+        container.appendChild(r.domElement);
+        
+        const s = new THREE.Scene();
+        const c = new THREE.PerspectiveCamera(40, width/height, 0.1, 100);
+        c.position.z = 6.5;
+        
+        s.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+        dir.position.set(2, 2, 5);
+        s.add(dir);
+        
+        const mesh = createPickupPreview(type);
+        s.add(mesh);
+        
+        pickupPreviews.push({ renderer: r, scene: s, camera: c, mesh: mesh, type: type });
+    });
+}
+
+function updateInstructionsUI() {
+    for (let i = 1; i <= totalInstPages; i++) {
+        const page = document.getElementById(`inst-page-${i}`);
+        if (page) page.style.display = (i === currentInstPage) ? 'block' : 'none';
+    }
+    const prevBtn = document.getElementById('inst-prev-btn');
+    const nextBtn = document.getElementById('inst-next-btn');
+    if (prevBtn) {
+        prevBtn.disabled = (currentInstPage === 1);
+        prevBtn.style.opacity = (currentInstPage === 1) ? '0.5' : '1';
+        prevBtn.style.pointerEvents = (currentInstPage === 1) ? 'none' : 'auto';
+    }
+    if (nextBtn) {
+        nextBtn.disabled = (currentInstPage === totalInstPages);
+        nextBtn.style.opacity = (currentInstPage === totalInstPages) ? '0.5' : '1';
+        nextBtn.style.pointerEvents = (currentInstPage === totalInstPages) ? 'none' : 'auto';
+    }
+
+    if (currentInstPage === 3) {
+        initPickupPreviews();
+    }
+}
+
+document.getElementById('instructions-menu-btn').addEventListener('click', () => {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('instructions-menu').style.display = 'flex';
+    currentInstPage = 1;
+    updateInstructionsUI();
+});
+
+document.getElementById('inst-prev-btn').addEventListener('click', () => {
+    if (currentInstPage > 1) {
+        currentInstPage--;
+        updateInstructionsUI();
+    }
+});
+
+document.getElementById('inst-next-btn').addEventListener('click', () => {
+    if (currentInstPage < totalInstPages) {
+        currentInstPage++;
+        updateInstructionsUI();
+    }
+});
+
+document.getElementById('inst-exit-btn').addEventListener('click', () => {
+    closeInstructions();
+});
+
+function closeInstructions() {
+    localStorage.setItem('hasSeenInstructions', 'true');
+    checkFirstTimePlayer();
+    document.getElementById('instructions-menu').style.display = 'none';
+    document.getElementById('main-menu').style.display = 'flex';
+}
+
+function checkFirstTimePlayer() {
+    const hasSaveData = localStorage.getItem('maxWorldUnlocked') !== null || localStorage.getItem('stellarRushBankedCredits') !== null;
+    const hasSeenInst = localStorage.getItem('hasSeenInstructions') === 'true';
+    
+    const playBtn = document.getElementById('play-btn');
+    const upgradesMenuBtn = document.getElementById('upgrades-menu-btn');
+    
+    if (!hasSaveData && !hasSeenInst) {
+        if (playBtn) { playBtn.disabled = true; playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none'; }
+        if (upgradesMenuBtn) { upgradesMenuBtn.disabled = true; upgradesMenuBtn.style.opacity = '0.5'; upgradesMenuBtn.style.pointerEvents = 'none'; }
+    } else {
+        if (playBtn) { playBtn.disabled = false; playBtn.style.opacity = '1'; playBtn.style.pointerEvents = 'auto'; }
+        if (upgradesMenuBtn) { upgradesMenuBtn.disabled = false; upgradesMenuBtn.style.opacity = '1'; upgradesMenuBtn.style.pointerEvents = 'auto'; }
+    }
+}
+checkFirstTimePlayer();
+
 /* ═══════════════════════════════════════════════════════════
    CLOCK  /  RAYCASTER
    ═══════════════════════════════════════════════════════════ */
@@ -1313,6 +1420,20 @@ function animate() {
     /* ── MENU state ───────────────────────────────────── */
     if (gameState === 'MENU') {
         if (menuController) menuController.update(dt);
+        
+        if (document.getElementById('instructions-menu').style.display !== 'none' && currentInstPage === 3) {
+            pickupPreviews.forEach(p => {
+                if (p.type === 'fuel') {
+                    p.mesh.rotation.y -= dt * 4.0;
+                    p.mesh.rotation.x -= dt * 2.5;
+                } else {
+                    p.mesh.rotation.y += dt * 3;
+                    p.mesh.rotation.x += dt * 1.7;
+                }
+                p.renderer.render(p.scene, p.camera);
+            });
+        }
+        
         renderer.render(scene, camera);
         stats.end();
         return;

@@ -283,6 +283,29 @@ export function spawnShieldPickup(scene, pos) {
     if (pos && pos.patternName) logIfCloseToEdge(m.position, 'shield', pos.patternName);
 }
 
+export function createPickupPreview(type) {
+    let m;
+    if (type === 'fuel') {
+        m = new THREE.Mesh(fuelGeo, fuelMat.clone());
+        m.add(new THREE.Mesh(fuelHazeGeo, fuelHazeMat.clone()));
+    } else if (type === 'credits') {
+        m = new THREE.Mesh(highValueGeo, highValueMat.clone());
+        m.add(new THREE.Mesh(highValueHazeGeo, highValueHazeMat.clone()));
+    } else if (type === 'shield') {
+        m = new THREE.Mesh(shieldGeo, shieldMatClone.clone());
+        m.add(new THREE.Mesh(shieldHazeGeo, shieldHazeMat.clone()));
+    }
+    if (m) {
+        m.material.transparent = true;
+        m.material.opacity = 1;
+        if (m.children[0]) {
+            m.children[0].material.transparent = true;
+            m.children[0].material.opacity = 0.25;
+        }
+    }
+    return m;
+}
+
 /* ═══════════════════════════════════════════════════════════
    UPDATE
    ═══════════════════════════════════════════════════════════ */
