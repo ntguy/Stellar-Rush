@@ -21,6 +21,7 @@ export const LEVELS = [
         duration: 40,                 // seconds
         speedMultiplier: 1.0,         // base speed multiplier
         tunnelColor: new THREE.Color(0x4488ff),  // blue
+        hudColor: new THREE.Color(0x4488ff),
         obstacleInterval: 1.6,        // seconds between obstacles
         enemyInterval: 9,             // seconds between enemy waves
         enemyMaxCount: 1,             // max enemies per wave
@@ -48,6 +49,7 @@ export const LEVELS = [
         duration: 49,                 // seconds
         speedMultiplier: 1.10,        // +10% speed
         tunnelColor: new THREE.Color(0xff44ff),  // magenta
+        hudColor: new THREE.Color(0xff44ff),
         obstacleInterval: 1.5,        // faster obstacle spawn
         enemyInterval: 7,             
         enemyMaxCount: 2,             // up to 2 enemies per wave
@@ -67,6 +69,7 @@ export const LEVELS = [
         duration: 58,                 // 58 seconds, then world transition
         speedMultiplier: 1.25,        // +25%
         tunnelColor: new THREE.Color(0xff3333),  // red
+        hudColor: new THREE.Color(0xff3333),
         obstacleInterval: 1.4,        // tight obstacle spawn
         enemyInterval: 5,             
         enemyMaxCount: 3,             // up to 3 enemies per wave
@@ -106,7 +109,18 @@ export const WORLD_2_LEVELS = [
         level: 4,
         duration: 40,
         speedMultiplier: 1.0,
-        tunnelColor: new THREE.Color(0x4488ff),  // re-used for HUD tinting
+        hudColor: new THREE.Color(0x4488ff),
+        timeOfDay: {
+            skyColor: new THREE.Color(0x5588bb),
+            fogColor: new THREE.Color(0x7799bb),
+            oceanDeep: new THREE.Color(0.01, 0.04, 0.12),
+            oceanSurface: new THREE.Color(0.06, 0.25, 0.35),
+            oceanFog: new THREE.Color(0.55, 0.72, 0.88),
+            cloudColor: new THREE.Color(0.90, 0.93, 0.98),
+            ambientLight: new THREE.Color(0x88aacc),
+            sunLight: new THREE.Color(0xffeedd),
+            fillLight: new THREE.Color(0x6688bb),
+        },
         obstacleInterval: 1.6,
         enemyInterval: 9,
         enemyMaxCount: 1,
@@ -135,7 +149,18 @@ export const WORLD_2_LEVELS = [
         level: 5,
         duration: 50,
         speedMultiplier: 1.10,
-        tunnelColor: new THREE.Color(0xff8844),
+        hudColor: new THREE.Color(0xff8844),
+        timeOfDay: {
+            skyColor: new THREE.Color(0x6677aa),
+            fogColor: new THREE.Color(0x8888aa),
+            oceanDeep: new THREE.Color(0.01, 0.04, 0.12),
+            oceanSurface: new THREE.Color(0.08, 0.20, 0.32),
+            oceanFog: new THREE.Color(0.65, 0.68, 0.82),
+            cloudColor: new THREE.Color(0.92, 0.88, 0.90),
+            ambientLight: new THREE.Color(0x8899bb),
+            sunLight: new THREE.Color(0xffddcc),
+            fillLight: new THREE.Color(0x6677aa),
+        },
         obstacleInterval: 1.5,
         enemyInterval: 7,
         enemyMaxCount: 2,
@@ -168,7 +193,18 @@ export const WORLD_2_LEVELS = [
         level: 6,
         duration: 60,
         speedMultiplier: 1.25,
-        tunnelColor: new THREE.Color(0xaa44ff),
+        hudColor: new THREE.Color(0xaa44ff),
+        timeOfDay: {
+            skyColor: new THREE.Color(0x886699),
+            fogColor: new THREE.Color(0x997788),
+            oceanDeep: new THREE.Color(0.02, 0.03, 0.10),
+            oceanSurface: new THREE.Color(0.12, 0.15, 0.28),
+            oceanFog: new THREE.Color(0.72, 0.62, 0.75),
+            cloudColor: new THREE.Color(0.95, 0.82, 0.75),
+            ambientLight: new THREE.Color(0x9988aa),
+            sunLight: new THREE.Color(0xffaa88),
+            fillLight: new THREE.Color(0x7766aa),
+        },
         obstacleInterval: 1.4,
         enemyInterval: 6,
         enemyMaxCount: 3,
@@ -192,8 +228,8 @@ export const WORLD_2_LEVELS = [
             tubeRotationSpeed: 1.2,
 
             // World 2 Specific: Simon
-            simonShapeSize: 5.0,
-            simonShapeSpacing: 14,
+            simonShapeSize: 4.5,
+            simonShapeSpacing: 20,
         },
     },
 ];
@@ -225,7 +261,7 @@ export const WORLDS = [
 
 /* ═══════════════════════════════════════════════════════════
    TUNNEL COLOR TRANSITION — Level Scaling
-   5-second lerp between two colours.
+   10-second lerp between two colours.
    ═══════════════════════════════════════════════════════════ */
 export const TUNNEL_TRANSITION_DURATION = 10.0; // seconds
 
@@ -242,6 +278,24 @@ export function lerpTunnelColor(fromColor, toColor, t) {
     c.g = THREE.MathUtils.lerp(fromColor.g, toColor.g, t);
     c.b = THREE.MathUtils.lerp(fromColor.b, toColor.b, t);
     return c;
+}
+
+/**
+ * Returns an interpolated timeOfDay config object.
+ */
+export function lerpTimeOfDay(fromTOD, toTOD, t) {
+    if (!fromTOD || !toTOD) return fromTOD;
+    return {
+        skyColor: fromTOD.skyColor.clone().lerp(toTOD.skyColor, t),
+        fogColor: fromTOD.fogColor.clone().lerp(toTOD.fogColor, t),
+        oceanDeep: fromTOD.oceanDeep.clone().lerp(toTOD.oceanDeep, t),
+        oceanSurface: fromTOD.oceanSurface.clone().lerp(toTOD.oceanSurface, t),
+        oceanFog: fromTOD.oceanFog.clone().lerp(toTOD.oceanFog, t),
+        cloudColor: fromTOD.cloudColor.clone().lerp(toTOD.cloudColor, t),
+        ambientLight: fromTOD.ambientLight.clone().lerp(toTOD.ambientLight, t),
+        sunLight: fromTOD.sunLight.clone().lerp(toTOD.sunLight, t),
+        fillLight: fromTOD.fillLight.clone().lerp(toTOD.fillLight, t),
+    };
 }
 
 

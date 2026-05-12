@@ -20,11 +20,11 @@ import {
     crossfadeMusicTheme, stopGameplayMusic
 } from './audio.js';
 import { initTunnel, updateTunnel, clearTunnel, setTunnelColor, getTunnelColor, setTunnelOpacity } from './tunnel.js';
-import { LEVELS, WORLD_2_LEVELS, WORLDS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, spawnInterLevelFormation } from './levels.js';
+import { LEVELS, WORLD_2_LEVELS, WORLDS, TUNNEL_TRANSITION_DURATION, lerpTunnelColor, lerpTimeOfDay, spawnInterLevelFormation } from './levels.js';
 import {
     createTransitionPlanet, updateTransitionPlanet, clearTransitionPlanet,
     createFogOverlay, setFogOverlayOpacity, clearFogOverlay,
-    initWorld2, updateWorld2, clearWorld2, isWorld2Active
+    initWorld2, updateWorld2, clearWorld2, isWorld2Active, setWorld2TimeOfDay
 } from './world2.js';
 import { setupMenuNavigation, handleMenuInput, clearMenuFocus } from './keyboardMenus.js';
 import { makeAircraft } from './aircraft.js';
@@ -648,9 +648,13 @@ let levelState = 'PLAYING';
 let transitionFormationDepth = 0;  // Z-depth of spawned inter-level formation
 let transitionWaitTimer = 0;       // counts up while waiting for formation to pass
 let formationSpawned = false;      // true once inter-level formation is triggered
-let colorShiftTimer = 0;           // 0→TUNNEL_TRANSITION_DURATION during colour shift
+let colorShiftTimer = 999;           // 0→TUNNEL_TRANSITION_DURATION during colour shift
 let colorShiftFrom = null;         // THREE.Color we're transitioning from
 let colorShiftTo = null;           // THREE.Color we're transitioning to
+let hudColorShiftFrom = null;
+let hudColorShiftTo = null;
+let todShiftFrom = null;
+let todShiftTo = null;
 
 /* ── Pickup slot pool ──────────────────────────────────────
    nextObstacle() returns slot arrays; we accumulate them here
@@ -759,6 +763,18 @@ const elFuel      = document.getElementById('fuel-bar');
 const elFuelBoost = document.getElementById('fuel-bar-boost');
 const elBoost   = document.getElementById('boost-indicator');
 const elShield  = document.getElementById('shield-indicator');
+
+let currentHudColorHex = '#4488ff';
+
+function setHudColor(c) {
+    if (!c) return;
+    currentHudColorHex = '#' + c.getHexString();
+    elFuel.style.background = `linear-gradient(90deg, ${currentHudColorHex}, #0ff)`;
+    elBoost.style.color = currentHudColorHex;
+    elShield.style.color = currentHudColorHex;
+    elCredits.style.textShadow = `0 0 0.66vw ${currentHudColorHex}`;
+}
+
 const elOverlay = document.getElementById('game-over');
 const elFinalCredits   = document.getElementById('final-credits');
 const elHud     = document.getElementById('hud');
@@ -989,9 +1005,13 @@ function init() {
     transitionFormationDepth = 0;
     transitionWaitTimer = 0;
     formationSpawned = false;
-    colorShiftTimer = 0;
+    colorShiftTimer = 999;
     colorShiftFrom = null;
     colorShiftTo = null;
+    hudColorShiftFrom = null;
+    hudColorShiftTo = null;
+    todShiftFrom = null;
+    todShiftTo = null;
     worldTransitionState = 'NONE';
     worldTransitionTimer = 0;
     asteroidGlobalOpacity = 1.0;
@@ -1070,7 +1090,10 @@ function init() {
             scene.add(scene.userData.starField);
         }
         initTunnel(scene);
-        setTunnelColor(activeLevels[0].tunnelColor);
+        if (activeLevels[0].tunnelColor) {
+            setTunnelColor(activeLevels[0].tunnelColor);
+        }
+        setHudColor(activeLevels[0].hudColor);
         if (planetMesh) {
             scene.remove(planetMesh);
             planetMesh.geometry.dispose();
@@ -1086,6 +1109,7 @@ function init() {
     } else if (currentWorldIdx === 1) {
         // World 2 init — cloud kingdom
         initWorld2(scene, camera);
+        setWorld2TimeOfDay(activeLevels[0].timeOfDay);
         crossfadeMusicTheme('world2');
     }
 
@@ -1700,6 +1724,24 @@ function animate() {
     camera.position.y += ((aircraft.position.y * 0.25 + 4.5) - camera.position.y) * 3 * dt;
     camera.lookAt(aircraft.position.x * 0.2, aircraft.position.y * 0.2, -35);
 
+
+
+    /* ── Color & Time of Day Transitions ─────────────────────── */
+    if (colorShiftTimer < TUNNEL_TRANSITION_DURATION) {
+        colorShiftTimer += dt;
+        const ct = Math.min(colorShiftTimer / TUNNEL_TRANSITION_DURATION, 1.0);
+        
+        if (colorShiftFrom && colorShiftTo) {
+            setTunnelColor(lerpTunnelColor(colorShiftFrom, colorShiftTo, ct));
+        }
+        if (hudColorShiftFrom && hudColorShiftTo) {
+            setHudColor(lerpTunnelColor(hudColorShiftFrom, hudColorShiftTo, ct));
+        }
+        if (todShiftFrom && todShiftTo) {
+            setWorld2TimeOfDay(lerpTimeOfDay(todShiftFrom, todShiftTo, ct));
+        }
+    }
+
     /* ── Level State Machine (Level Scaling) ────────────────── */
     if (levelState === 'PLAYING') {
         levelTimer += dt;
@@ -1814,26 +1856,22 @@ function animate() {
             formationSpawned = true;
 
             // Level Scaling — capture color shift start state now that obstacles have cleared
-            colorShiftFrom = getTunnelColor().clone();
-            colorShiftTo = activeLevels[targetLevelIdx].tunnelColor;
+            colorShiftFrom = getTunnelColor() ? getTunnelColor().clone() : null;
+            colorShiftTo = activeLevels[targetLevelIdx].tunnelColor || null;
+            hudColorShiftFrom = activeLevels[currentLevelIdx].hudColor;
+            hudColorShiftTo = activeLevels[targetLevelIdx].hudColor;
+            todShiftFrom = activeLevels[currentLevelIdx].timeOfDay;
+            todShiftTo = activeLevels[targetLevelIdx].timeOfDay;
             colorShiftTimer = 0;
         }
         
         if (formationSpawned) {
-            // Level Scaling — process tunnel color shift during the formation phase
-            if (colorShiftFrom && colorShiftTo) {
-                colorShiftTimer += dt;
-                const ct = Math.min(colorShiftTimer / TUNNEL_TRANSITION_DURATION, 1.0);
-                setTunnelColor(lerpTunnelColor(colorShiftFrom, colorShiftTo, ct));
-            }
-
             // Start next level as soon as the formation has cleared SPAWN_Z with a small buffer
             const distanceToCover = transitionFormationDepth + 60;
             const timeToCover = (distanceToCover / speed) + EMPTY_SPACE_DELAY;
             
-            // Return to PLAYING once formation has passed AND color shift is complete
-            const colorDone = colorShiftTimer >= TUNNEL_TRANSITION_DURATION;
-            if (transitionWaitTimer > timeToCover && colorDone) {
+            // Return to PLAYING once formation has passed (Time of Day transition continues in background)
+            if (transitionWaitTimer > timeToCover) {
                 currentLevelIdx = targetLevelIdx;
                 levelState = 'PLAYING';
                 levelTimer = 0;
@@ -1911,6 +1949,8 @@ function animate() {
             resetSequencer();
             pendingPickups.length = 0;
             initWorld2(scene, camera);
+            setWorld2TimeOfDay(activeLevels[0].timeOfDay);
+            setHudColor(activeLevels[0].hudColor);
             crossfadeMusicTheme('world2');
 
             // Unlock World 2 in persistence

@@ -224,6 +224,9 @@ function _buildOcean(scene) {
             uTime:    { value: 0 },
             uOffset:  { value: 0 },
             uSunDir:  { value: new THREE.Vector3(0.3, 0.8, -0.5).normalize() },
+            uOceanDeep: { value: new THREE.Color(0.01, 0.04, 0.12) },
+            uOceanSurface: { value: new THREE.Color(0.06, 0.25, 0.35) },
+            uOceanFog: { value: new THREE.Color(0.55, 0.72, 0.88) },
         },
         vertexShader: `
             varying vec2 vUv;
@@ -238,6 +241,9 @@ function _buildOcean(scene) {
             uniform float uTime;
             uniform float uOffset;
             uniform vec3 uSunDir;
+            uniform vec3 uOceanDeep;
+            uniform vec3 uOceanSurface;
+            uniform vec3 uOceanFog;
             varying vec2 vUv;
             varying vec3 vWorldPos;
             ${GLSL_NOISE}
@@ -249,9 +255,7 @@ function _buildOcean(scene) {
                 float wave = n1 * 0.6 + n2 * 0.4;
 
                 // Deep blue → surface teal
-                vec3 deep    = vec3(0.01, 0.04, 0.12);
-                vec3 surface = vec3(0.06, 0.25, 0.35);
-                vec3 col = mix(deep, surface, wave);
+                vec3 col = mix(uOceanDeep, uOceanSurface, wave);
 
                 // Sun glint — fake specular
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
@@ -267,8 +271,7 @@ function _buildOcean(scene) {
                 // Distance fade
                 float dist = length(vWorldPos.xz - cameraPosition.xz);
                 float fogT = smoothstep(400.0, 1200.0, dist);
-                vec3 fogCol = vec3(0.55, 0.72, 0.88);
-                col = mix(col, fogCol, fogT);
+                col = mix(col, uOceanFog, fogT);
 
                 gl_FragColor = vec4(col, 1.0);
             }`,
@@ -830,3 +833,27 @@ export function clearWorld2(scene, camera) {
 }
 
 export function isWorld2Active() { return _active; }
+
+export function setWorld2TimeOfDay(cfg) {
+    if (!_scene || !cfg) return;
+    _scene.background.copy(cfg.skyColor);
+    _scene.fog.color.copy(cfg.fogColor);
+    
+    if (_oceanMesh) {
+        _oceanMesh.material.uniforms.uOceanDeep.value.copy(cfg.oceanDeep);
+        _oceanMesh.material.uniforms.uOceanSurface.value.copy(cfg.oceanSurface);
+        _oceanMesh.material.uniforms.uOceanFog.value.copy(cfg.oceanFog);
+    }
+    
+    if (_w2Lights.length >= 3) {
+        _w2Lights[0].color.copy(cfg.ambientLight);
+        _w2Lights[1].color.copy(cfg.sunLight);
+        _w2Lights[2].color.copy(cfg.fillLight);
+    }
+    
+    for (const layer of _cloudLayers) {
+        if (layer.mat.uniforms.uColor) {
+            layer.mat.uniforms.uColor.value.copy(cfg.cloudColor);
+        }
+    }
+}
