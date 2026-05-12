@@ -5,7 +5,7 @@
    inter-level pickup formation patterns.
    ═══════════════════════════════════════════════════════════ */
 import { BOUNDS_X, BOUNDS_Y, SPAWN_Z, PLANE_RADIUS } from './config.js';
-import { spawnFuelPickup, spawnLowValuePickup } from './pickups.js';
+import { spawnFuelPickup, spawnLowValuePickup, spawnSuperHighValuePickup } from './pickups.js';
 import * as THREE from 'three';
 
 /* ═══════════════════════════════════════════════════════════
@@ -422,7 +422,7 @@ const ALL_FORMATIONS = [
  * @param {THREE.Scene} scene
  * @returns {{ totalDepth: number }}  absolute Z span of the formation
  */
-export function spawnInterLevelFormation(scene) {
+export function spawnInterLevelFormation(scene, speed = 0, spawnSuper = false) {
     const formationFn = ALL_FORMATIONS[Math.floor(Math.random() * ALL_FORMATIONS.length)];
     const positions = formationFn();
 
@@ -451,5 +451,18 @@ export function spawnInterLevelFormation(scene) {
     }
 
     // Total depth = how far back the formation extends (including the fuel pickup)
-    return { totalDepth: Math.abs(minZ) + Z_STEP };
+    let totalDepth = Math.abs(minZ) + Z_STEP;
+
+    // Optional: Spawn a super high value pickup (500 credits) 3 seconds after the fuel
+    if (spawnSuper && lastPos && speed) {
+        const superOffset = speed * 2.0;
+        spawnSuperHighValuePickup(scene, {
+            x: 0,
+            y: 0,
+            z: SPAWN_Z + lastPos.zOffset - Z_STEP - superOffset
+        });
+        totalDepth += superOffset;
+    }
+
+    return { totalDepth };
 }

@@ -193,6 +193,38 @@ export function spawnHighValuePickup(scene, pos) {
     if (pos && pos.patternName) logIfCloseToEdge(m.position, 'credits_high', pos.patternName);
 }
 
+export function spawnSuperHighValuePickup(scene, pos) {
+    const mainMat = new THREE.MeshStandardMaterial({ 
+        color: 0x22ff66, 
+        metalness: 0.9, 
+        roughness: 0.05, 
+        emissive: 0x44ff88, 
+        emissiveIntensity: 0.5
+    });
+
+    mainMat.transparent = true;
+    mainMat.opacity = 0;
+    
+    const superHighValueGeo = new THREE.IcosahedronGeometry(2, 2);
+    const m = new THREE.Mesh(superHighValueGeo, mainMat);
+
+    const hazeMat = highValueHazeMat.clone();
+    hazeMat.opacity = 0;
+    const haze = new THREE.Mesh(highValueHazeGeo, hazeMat);
+    haze.scale.setScalar(1.3);
+    m.add(haze);
+
+    m.add(new THREE.PointLight(0x44ff88, 0, 25));
+    if (pos) {
+        m.position.set(pos.x, pos.y, pos.z);
+    } else {
+        m.position.set((Math.random() - 0.5) * BOUNDS_X * 0.8, (Math.random() - 0.5) * BOUNDS_Y * 0.6, SPAWN_Z);
+    }
+    scene.add(m);
+    pickups.push({ mesh: m, type: 'credits_super', fadeAge: 0, haze });
+    if (pos && pos.patternName) logIfCloseToEdge(m.position, 'credits_super', pos.patternName);
+}
+
 const _lowGeo = new THREE.OctahedronGeometry(0.55, 0);
 const _lowMat = new THREE.MeshBasicMaterial({ color: 0x55ee99 });
 
@@ -282,7 +314,7 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
             // Fade point lights if they exist
             p.mesh.children.forEach(c => {
                 if (c.isPointLight) {
-                    const targetInt = (p.type === 'fuel') ? 4 : (p.type === 'credits_high' || p.type === 'shield' ? 3 : 1.5);
+                    const targetInt = (p.type === 'fuel') ? 4 : (p.type === 'credits_super' ? 5 : (p.type === 'credits_high' || p.type === 'shield' ? 3 : 1.5));
                     c.intensity = t * targetInt;
                 }
             });
@@ -306,6 +338,11 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
 
                 case 'credits_high':
                     result.credits += 200;
+                    result.creditsPos = p.mesh.position.clone();
+                    playCollect1();
+                    break;
+                case 'credits_super':
+                    result.credits += 500;
                     result.creditsPos = p.mesh.position.clone();
                     playCollect1();
                     break;

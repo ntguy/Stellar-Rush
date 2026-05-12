@@ -1688,7 +1688,7 @@ function animate() {
         const EMPTY_SPACE_DELAY = 1.0; 
 
         if (!formationSpawned && transitionWaitTimer >= EMPTY_SPACE_DELAY) {
-            const depthInfo = spawnInterLevelFormation(scene);
+            const depthInfo = spawnInterLevelFormation(scene, speed);
             transitionFormationDepth = depthInfo.totalDepth;
             formationSpawned = true;
 
@@ -1734,7 +1734,7 @@ function animate() {
             setTunnelOpacity(0.2 * tunnelFade);
 
             if (!formationSpawned && worldTransitionTimer >= 1.0) {
-                const depthInfo = spawnInterLevelFormation(scene);
+                const depthInfo = spawnInterLevelFormation(scene, speed, true);
                 transitionFormationDepth = depthInfo.totalDepth;
                 formationSpawned = true;
             }
