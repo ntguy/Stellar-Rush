@@ -15,19 +15,28 @@ const _magnetDir = new THREE.Vector3();
 /* ═══════════════════════════════════════════════════════════
    SHARED GEOMETRIES & MATERIALS
    ═══════════════════════════════════════════════════════════ */
-const fuelGeo = new THREE.OctahedronGeometry(1.0, 0);
-const fuelMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-const fuelHazeGeo = new THREE.SphereGeometry(2.8, 8, 6);
+const fuelGeo = new THREE.CapsuleGeometry( 0.7, 1, 6, 12, 1 );
+const fuelMat = new THREE.MeshStandardMaterial({ 
+    color: 0xffcc00, 
+    metalness: 0.8, 
+    roughness: 0.1, 
+    emissive: 0xff8800, 
+    emissiveIntensity: 0.7
+});
+const fuelHazeGeo = new THREE.SphereGeometry(2.8, 16, 8);
 const fuelHazeMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false });
 
-const highValueGeo = new THREE.OctahedronGeometry(1.1, 0);
+const highValueGeo = new THREE.IcosahedronGeometry(1.3, 0);
 const highValueMat = new THREE.MeshBasicMaterial({ color: 0x22ff66 });
-const highValueHazeGeo = new THREE.SphereGeometry(3.0, 8, 6);
-const highValueHazeMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.20, side: THREE.BackSide, depthWrite: false });
+const highValueHazeGeo = new THREE.SphereGeometry(2.8, 16, 8);
+const highValueHazeMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false });
 
-const shieldGeo = new THREE.TorusGeometry(0.55, 0.2, 6, 8);
+const shieldGeo = new THREE.TorusGeometry(0.7, 0.25, 6, 8);
 const shieldMatClone = matShield.clone();
 shieldMatClone.opacity = 0.7;
+
+const shieldHazeGeo = new THREE.SphereGeometry(2.8, 16, 8);
+const shieldHazeMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false });
 
 /* ═══════════════════════════════════════════════════════════
    SHARED STATE
@@ -225,6 +234,12 @@ export function spawnShieldPickup(scene, pos) {
     mat.transparent = true;
     mat.opacity = 0;
     const m = new THREE.Mesh(shieldGeo, mat);
+
+    const hazeMat = shieldHazeMat.clone();
+    hazeMat.opacity = 0;
+    const haze = new THREE.Mesh(shieldHazeGeo, hazeMat);
+    m.add(haze);
+
     if (pos) {
         m.position.set(pos.x, pos.y, pos.z);
     } else {
@@ -232,7 +247,7 @@ export function spawnShieldPickup(scene, pos) {
     }
     m.add(new THREE.PointLight(0x33aaff, 0, 10));
     scene.add(m);
-    pickups.push({ mesh: m, type: 'shield', fadeAge: 0 });
+    pickups.push({ mesh: m, type: 'shield', fadeAge: 0, haze });
     if (pos && pos.patternName) logIfCloseToEdge(m.position, 'shield', pos.patternName);
 }
 
@@ -245,8 +260,13 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
     for (let i = pickups.length - 1; i >= 0; i--) {
         const p = pickups[i];
         p.mesh.position.z += speed * dt;
-        p.mesh.rotation.y += dt * 3;
-        p.mesh.rotation.x += dt * 1.7;
+        if (p.type === 'fuel') {
+            p.mesh.rotation.y -= dt * 4.0;
+            p.mesh.rotation.x -= dt * 2.5;
+        } else {
+            p.mesh.rotation.y += dt * 3;
+            p.mesh.rotation.x += dt * 1.7;
+        }
 
         // Handle fade-in
         if (p.fadeAge < OBS_FADE_TIME) {
@@ -262,7 +282,7 @@ export function updatePickups(scene, dt, speed, aircraftPos, magnetStrength = 0)
             // Fade point lights if they exist
             p.mesh.children.forEach(c => {
                 if (c.isPointLight) {
-                    const targetInt = (p.type === 'fuel') ? 4 : (p.type === 'credits_high' ? 3 : 1.5);
+                    const targetInt = (p.type === 'fuel') ? 4 : (p.type === 'credits_high' || p.type === 'shield' ? 3 : 1.5);
                     c.intensity = t * targetInt;
                 }
             });
