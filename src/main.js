@@ -1897,7 +1897,18 @@ function animate() {
 
         /* ── Ambient planet ───────────────────────────────── */
         planetSpawnTimer += dt;
-        if (planetSpawnTimer >= 0) { planetSpawnTimer -= PLANET_INTERVAL; spawnPlanet(); }
+        if (planetSpawnTimer >= 0) {
+            planetSpawnTimer -= PLANET_INTERVAL;
+
+            // Prevent planet spawn if we are in World 1 and nearing the World 2 transition,
+            // or if we are already in the World transition phase.
+            const isNearWorldTransition = (levelState === 'WORLD_TRANSITION') ||
+                (currentLevel && currentLevel.level === 3 && levelTimer > (currentLevel.duration - 15));
+
+            if (!isNearWorldTransition) {
+                spawnPlanet();
+            }
+        }
         updatePlanet(dt, speed);
     } else if (currentWorldIdx === 1) {
         /* ── World 2 environment ──────────────────────────── */
