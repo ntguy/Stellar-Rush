@@ -53,6 +53,7 @@ import { inputManager } from './inputManager.js';
    ═══════════════════════════════════════════════════════════ */
 let gameState = 'MENU';
 let paused = false;
+let devPaused = false;
 let menuController = null;
 let currentScore = 0;
 let distanceTraveled = 0;
@@ -743,8 +744,14 @@ inputManager.on('onMenuAction', key => {
 });
 
 inputManager.on('onPauseAction', () => {
-    if (gameState === 'PLAYING') {
+    if (gameState === 'PLAYING' && !devPaused) {
         togglePause();
+    }
+});
+
+inputManager.on('onDevPauseAction', () => {
+    if (gameState === 'PLAYING' && !paused) {
+        toggleDevPause();
     }
 });
 
@@ -992,6 +999,7 @@ function init() {
     gameOver = false;
     fuelOut = false; fuelOutTimer = 0;
     paused = false;
+    devPaused = false;
 
     // World system — set the active level array based on selected world
     currentWorldIdx = selectedWorldIdx;
@@ -1140,7 +1148,7 @@ function restart() { init(); }
    PAUSE / MENU TRANSITIONS
    ═══════════════════════════════════════════════════════════ */
 function togglePause() {
-    if (gameOver) return;
+    if (gameOver || devPaused) return;
     paused = !paused;
     if (paused) {
         elPause.classList.add('show');
@@ -1160,8 +1168,59 @@ function togglePause() {
     }
 }
 
+function toggleDevPause() {
+    if (gameOver || paused) return;
+    devPaused = !devPaused;
+    
+    if (devPaused) {
+        // Silent Pause: No UI
+        elHud.classList.add('hidden');
+        elMenuBtn.classList.remove('visible');
+        const mobileControls = document.getElementById('mobile-controls');
+        if (mobileControls) mobileControls.classList.remove('visible');
+        
+        // Hide notifications if any
+        const elNotify = document.getElementById('notification-overlay');
+        if (elNotify) elNotify.classList.remove('show');
+
+        // Hide world transition flash if active
+        const elFlash = document.getElementById('world-transition-flash');
+        if (elFlash) elFlash.style.opacity = '0';
+        
+        // Also hide stats and perf monitor
+        stats.dom.style.display = 'none';
+        if (elPerfMonitor) elPerfMonitor.classList.remove('visible');
+        
+        document.body.style.cursor = 'none';
+
+        // Stop looping sounds
+        stopBoostHum?.();
+        stopBoostHum = null;
+        stopShieldHum?.();
+        stopShieldHum = null;
+        stopFuelLowBeep();
+    } else {
+        // Restore UI
+        elHud.classList.remove('hidden');
+        elMenuBtn.classList.add('visible');
+        if (inputManager.isMobile) {
+            const mobileControls = document.getElementById('mobile-controls');
+            if (mobileControls) mobileControls.classList.add('visible');
+        }
+        
+        // Restore stats/perf if they were on
+        if (settings.fpsEnabled) stats.dom.style.display = 'block';
+        if (perfMonitorEnabled && elPerfMonitor) elPerfMonitor.classList.add('visible');
+        
+        document.body.style.cursor = inputManager.controlMode === 'KEYBOARD' ? 'none' : 'crosshair';
+
+        clock.getDelta(); // eat accumulated dt
+    }
+}
+
 function backToMainMenu() {
     paused = false;
+    devPaused = false;
     elPause.classList.remove('show');
     elOverlay.classList.remove('show');
     const ws = document.getElementById('world-select');
@@ -1435,7 +1494,7 @@ function animate() {
     let dt = Math.min(clock.getDelta(), 0.1);
     let boosting = false;
 
-    if (gameState === 'PLAYING' && !paused && !gameOver) {
+    if (gameState === 'PLAYING' && !paused && !devPaused && !gameOver) {
         boosting = inputManager.actions.boost;
     }
 
@@ -1464,7 +1523,7 @@ function animate() {
     }
 
     /* ── PAUSED ───────────────────────────────────────── */
-    if (paused) { renderer.render(scene, camera); stats.end(); return; }
+    if (paused || devPaused) { renderer.render(scene, camera); stats.end(); return; }
 
     if (gameOver) { renderer.render(scene, camera); stats.end(); return; }
 

@@ -1,6 +1,4 @@
-/* ═══════════════════════════════════════════════════════════
-   INPUT MANAGER
-   ═══════════════════════════════════════════════════════════ */
+import { DEVELOPMENT_MODE } from './config.js';
 
 export class InputManager {
     constructor() {
@@ -33,6 +31,7 @@ export class InputManager {
             onControlModeChange: [],
             onMenuAction: [],
             onPauseAction: [],
+            onDevPauseAction: [],
             onAnyInput: []
         };
 
@@ -110,6 +109,11 @@ export class InputManager {
             this.rawKeys[key] = true;
             this.setControlMode('KEYBOARD');
             this._fireEvent('onMenuAction', e.key); // Pass the original key for menu handling
+        }
+
+        if (DEVELOPMENT_MODE && key === 'p') {
+            this._fireEvent('onDevPauseAction');
+            return;
         }
 
         if (key === ' ') this.actions.boost = true;

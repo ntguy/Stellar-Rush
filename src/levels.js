@@ -228,8 +228,8 @@ export const WORLD_2_LEVELS = [
             tubeRotationSpeed: 1.2,
 
             // World 2 Specific: Simon
-            simonShapeSize: 4.5,
-            simonShapeSpacing: 20,
+            simonShapeSize: 5.5,
+            simonShapeSpacing: 16,
         },
     },
 ];
