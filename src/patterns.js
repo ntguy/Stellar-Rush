@@ -1179,7 +1179,7 @@ export function patternSimon(params = {}) {
     const shapeSize = params.simonShapeSize || (lvl === 5 ? 5.5 : 5.0);
     const shapeSpacing = params.simonShapeSpacing || (lvl === 5 ? 16 : 14);
     const zSpacing = speed * 1.2; 
-    const infoZSpacing = zSpacing * 0.7; // Info shapes 30% closer together
+    const infoZSpacing = zSpacing * 0.5;
 
     const shapes = ['circle', 'square', 'triangle'];
     const shuffledShapes = [...shapes].sort(() => Math.random() - 0.5);
@@ -1198,7 +1198,8 @@ export function patternSimon(params = {}) {
         const startX = -shapeSpacing; 
         
         // Positions for the 3 info slots (Fixed Z-order and X-order)
-        const slotZ = [SPAWN_Z, SPAWN_Z - infoZSpacing, SPAWN_Z - infoZSpacing * 2];
+        const startZ = SPAWN_Z - speed * 0.6; // Half second of breathing room
+        const slotZ = [startZ, startZ - infoZSpacing, startZ - infoZSpacing * 2];
 
         for (let i = 0; i < 3; i++) {
             // i is the sequence step (1st, 2nd, 3rd)
@@ -1223,7 +1224,7 @@ export function patternSimon(params = {}) {
         }
 
         // Wall starts closer to the last info shape
-        const wallZStart = SPAWN_Z - infoZSpacing * 2 - zSpacing * 0.8;
+        const wallZStart = startZ - infoZSpacing * 2.5;
 
         for (let i = 0; i < 3; i++) {
             // Wall i corresponds to sequence step i
@@ -1376,7 +1377,7 @@ import { spawnFuelPickup, spawnHighValuePickup, spawnShieldPickup } from './pick
 export function patternTicTacToe(params = {}) {
     const steps = [];
     const speed = params.speed || 50;
-    const zSpacing = speed * 2.4;
+    const zSpacing = speed * 2.64; // Increased by 10% (from 2.4)
     const wallCount = 9;
 
     const barX = BOUNDS_X / 3;
@@ -1529,7 +1530,21 @@ export function patternTicTacToe(params = {}) {
                             const available = [];
                             for (let k = 0; k < 9; k++) if (!filledPositions.has(k)) available.push(k);
                             if (available.length > 0) {
-                                const pick = available[Math.floor(Math.random() * available.length)];
+                                let pick = null;
+                                if (Math.random() < 0.65) { // Increased blocking chance to 65%
+                                    const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+                                    for (const win of wins) {
+                                        const p = win.filter(idx => playerPositions.has(idx));
+                                        const empty = win.filter(idx => !filledPositions.has(idx));
+                                        if (p.length === 2 && empty.length === 1) {
+                                            pick = empty[0];
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (pick === null) {
+                                    pick = available[Math.floor(Math.random() * available.length)];
+                                }
                                 aiPositions.add(pick); filledPositions.add(pick);
                                 obstacles.forEach(o => { if (o.isTicTacToeWall && !o.captured) addMarkerToWall('O', pick, scene, o.parts, o.parts[0].position.z); });
                                 if (checkWin(aiPositions)) {
