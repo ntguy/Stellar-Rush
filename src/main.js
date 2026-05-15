@@ -981,6 +981,66 @@ function checkFirstTimePlayer() {
 }
 checkFirstTimePlayer();
 
+/* ── Leaderboard Menu Logic ──────────────────────────────── */
+function loadLeaderboard() {
+    return JSON.parse(localStorage.getItem('stellarRushLeaderboard') || '[]');
+}
+
+function saveLeaderboardScore(score) {
+    let board = loadLeaderboard();
+    const now = new Date();
+    const dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    board.push({ score: score, date: dateStr });
+    board.sort((a, b) => b.score - a.score);
+    if (board.length > 10) board = board.slice(0, 10);
+    localStorage.setItem('stellarRushLeaderboard', JSON.stringify(board));
+}
+
+function updateLeaderboardUI() {
+    const tbody = document.getElementById('leaderboard-tbody');
+    const board = loadLeaderboard();
+    tbody.innerHTML = '';
+    if (board.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding: 2vh; text-align: center; color: rgba(255,255,255,0.5);">No scores yet.</td></tr>';
+        return;
+    }
+    board.forEach((entry, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+        tr.innerHTML = `
+            <td style="padding: 1vh; color: #fff; font-weight: bold;">#${idx + 1}</td>
+            <td style="padding: 1vh; color: #fff;">${entry.score}</td>
+            <td style="padding: 1vh; color: #fff;">${entry.date}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+document.getElementById('leaderboard-menu-btn').addEventListener('click', () => {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('leaderboard-menu').style.display = 'flex';
+    updateLeaderboardUI();
+    setupMenuNavigation('leaderboard-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+});
+
+document.getElementById('game-over-leaderboard-btn').addEventListener('click', () => {
+    document.getElementById('game-over').classList.remove('show');
+    document.getElementById('leaderboard-menu').style.display = 'flex';
+    updateLeaderboardUI();
+    setupMenuNavigation('leaderboard-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+});
+
+document.getElementById('leaderboard-exit-btn').addEventListener('click', () => {
+    document.getElementById('leaderboard-menu').style.display = 'none';
+    if (gameOver) {
+        document.getElementById('game-over').classList.add('show');
+        setupMenuNavigation('game-over', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+    } else {
+        document.getElementById('main-menu').style.display = 'flex';
+        setupMenuNavigation('main-menu', inputManager.controlMode === 'KEYBOARD' ? 0 : -1);
+    }
+});
+
 /* ═══════════════════════════════════════════════════════════
    CLOCK  /  RAYCASTER
    ═══════════════════════════════════════════════════════════ */
@@ -1221,6 +1281,7 @@ function toggleDevPause() {
 function backToMainMenu() {
     paused = false;
     devPaused = false;
+    gameOver = false;
     elPause.classList.remove('show');
     elOverlay.classList.remove('show');
     const ws = document.getElementById('world-select');
@@ -1430,6 +1491,7 @@ function endGame() {
     let bank = parseInt(localStorage.getItem('bankedCredits') || '0', 10);
     bank += Math.floor(credits);
     localStorage.setItem('bankedCredits', bank.toString());
+    saveLeaderboardScore(Math.floor(credits));
 
     elFinalCredits.textContent = Math.floor(credits);
     elOverlay.classList.add('show');
