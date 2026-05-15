@@ -180,7 +180,7 @@ window.addEventListener('keydown', e => {
 });
 
 const MIN_ASPECT = 1.6; // 16:10
-const MAX_ASPECT = 2.0; // 18:9
+const MAX_ASPECT = 2.33; // 18:9
 let gameRect = { width: window.innerWidth, height: window.innerHeight, left: 0, top: 0 };
 
 const renderer = new THREE.WebGLRenderer({ antialias: !isLow });
@@ -380,7 +380,7 @@ function spawnPlanet() {
         planetMesh.material.dispose();
         planetMesh = null;
     }
-    const r = 30 + Math.random() * 45;
+    const r = (40 + Math.random() * 25);
     
     // Curated planet colors — pick one at random
     const planetColors = [
@@ -403,7 +403,7 @@ function spawnPlanet() {
     // Start at the same depth as obstacles so it's immediately in the visible scene.
     // Far off to the side so it clears the play area completely.
     planetMesh.position.set(
-        side * (BOUNDS_X + 80 + Math.random() * 40),
+        side * (BOUNDS_X + 100 + Math.random() * 30),
         (Math.random() - 0.5) * 35,
         SPAWN_Z
     );
@@ -2328,8 +2328,10 @@ function animate() {
         }
         if (killedByEnemy) { spawnExplosion(aircraft.position.clone()); renderer.render(scene, camera); return; }
     } else {
-        let gotHit = killedByEnemy;
-        if (!gotHit) {
+        let gotHit = false;
+        if (killedByEnemy) {
+            gotHit = true;
+        } else {
             for (const obs of obstacles) {
                 if (obsHitsPlayer(obs)) { gotHit = true; break; }
             }
